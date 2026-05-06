@@ -23,6 +23,7 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Seed data | review | Local workspace, project, API key, agents, webhook, balance seed created. Needs DB push/seed validation. |
 | Shared domain types | done | Zod schemas and provider interfaces created. |
 | API foundation | review | API-key guard, request context, response/error helpers, exception filter, Zod pipe, Prisma module, auth key utilities created. DB-backed integration needs Postgres. |
+| API-key management | review | API keys can be listed, created with one-time raw key return, updated, revoked, and audited. |
 | Agents module | review | CRUD, voices, disable behavior, serializers, and service tests implemented. |
 | Mock provider | review | Mock number search/provision/release and call/SMS provider contract stubs implemented with tests. |
 | Numbers module | review | Provision, attach, detach, release, serializers, and service tests implemented. |
@@ -47,10 +48,11 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 6 implemented webhook endpoints, signed test deliveries, delivery logs, retry simulation, and pending deliveries for matching message/call events.
 - 2026-05-07: Slice 7 implemented usage ledger, billing balance simulation, debits for numbers/SMS/calls, and usage rollups.
 - 2026-05-07: Slice 8 added API examples, local smoke flow, frontend integration notes, Stripe plan reference, and Phase 1 completeness check.
+- 2026-05-07: Slice 9 implemented API-key management CRUD with one-time raw key return, hash-only storage, revocation, and audit events.
 
 ## Next Steps
 
 1. Configure local Postgres and run `npm run db:push && npm run db:seed`.
 2. Add DB-backed API integration tests for auth, agents, and numbers once Postgres is available.
-3. Choose next implementation branch: API-key CRUD, Stripe checkout/portal/webhooks, or DB-backed e2e tests.
+3. Choose next implementation branch: Stripe checkout/portal/webhooks, DB-backed e2e tests, or real provider adapter prep.
 4. Add DB-backed API integration tests once local Postgres is configured.

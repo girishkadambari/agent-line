@@ -557,3 +557,26 @@ Verification:
 - `npm run typecheck` passed.
 - `npm test` passed: 18 suites, 47 tests.
 - `npm run build` passed.
+
+## 2026-05-07: Phase 1 Slice 9 - API-Key Management CRUD
+
+**Status:** review
+
+Implemented:
+
+- `GET /v1/api-keys`
+- `POST /v1/api-keys`
+- `PATCH /v1/api-keys/:id`
+- `DELETE /v1/api-keys/:id`
+- API-key serializer that never exposes `keyHash`.
+- one-time raw key return on create.
+- hash-only key storage.
+- revoke-not-delete behavior.
+- audit events for create, update, and revoke.
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 19 suites, 51 tests.
+- `npm run build` passed.

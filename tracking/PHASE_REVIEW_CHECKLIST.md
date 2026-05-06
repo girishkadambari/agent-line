@@ -593,10 +593,10 @@ Status: review
 
 ### Testing And Verification
 
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run build`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
 
 ### Docs And Tracking
 
@@ -614,3 +614,63 @@ Status: review
 
 - Implement API-key management CRUD.
 - Or implement Stripe endpoints if billing validation becomes the priority.
+
+## 2026-05-07: Phase 1 Slice 9 - API-Key Management CRUD
+
+Status: review
+
+### Scope Completed
+
+- [x] List API keys.
+- [x] Create API key.
+- [x] Update API key.
+- [x] Revoke API key.
+- [x] Raw key returned only once.
+- [x] Key hash never serialized.
+- [x] Audit events recorded.
+- [x] Service tests added.
+
+### Architecture Review
+
+- [x] Auth module owns API-key management.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Public responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Routes match `docs/BACKEND_SPEC.md`.
+- [x] Response shape uses `{ data }`.
+- [x] Auth behavior is correct.
+- [x] Workspace/project scope is respected.
+
+### Testing And Verification
+
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run build`
+
+### Docs And Tracking
+
+- [x] `docs/API_EXAMPLES.md` updated.
+- [x] `docs/BACKEND_SPEC.md` updated.
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+
+### Known Limitations
+
+- Role-based permissions are not enforced yet.
+- DB-backed API e2e tests still need Postgres.
+
+### Next Actions
+
+- Implement Stripe billing endpoints or DB-backed e2e tests.

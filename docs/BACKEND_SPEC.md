@@ -41,6 +41,17 @@ API keys must be:
 - Labelled.
 - Tracked with `lastUsedAt`.
 
+API-key management routes:
+
+```http
+GET    /v1/api-keys
+POST   /v1/api-keys
+PATCH  /v1/api-keys/:id
+DELETE /v1/api-keys/:id
+```
+
+Raw API keys are returned only once on creation. Public API-key responses must never include `keyHash`.
+
 ### Response Format
 
 Successful single-object response:

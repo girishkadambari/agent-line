@@ -59,6 +59,36 @@ curl "$AGENTLINE_API_URL/audit-events?limit=20" \
   -H "Authorization: Bearer $AGENTLINE_API_KEY"
 ```
 
+## API Keys
+
+```bash
+curl "$AGENTLINE_API_URL/api-keys" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/api-keys" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Local frontend key"}'
+```
+
+The raw `key` is returned only once on creation. Store it immediately in the client environment or secrets manager.
+
+```bash
+curl -X PATCH "$AGENTLINE_API_URL/api-keys/key_123" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Renamed key"}'
+```
+
+```bash
+curl -X DELETE "$AGENTLINE_API_URL/api-keys/key_123" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+```
+
+Delete revokes the key; it does not remove historical records.
+
 ## Agents
 
 ```bash
@@ -223,4 +253,3 @@ Validation, not-found, conflict, and billing errors use:
   }
 }
 ```
-

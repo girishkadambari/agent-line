@@ -8,7 +8,7 @@ This document answers: "Are the complete project-related things implemented for 
 |---|---|---|
 | Backend scaffold | complete | NestJS backend-only repo with lint, typecheck, Jest, Prisma, and build scripts. |
 | Open-source readiness | complete | License, contributing guide, code of conduct, README, docs, and tracking are present. |
-| Workspace/project scope | complete | API keys resolve workspace/project context. |
+| Workspace/project scope | complete | API keys resolve workspace/project context and can be listed, created, updated, and revoked. |
 | Team/invites/audit | complete for Phase 1 | Workspace members, invites, audit events, and routes exist. Google SSO/session auth is deferred. |
 | Agents | complete for Phase 1 | CRUD, voices, status handling, prompt fields, and modes exist. |
 | Numbers | complete for Phase 1 | Mock provisioning, attach/detach, release, usage debit. |
@@ -25,6 +25,7 @@ This document answers: "Are the complete project-related things implemented for 
 
 - Health route.
 - API-key authentication.
+- API-key management CRUD.
 - Workspace, team, invites, audit.
 - Agents.
 - Mock numbers.
@@ -51,7 +52,6 @@ These are not missing from Phase 1; they are intentionally later:
 - Real inbound/outbound voice.
 - Real webhook HTTP delivery worker.
 - Stripe Checkout, Customer Portal, and Stripe webhook endpoints.
-- API-key CRUD dashboard routes.
 - Google SSO/session auth.
 - Hosted AI agents.
 - SDKs, CLI, and MCP server.
@@ -71,4 +71,3 @@ These are not missing from Phase 1; they are intentionally later:
 3. Implement Stripe checkout/portal/webhook endpoints.
 4. Add real provider adapter interfaces for Twilio/Telnyx.
 5. Add SDK/client generation after API contracts stabilize.
-
