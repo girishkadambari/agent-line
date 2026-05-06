@@ -1,0 +1,549 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id              String           @id
+  name            String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  projects        Project[]
+  memberships     WorkspaceMember[]
+  invites         WorkspaceInvite[]
+  apiKeys         APIKey[]
+  agents          Agent[]
+  phoneNumbers    PhoneNumber[]
+  contacts        Contact[]
+  conversations   Conversation[]
+  messages        Message[]
+  calls           Call[]
+  transcriptTurns TranscriptTurn[]
+  webhooks        WebhookEndpoint[]
+  deliveries      WebhookDelivery[]
+  usageEvents     UsageEvent[]
+  billingBalance  BillingBalance?
+  recordings      Recording[]
+  providerEvents  ProviderRawEvent[]
+  auditEvents     AuditEvent[]
+}
+
+model Project {
+  id              String           @id
+  workspaceId     String
+  name            String
+  environment     ProjectEnvironment @default(test)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id])
+  apiKeys         APIKey[]
+  agents          Agent[]
+  phoneNumbers    PhoneNumber[]
+  contacts        Contact[]
+  conversations   Conversation[]
+  messages        Message[]
+  calls           Call[]
+  transcriptTurns TranscriptTurn[]
+  webhooks        WebhookEndpoint[]
+  deliveries      WebhookDelivery[]
+  usageEvents     UsageEvent[]
+  recordings      Recording[]
+  providerEvents  ProviderRawEvent[]
+
+  @@index([workspaceId])
+}
+
+model User {
+  id          String            @id
+  email       String
+  name        String?
+  avatarUrl   String?
+  googleId    String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  memberships WorkspaceMember[]
+  sentInvites WorkspaceInvite[] @relation("InvitedByUser")
+  auditEvents AuditEvent[]
+
+  @@unique([email])
+  @@unique([googleId])
+}
+
+model WorkspaceMember {
+  id          String           @id
+  workspaceId String
+  userId      String
+  role        WorkspaceRole    @default(member)
+  status      MembershipStatus @default(active)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model WorkspaceInvite {
+  id           String        @id
+  workspaceId  String
+  email        String
+  role         WorkspaceRole @default(member)
+  status       InviteStatus  @default(pending)
+  tokenHash    String
+  invitedById  String?
+  acceptedById String?
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id])
+  invitedBy    User?         @relation("InvitedByUser", fields: [invitedById], references: [id])
+
+  @@index([workspaceId])
+  @@index([tokenHash])
+  @@index([email])
+}
+
+model APIKey {
+  id          String    @id
+  workspaceId String
+  projectId   String
+  label       String
+  prefix      String
+  keyHash     String
+  status      APIKeyStatus @default(active)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([prefix])
+}
+
+model Agent {
+  id               String          @id
+  workspaceId      String
+  projectId        String
+  name             String
+  description      String?
+  mode             AgentMode       @default(webhook)
+  status           AgentStatus     @default(active)
+  systemPrompt     String?
+  voice            String?
+  beginMessage     String?
+  transferNumber   String?
+  voicemailMessage String?
+  webhookUrl       String?
+  metadata         Json            @default("{}")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  workspace        Workspace       @relation(fields: [workspaceId], references: [id])
+  project          Project         @relation(fields: [projectId], references: [id])
+  phoneNumbers     PhoneNumber[]
+  conversations    Conversation[]
+  messages         Message[]
+  calls            Call[]
+  usageEvents      UsageEvent[]
+
+  @@index([workspaceId, projectId])
+}
+
+model PhoneNumber {
+  id               String            @id
+  workspaceId      String
+  projectId        String
+  agentId          String?
+  phoneNumber      String
+  country          String
+  areaCode         String?
+  capabilities     String[]
+  status           PhoneNumberStatus @default(provisioning)
+  provider         ProviderName      @default(mock)
+  providerNumberId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id])
+  project          Project           @relation(fields: [projectId], references: [id])
+  agent            Agent?            @relation(fields: [agentId], references: [id])
+  messages         Message[]
+  calls            Call[]
+
+  @@unique([workspaceId, phoneNumber])
+  @@index([workspaceId, projectId])
+  @@index([agentId])
+}
+
+model Contact {
+  id            String         @id
+  workspaceId   String
+  projectId     String
+  phoneNumber   String
+  displayName   String?
+  metadata      Json           @default("{}")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id])
+  project       Project        @relation(fields: [projectId], references: [id])
+  conversations Conversation[]
+  messages      Message[]
+  calls         Call[]
+
+  @@unique([projectId, phoneNumber])
+  @@index([workspaceId, projectId])
+}
+
+model Conversation {
+  id             String             @id
+  workspaceId    String
+  projectId      String
+  agentId        String
+  contactId      String
+  channel        ConversationChannel @default(sms)
+  status         ConversationStatus  @default(active)
+  lastActivityAt DateTime            @default(now())
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id])
+  project        Project             @relation(fields: [projectId], references: [id])
+  agent          Agent               @relation(fields: [agentId], references: [id])
+  contact        Contact             @relation(fields: [contactId], references: [id])
+  messages       Message[]
+  calls          Call[]
+
+  @@index([workspaceId, projectId])
+  @@index([agentId, contactId])
+}
+
+model Message {
+  id                String          @id
+  workspaceId       String
+  projectId         String
+  agentId           String
+  conversationId    String
+  phoneNumberId     String
+  contactId         String
+  direction         Direction
+  body              String
+  status            MessageStatus
+  provider          ProviderName    @default(mock)
+  providerMessageId String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id])
+  project           Project         @relation(fields: [projectId], references: [id])
+  agent             Agent           @relation(fields: [agentId], references: [id])
+  conversation      Conversation    @relation(fields: [conversationId], references: [id])
+  phoneNumber       PhoneNumber     @relation(fields: [phoneNumberId], references: [id])
+  contact           Contact         @relation(fields: [contactId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([conversationId])
+}
+
+model Call {
+  id             String          @id
+  workspaceId    String
+  projectId      String
+  agentId        String
+  conversationId String
+  phoneNumberId  String
+  contactId      String
+  direction      Direction
+  fromNumber     String
+  toNumber       String
+  status         CallStatus
+  durationSeconds Int            @default(0)
+  summary        String?
+  outcome        String?
+  recordingId    String?
+  provider       ProviderName    @default(mock)
+  providerCallId String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id])
+  project        Project         @relation(fields: [projectId], references: [id])
+  agent          Agent           @relation(fields: [agentId], references: [id])
+  conversation   Conversation    @relation(fields: [conversationId], references: [id])
+  phoneNumber    PhoneNumber     @relation(fields: [phoneNumberId], references: [id])
+  contact        Contact         @relation(fields: [contactId], references: [id])
+  transcriptTurns TranscriptTurn[]
+  recording      Recording?      @relation(fields: [recordingId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([agentId])
+}
+
+model TranscriptTurn {
+  id          String    @id
+  workspaceId String
+  projectId   String
+  callId      String
+  speaker     Speaker
+  text        String
+  startedAtMs Int
+  endedAtMs   Int
+  confidence  Float?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id])
+  call        Call      @relation(fields: [callId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([callId])
+}
+
+model WebhookEndpoint {
+  id          String            @id
+  workspaceId String
+  projectId   String
+  url         String
+  secret      String
+  events      String[]
+  status      WebhookStatus     @default(active)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id])
+  project     Project           @relation(fields: [projectId], references: [id])
+  deliveries  WebhookDelivery[]
+
+  @@index([workspaceId, projectId])
+}
+
+model WebhookDelivery {
+  id             String                @id
+  workspaceId    String
+  projectId      String
+  endpointId     String
+  eventId        String
+  eventType      String
+  payload        Json
+  status         WebhookDeliveryStatus @default(pending)
+  attemptCount   Int                   @default(0)
+  lastStatusCode Int?
+  lastError      String?
+  nextAttemptAt  DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  workspace      Workspace             @relation(fields: [workspaceId], references: [id])
+  project        Project               @relation(fields: [projectId], references: [id])
+  endpoint       WebhookEndpoint       @relation(fields: [endpointId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([eventId])
+}
+
+model UsageEvent {
+  id           String    @id
+  workspaceId  String
+  projectId    String
+  agentId      String?
+  resourceType String
+  resourceId   String
+  channel      String
+  quantity     Decimal   @db.Decimal(12, 4)
+  unit         String
+  unitCost     Decimal   @db.Decimal(12, 4)
+  totalCost    Decimal   @db.Decimal(12, 4)
+  occurredAt   DateTime
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  project      Project   @relation(fields: [projectId], references: [id])
+  agent        Agent?    @relation(fields: [agentId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([agentId])
+  @@index([occurredAt])
+}
+
+model BillingBalance {
+  id           String    @id
+  workspaceId  String    @unique
+  currency     String    @default("USD")
+  balanceCents Int       @default(500)
+  spendLimitCents Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model Recording {
+  id          String    @id
+  workspaceId String
+  projectId   String
+  url         String?
+  consentMode String?
+  durationSeconds Int   @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id])
+  calls       Call[]
+
+  @@index([workspaceId, projectId])
+}
+
+model ProviderRawEvent {
+  id          String       @id
+  workspaceId String
+  projectId   String
+  provider    ProviderName
+  eventType   String
+  providerEventId String?
+  payload     Json
+  createdAt   DateTime     @default(now())
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([providerEventId])
+}
+
+model AuditEvent {
+  id            String    @id
+  workspaceId   String
+  actorUserId   String?
+  actorApiKeyId String?
+  action        String
+  resourceType  String
+  resourceId    String?
+  metadata      Json      @default("{}")
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  actorUser     User?     @relation(fields: [actorUserId], references: [id])
+
+  @@index([workspaceId])
+  @@index([actorUserId])
+  @@index([actorApiKeyId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum WorkspaceRole {
+  owner
+  admin
+  developer
+  billing
+  viewer
+  member
+}
+
+enum MembershipStatus {
+  active
+  suspended
+  removed
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+enum ProjectEnvironment {
+  test
+  live
+}
+
+enum APIKeyStatus {
+  active
+  revoked
+}
+
+enum AgentMode {
+  hosted
+  webhook
+  web
+}
+
+enum AgentStatus {
+  active
+  disabled
+}
+
+enum PhoneNumberStatus {
+  available
+  provisioning
+  active
+  releasing
+  released
+  failed
+}
+
+enum ProviderName {
+  mock
+  twilio
+  telnyx
+}
+
+enum Direction {
+  inbound
+  outbound
+}
+
+enum MessageStatus {
+  queued
+  sending
+  sent
+  delivered
+  failed
+  received
+}
+
+enum ConversationChannel {
+  sms
+  voice
+  web
+  mixed
+}
+
+enum ConversationStatus {
+  active
+  archived
+}
+
+enum CallStatus {
+  queued
+  ringing
+  in_progress
+  completed
+  failed
+  busy
+  no_answer
+  canceled
+  transferred
+}
+
+enum Speaker {
+  agent
+  user
+  system
+}
+
+enum WebhookStatus {
+  active
+  paused
+  disabled
+}
+
+enum WebhookDeliveryStatus {
+  pending
+  succeeded
+  failed
+  retrying
+  exhausted
+}

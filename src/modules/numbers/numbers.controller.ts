@@ -1,0 +1,67 @@
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+
+import { parseLimit, success } from '../../common/api/api-response';
+import { CurrentContext } from '../../common/context/current-context.decorator';
+import type { RequestContext } from '../../common/context/request-context';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { createNumberSchema, updateNumberSchema } from '../../domain/schemas';
+import { ApiKeyGuard } from '../auth/api-key.guard';
+import { NumbersService } from './numbers.service';
+
+@UseGuards(ApiKeyGuard)
+@Controller()
+export class NumbersController {
+  constructor(private readonly numbers: NumbersService) {}
+
+  @Get('numbers')
+  listNumbers(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
+    return this.numbers.listNumbers(context, parseLimit(limit));
+  }
+
+  @Post('numbers')
+  async provisionNumber(
+    @CurrentContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createNumberSchema)) body: unknown,
+  ) {
+    return success(await this.numbers.provisionNumber(context, createNumberSchema.parse(body)));
+  }
+
+  @Get('numbers/:id')
+  async getNumber(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.numbers.getNumber(context, id));
+  }
+
+  @Patch('numbers/:id')
+  async updateNumber(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateNumberSchema)) body: unknown,
+  ) {
+    return success(await this.numbers.updateNumber(context, id, updateNumberSchema.parse(body)));
+  }
+
+  @Delete('numbers/:id')
+  async releaseNumber(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.numbers.releaseNumber(context, id));
+  }
+
+  @Post('agents/:id/numbers')
+  async attachNewNumberToAgent(
+    @CurrentContext() context: RequestContext,
+    @Param('id') agentId: string,
+    @Body(new ZodValidationPipe(createNumberSchema)) body: unknown,
+  ) {
+    return success(
+      await this.numbers.attachNewNumberToAgent(context, agentId, createNumberSchema.parse(body)),
+    );
+  }
+
+  @Delete('agents/:id/numbers/:numberId')
+  async detachNumberFromAgent(
+    @CurrentContext() context: RequestContext,
+    @Param('id') agentId: string,
+    @Param('numberId') numberId: string,
+  ) {
+    return success(await this.numbers.detachNumberFromAgent(context, agentId, numberId));
+  }
+}
