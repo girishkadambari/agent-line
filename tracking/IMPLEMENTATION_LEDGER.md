@@ -525,4 +525,35 @@ Implemented:
 
 Verification:
 
-- pending after final check.
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 18 suites, 47 tests.
+- `npm run build` passed.
+
+## 2026-05-07: Phase 1 Slice 8 - API Contract Examples And Smoke Flow
+
+**Status:** review
+
+Implemented:
+
+- `docs/API_EXAMPLES.md`
+- `docs/SMOKE_FLOW.md`
+- `docs/PROJECT_COMPLETENESS_CHECK.md`
+- documentation index updates.
+- README links for Phase 1 integration docs.
+
+Coverage added:
+
+- curl examples for every Phase 1 route group.
+- end-to-end smoke flow from health check to billing balance.
+- frontend integration order and UI state expectations.
+- seeded local API key and ids.
+- explicit Phase 1 completeness check.
+- intentional deferrals for real telecom, Stripe endpoints, hosted AI, SDKs, and production safety.
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 18 suites, 47 tests.
+- `npm run build` passed.

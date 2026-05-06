@@ -16,10 +16,14 @@ Implementation progress is tracked separately in `tracking/`.
 | `PHASE_1_STATUS.md` | Live Phase 1 implementation tracker, review notes, and next steps. |
 | `PROJECT_DOCS.md` | Engineering conventions, architecture, modules, provider strategy, testing, and documentation rules. |
 | `BACKEND_SPEC.md` | Backend routes, data model, states, provider adapter contract, webhooks, usage, and acceptance criteria. |
+| `API_EXAMPLES.md` | Concrete curl examples for every Phase 1 API route group. |
+| `SMOKE_FLOW.md` | End-to-end local mock flow from API key to usage and billing. |
+| `PROJECT_COMPLETENESS_CHECK.md` | Phase 1 completeness audit and intentional deferrals. |
 | `FRONTEND_SPEC.md` | Dashboard information architecture, workflows, screens, states, and UX requirements. |
 | `TECH_STACK.md` | Recommended stack, architecture shape, deployment path, scaling path, and what to avoid early. |
 | `LOVABLE_FRONTEND_PROMPT.md` | Detailed prompt for generating the AgentLine frontend shell in Lovable. |
 | `AI_DEVELOPMENT_GUIDE.md` | Rules for human engineers and AI agents implementing AgentLine from these docs. |
+| `STRIPE_BILLING_PLAN.md` | Stripe checkout, portal, webhook, and prepaid-credit billing plan. |
 
 ## Reading Order
 
@@ -29,10 +33,12 @@ Implementation progress is tracked separately in `tracking/`.
 4. Check `PHASE_1_STATUS.md` before making Phase 1 changes.
 5. Read `PROJECT_DOCS.md` to understand architecture and engineering boundaries.
 6. Read `BACKEND_SPEC.md` before implementing API or services.
-7. Read `FRONTEND_SPEC.md` before implementing dashboard UI.
-8. Read `TECH_STACK.md` before scaffolding the application or choosing libraries.
-9. Use `LOVABLE_FRONTEND_PROMPT.md` when generating the frontend shell in Lovable.
-10. Read `AI_DEVELOPMENT_GUIDE.md` before assigning work to AI coding agents.
+7. Use `API_EXAMPLES.md` and `SMOKE_FLOW.md` to integrate or test the backend.
+8. Read `PROJECT_COMPLETENESS_CHECK.md` before deciding what Phase 1 still needs.
+9. Read `FRONTEND_SPEC.md` before implementing dashboard UI.
+10. Read `TECH_STACK.md` before scaffolding the application or choosing libraries.
+11. Use `LOVABLE_FRONTEND_PROMPT.md` when generating the frontend shell in Lovable.
+12. Read `AI_DEVELOPMENT_GUIDE.md` before assigning work to AI coding agents.
 
 ## Source-Of-Truth Rule
 

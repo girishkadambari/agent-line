@@ -10,6 +10,13 @@ Start with [docs/README.md](docs/README.md).
 
 Implementation tracking lives in [tracking/README.md](tracking/README.md).
 
+Useful Phase 1 integration docs:
+
+- [API examples](docs/API_EXAMPLES.md)
+- [Smoke flow](docs/SMOKE_FLOW.md)
+- [Project completeness check](docs/PROJECT_COMPLETENESS_CHECK.md)
+- [Stripe billing plan](docs/STRIPE_BILLING_PLAN.md)
+
 ## Phase
 
 Current work is **Phase 1: Mock Core Product**.

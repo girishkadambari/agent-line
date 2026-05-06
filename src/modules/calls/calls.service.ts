@@ -33,7 +33,7 @@ export class CallsService {
     private readonly mockProvider: MockProviderService,
     private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
-  ) {}
+  ) { }
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
     const agent = await this.findAgentOrThrow(context, input.agentId);

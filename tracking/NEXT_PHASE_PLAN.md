@@ -2,82 +2,84 @@
 
 ## Current Focus
 
-**Phase 1 Backend Slice 8: API Contract Examples And Smoke Flow**
+**Phase 1 Decision Point: Choose The Next Build Track**
 
-The backend now has the core mock product loop: workspace auth, agents, numbers, messages, calls, transcripts, webhooks, usage, and billing balance simulation. The next slice should make this easy for frontend builders, AI agents, and contributors to exercise end to end.
+The Phase 1 mock core product is now implemented and documented enough for backend integration. The next work should be chosen based on what blocks the frontend and business validation most.
 
-## Goals
+## Recommended Next Track
 
-This slice must deliver:
+**API-Key Management CRUD** is the best next backend slice before Stripe or real telecom.
 
-- API contract examples for every Phase 1 route group.
-- Manual smoke-flow guide from API key to usage/billing.
-- Frontend integration notes for the future React/Lovable dashboard.
-- Seed data verification notes.
-- Clear known limitations before real provider integrations.
-- Stripe billing integration plan reference.
+Reason:
 
-## Execution Order
+- The frontend settings area needs API-key list/create/revoke.
+- Current auth works but API keys are seed-only.
+- Developers need a way to rotate keys before real users test the product.
 
-### Step 1: API Examples Document
+## Track A: API-Key Management CRUD
 
-Create or update docs with examples for:
+Build:
 
-- health.
-- workspace/team/invites/audit.
-- agents.
-- numbers.
-- messages/conversations.
-- calls/transcripts.
-- webhooks/deliveries.
-- usage/billing.
+- `GET /v1/api-keys`
+- `POST /v1/api-keys`
+- `DELETE /v1/api-keys/:id`
+- optional `PATCH /v1/api-keys/:id` for label/status.
 
-### Step 2: Smoke Flow
+Rules:
 
-Document the golden Phase 1 flow:
+- Return raw API key only once on creation.
+- Store only hash and prefix.
+- Revoke instead of deleting.
+- Audit key creation/revocation.
+- Never expose `keyHash`.
 
-- create agent.
-- provision number.
-- send SMS.
-- simulate inbound SMS.
-- create mock call.
-- inspect transcript.
-- create webhook endpoint.
-- test delivery.
-- inspect usage.
-- inspect billing balance.
+Definition of done:
 
-### Step 3: Integration Readiness
+- service tests.
+- auth compatibility verified.
+- docs/API examples updated.
+- tracking updated.
 
-- Add frontend integration contract notes.
-- Add expected empty/loading/error states for dashboard integration.
-- Clarify no frontend code belongs in this backend repo yet.
+## Track B: Stripe Billing Endpoints
 
-### Step 4: Verification
+Build after API-key CRUD or when payment validation becomes urgent:
 
-- Run standard checks.
-- If Postgres is configured, run `db:push` and `db:seed`.
-- If Postgres is not configured, keep limitation documented.
+- `POST /v1/billing/checkout-sessions`
+- `POST /v1/billing/portal-sessions`
+- `POST /v1/billing/stripe/webhook`
+- `GET /v1/billing/transactions`
 
-### Step 5: Stripe Follow-Up
+Rules:
 
-- Keep `docs/STRIPE_BILLING_PLAN.md` current.
-- Do not add Stripe SDK until checkout/portal/webhook endpoints are implemented.
-- Keep prepaid AgentLine balance as the early billing source of truth.
+- Use Stripe Checkout for prepaid credits.
+- Use Stripe Customer Portal for payment methods/invoices.
+- Credit AgentLine balance only from verified Stripe webhook events.
+- Store Stripe event ids for idempotency.
 
-## Definition Of Done
+## Track C: DB-Backed E2E Tests
 
-- Docs are clear enough for another engineer or AI coding agent to integrate against Phase 1.
-- `npm run lint` passes.
-- `npm run typecheck` passes.
-- `npm test` passes.
-- `npm run build` passes.
-- Tracking ledger and review checklist are updated.
+Build when local Postgres is available:
 
-## Not In This Slice
+- seed database.
+- run golden smoke flow with Supertest.
+- verify auth, agents, numbers, messages, calls, webhooks, usage, and billing.
 
-- New product features.
-- React frontend.
-- Stripe.
+## Track D: Real Provider Preparation
+
+Start after mock API is stable:
+
+- provider adapter contract tests.
+- Twilio/Telnyx normalized error mapping.
+- provider raw event ingestion skeleton.
+
+## Current Recommendation
+
+Implement **Track A: API-Key Management CRUD** next.
+
+## Not In The Immediate Next Slice
+
+- React frontend code.
 - Real Twilio/Telnyx.
 - Hosted AI.
+- Real outbound webhook worker.
+- Full Stripe implementation unless explicitly prioritized.

@@ -71,11 +71,12 @@ describe('NumbersService', () => {
       }),
     });
     expect(result.id).toBe('num_123');
+    const createdNumberId = (prisma.phoneNumber.create as jest.Mock).mock.calls[0][0].data.id;
     expect(usage.recordNumberProvisioned).toHaveBeenCalledWith({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       agentId: 'agt_123',
-      numberId: 'num_123',
+      numberId: createdNumberId,
     });
   });
 

@@ -31,8 +31,8 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Calls/transcripts module | review | Mock outbound calls, web-call token, list/get/end/transfer routes, transcript retrieval, summaries, outcomes, and internal call events implemented. |
 | Webhooks module | review | Endpoint CRUD, HMAC signatures, test delivery, delivery logs, retry simulation, and internal event delivery bridge implemented. |
 | Usage/billing module | review | Usage events, pricing constants, billing balance lookup/debit, SMS/call/number hooks, and daily/monthly rollups implemented. |
-| Frontend integration contract | todo | API examples and contract notes for later React/Lovable frontend integration. |
-| Tests/verification | todo | Unit/API tests and manual smoke flow. |
+| Frontend integration contract | review | API examples, smoke flow, frontend integration notes, and completeness check added. |
+| Tests/verification | review | Unit tests and build checks pass; DB-backed manual smoke requires local Postgres. |
 
 ## Review Notes
 
@@ -46,10 +46,11 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 5 implemented mock calls, transcript turns, web-call token route, call end/transfer actions, and durable internal call events.
 - 2026-05-07: Slice 6 implemented webhook endpoints, signed test deliveries, delivery logs, retry simulation, and pending deliveries for matching message/call events.
 - 2026-05-07: Slice 7 implemented usage ledger, billing balance simulation, debits for numbers/SMS/calls, and usage rollups.
+- 2026-05-07: Slice 8 added API examples, local smoke flow, frontend integration notes, Stripe plan reference, and Phase 1 completeness check.
 
 ## Next Steps
 
 1. Configure local Postgres and run `npm run db:push && npm run db:seed`.
 2. Add DB-backed API integration tests for auth, agents, and numbers once Postgres is available.
-3. Add API contract examples and a Phase 1 smoke-flow guide for frontend/agent integration.
+3. Choose next implementation branch: API-key CRUD, Stripe checkout/portal/webhooks, or DB-backed e2e tests.
 4. Add DB-backed API integration tests once local Postgres is configured.

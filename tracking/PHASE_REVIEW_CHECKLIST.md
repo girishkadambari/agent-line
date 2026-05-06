@@ -43,10 +43,10 @@ Status: review | done | blocked
 
 ### Testing And Verification
 
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run build`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
 
 ### Docs And Tracking
 
@@ -538,10 +538,10 @@ Status: review
 
 ### Testing And Verification
 
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run build`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
 
 ### Docs And Tracking
 
@@ -558,3 +558,59 @@ Status: review
 
 - Run final verification.
 - Continue to API contract examples and smoke-flow docs.
+
+## 2026-05-07: Phase 1 Slice 8 - API Contract Examples And Smoke Flow
+
+Status: review
+
+### Scope Completed
+
+- [x] API examples document.
+- [x] Smoke-flow document.
+- [x] Project completeness check.
+- [x] README/docs index updates.
+- [x] Frontend integration notes.
+- [x] Stripe plan linked.
+
+### Architecture Review
+
+- [x] No backend behavior changed.
+- [x] Documentation matches current API route groups.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Markdown files are scoped by purpose.
+- [x] No secrets beyond local seed development key are introduced.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Examples use `/v1`.
+- [x] Examples use `{ data }` response assumptions.
+- [x] Auth header is documented.
+- [x] Known missing API-key CRUD is documented.
+
+### Testing And Verification
+
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+- [x] `docs/` updated.
+
+### Known Limitations
+
+- Manual smoke flow still needs a local Postgres database.
+- API-key CRUD is not implemented yet.
+- Stripe endpoints are planned, not implemented.
+
+### Next Actions
+
+- Implement API-key management CRUD.
+- Or implement Stripe endpoints if billing validation becomes the priority.
