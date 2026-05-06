@@ -30,6 +30,7 @@ model Workspace {
   recordings      Recording[]
   providerEvents  ProviderRawEvent[]
   auditEvents     AuditEvent[]
+  internalEvents  InternalEvent[]
 }
 
 model Project {
@@ -53,6 +54,7 @@ model Project {
   usageEvents     UsageEvent[]
   recordings      Recording[]
   providerEvents  ProviderRawEvent[]
+  internalEvents  InternalEvent[]
 
   @@index([workspaceId])
 }
@@ -408,6 +410,23 @@ model ProviderRawEvent {
 
   @@index([workspaceId, projectId])
   @@index([providerEventId])
+}
+
+model InternalEvent {
+  id          String    @id
+  workspaceId String
+  projectId   String
+  type        String
+  resourceType String
+  resourceId String?
+  payload     Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  project     Project   @relation(fields: [projectId], references: [id])
+
+  @@index([workspaceId, projectId])
+  @@index([type])
+  @@index([resourceId])
 }
 
 model AuditEvent {

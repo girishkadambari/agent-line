@@ -9,6 +9,7 @@ import type {
   ReleaseNumberResult,
   SearchNumbersInput,
   SearchNumbersResult,
+  SendSmsInput,
   SendSmsResult,
   TelecomProvider,
   TransferCallResult,
@@ -43,7 +44,8 @@ export class MockProviderService implements TelecomProvider {
     return { released: true };
   }
 
-  async sendSms(): Promise<SendSmsResult> {
+  async sendSms(input: SendSmsInput): Promise<SendSmsResult> {
+    void input;
     return {
       provider: 'mock',
       providerMessageId: `mock_msg_${Date.now()}`,

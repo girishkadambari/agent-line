@@ -1,0 +1,36 @@
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+
+import { parseLimit, success } from '../../common/api/api-response';
+import { CurrentContext } from '../../common/context/current-context.decorator';
+import type { RequestContext } from '../../common/context/request-context';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { updateConversationSchema } from '../../domain/schemas';
+import { ApiKeyGuard } from '../auth/api-key.guard';
+import { ConversationsService } from './conversations.service';
+
+@UseGuards(ApiKeyGuard)
+@Controller('conversations')
+export class ConversationsController {
+  constructor(private readonly conversations: ConversationsService) { }
+
+  @Get()
+  listConversations(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
+    return this.conversations.listConversations(context, parseLimit(limit));
+  }
+
+  @Get(':id')
+  async getConversation(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.conversations.getConversation(context, id));
+  }
+
+  @Patch(':id')
+  async updateConversation(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateConversationSchema)) body: unknown,
+  ) {
+    return success(
+      await this.conversations.updateConversation(context, id, updateConversationSchema.parse(body)),
+    );
+  }
+}

@@ -70,6 +70,17 @@ export const sendMessageSchema = z.object({
   body: z.string().min(1),
 });
 
+export const simulateInboundSmsSchema = z.object({
+  agentId: z.string().min(1),
+  from: z.string().min(7),
+  body: z.string().min(1),
+});
+
+export const updateConversationSchema = z.object({
+  status: z.enum(['active', 'archived']).optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 export const createCallSchema = z.object({
   agentId: z.string().min(1),
   to: z.string().min(7),
@@ -101,6 +112,8 @@ export type UpdateAgentInput = z.infer<typeof updateAgentSchema>;
 export type CreateNumberInput = z.infer<typeof createNumberSchema>;
 export type UpdateNumberInput = z.infer<typeof updateNumberSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+export type SimulateInboundSmsInput = z.infer<typeof simulateInboundSmsSchema>;
+export type UpdateConversationInput = z.infer<typeof updateConversationSchema>;
 export type CreateCallInput = z.infer<typeof createCallSchema>;
 export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
