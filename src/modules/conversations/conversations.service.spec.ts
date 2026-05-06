@@ -65,4 +65,22 @@ describe('ConversationsService', () => {
       }),
     });
   });
+
+  it('creates voice conversation when missing', async () => {
+    const prisma = {
+      conversation: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(conversationFixture({ channel: 'voice' })),
+      },
+    } as unknown as PrismaService;
+    const service = new ConversationsService(prisma);
+
+    await service.findOrCreateVoiceConversation(context, 'agt_123', 'ctc_123');
+
+    expect(prisma.conversation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        channel: 'voice',
+      }),
+    });
+  });
 });

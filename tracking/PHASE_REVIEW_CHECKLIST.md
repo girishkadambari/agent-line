@@ -247,3 +247,128 @@ Status: review
 
 - Implement contacts, conversations, and messages.
 - Add early webhook message event hooks.
+
+## 2026-05-07: Phase 1 Slice 4 - Messages, Conversations, And Internal Events
+
+Status: review
+
+### Scope Completed
+
+- [x] Contacts helper.
+- [x] Conversation helper.
+- [x] Outbound mock SMS.
+- [x] Inbound SMS simulation.
+- [x] Internal message events.
+- [x] Service tests.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code or dead folders remain.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Routes match `docs/BACKEND_SPEC.md`.
+- [x] Response shape uses `{ data }`.
+- [x] Error shape uses `{ error: { code, message, details } }`.
+- [x] Auth behavior is correct.
+- [x] Workspace/project scope is respected.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+- [x] `docs/` updated.
+
+### Known Limitations
+
+- Full webhook delivery worker is deferred.
+- Usage/billing events are deferred.
+
+### Next Actions
+
+- Implement mock calls and transcripts.
+
+## 2026-05-07: Phase 1 Slice 5 - Mock Calls And Transcripts
+
+Status: review
+
+### Scope Completed
+
+- [x] Calls module.
+- [x] Mock outbound call route.
+- [x] Mock web-call token route.
+- [x] Call list/get/end/transfer routes.
+- [x] Transcript retrieval routes.
+- [x] Summary and outcome fields.
+- [x] Internal call events.
+- [x] Service tests.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code or dead folders remain.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Routes match `docs/BACKEND_SPEC.md`.
+- [x] Response shape uses `{ data }`.
+- [x] Error shape uses `{ error: { code, message, details } }`.
+- [x] Auth behavior is correct.
+- [x] Workspace/project scope is respected.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run db:generate`
+- [x] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+- [x] `docs/` updated.
+
+### Known Limitations
+
+- Transcript stream route returns the transcript list shape; true SSE is deferred.
+- Real inbound voice routing is deferred.
+- Usage/billing events are deferred.
+
+### Next Actions
+
+- Implement webhook endpoint CRUD.
+- Implement signed delivery logs and retry simulation.

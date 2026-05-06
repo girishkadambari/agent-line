@@ -561,7 +561,7 @@ Backend must:
 - Create or update conversation.
 - Create message record.
 - Send through provider adapter.
-- Create usage event.
+- Create usage event once usage ledger is implemented.
 - Emit `agent.message.sent`.
 
 ```http
@@ -573,6 +573,14 @@ POST /v1/messages/:id/reactions
 ```
 
 Inbound SMS provider callbacks must create `agent.message.received` webhook events.
+
+Phase 1 mock implementation also exposes:
+
+```http
+POST /v1/simulations/inbound-sms
+```
+
+This creates a received SMS message without requiring a real provider callback.
 
 ### Calls
 
@@ -588,8 +596,8 @@ Backend must:
 - Create contact and conversation if needed.
 - Create call record.
 - Start provider call.
-- Emit `agent.call.started`.
-- Create usage event when call duration is known.
+- Emit call lifecycle events.
+- Create usage event when usage ledger is implemented and call duration is known.
 
 ```http
 POST /v1/calls/web
@@ -607,6 +615,8 @@ GET /v1/calls/:id/transcript/stream
 ```
 
 Transcript stream uses Server-Sent Events in early implementation.
+
+Phase 1 currently returns the same transcript list shape for `/stream`; true SSE remains part of the real-time voice/webhook hardening work.
 
 ### Webhooks
 

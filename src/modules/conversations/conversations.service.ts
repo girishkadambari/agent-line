@@ -14,13 +14,26 @@ export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findOrCreateSmsConversation(context: RequestContext, agentId: string, contactId: string) {
+    return this.findOrCreateConversation(context, agentId, contactId, 'sms');
+  }
+
+  async findOrCreateVoiceConversation(context: RequestContext, agentId: string, contactId: string) {
+    return this.findOrCreateConversation(context, agentId, contactId, 'voice');
+  }
+
+  private async findOrCreateConversation(
+    context: RequestContext,
+    agentId: string,
+    contactId: string,
+    channel: 'sms' | 'voice',
+  ) {
     const existing = await this.prisma.conversation.findFirst({
       where: {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId,
         contactId,
-        channel: 'sms',
+        channel,
       },
     });
 
@@ -38,7 +51,7 @@ export class ConversationsService {
         projectId: context.projectId,
         agentId,
         contactId,
-        channel: 'sms',
+        channel,
       },
     });
   }

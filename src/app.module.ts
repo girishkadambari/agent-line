@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AgentsModule } from './modules/agents/agents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CallsModule } from './modules/calls/calls.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { HealthModule } from './modules/health/health.module';
 import { MessagesModule } from './modules/messages/messages.module';
@@ -25,6 +26,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     NumbersModule,
     ConversationsModule,
     MessagesModule,
+    CallsModule,
   ],
 })
 export class AppModule {}

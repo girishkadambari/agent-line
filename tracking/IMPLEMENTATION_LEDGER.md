@@ -160,6 +160,11 @@ Done:
 - Mock provider module.
 - Numbers module.
 - Workspace/team/invites/audit foundation.
+- Contacts module.
+- Conversations module.
+- Messages module.
+- Internal event module.
+- Calls module.
 
 In progress:
 
@@ -168,8 +173,7 @@ In progress:
 Next:
 
 - Configure Postgres and verify DB push/seed.
-- Messages and conversations module.
-- Webhook event creation.
+- Webhook endpoint and delivery module.
 - Usage ledger hooks.
 
 ## 2026-05-06: Tracking System And Engineering Rules
@@ -322,3 +326,84 @@ Known limitations:
 - Google SSO/session auth is not implemented yet.
 - Invite email sending is not implemented; local/mock returns raw invite token.
 - DB-backed integration tests still need configured Postgres.
+
+## 2026-05-07: Phase 1 Slice 4 - Messages, Conversations, And Internal Events
+
+**Status:** review
+
+Implemented:
+
+- `ContactsModule`
+- `ConversationsModule`
+- `MessagesModule`
+- `EventsModule`
+- Contact find-or-create by project phone number.
+- SMS conversation find-or-create by agent/contact.
+- Outbound mock SMS.
+- Inbound SMS simulation.
+- Message records.
+- Internal events for `agent.message.sent` and `agent.message.received`.
+
+Routes added:
+
+- `POST /v1/messages`
+- `GET /v1/conversations`
+- `GET /v1/conversations/:id`
+- `PATCH /v1/conversations/:id`
+- `GET /v1/conversations/:id/messages`
+- `POST /v1/messages/:id/reactions`
+- `POST /v1/simulations/inbound-sms`
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed.
+- `npm run build` passed.
+
+Known limitations:
+
+- Full webhook delivery worker is not implemented yet.
+- SMS usage/billing events are deferred to the usage slice.
+
+## 2026-05-07: Phase 1 Slice 5 - Mock Calls And Transcripts
+
+**Status:** review
+
+Implemented:
+
+- `CallsModule`
+- Mock outbound call creation.
+- Active voice-capable number requirement.
+- Voice conversation find-or-create.
+- Mock transcript turn generation.
+- Call summary and structured outcome fields.
+- Mock web-call token route.
+- Call list/get/end/transfer routes.
+- Transcript retrieval routes.
+- Internal events for `agent.call.completed`, `agent.call.ended`, and `agent.call.transferred`.
+
+Routes added:
+
+- `POST /v1/calls`
+- `POST /v1/calls/web`
+- `GET /v1/calls`
+- `GET /v1/calls/:id`
+- `POST /v1/calls/:id/end`
+- `POST /v1/calls/:id/transfer`
+- `GET /v1/calls/:id/transcript`
+- `GET /v1/calls/:id/transcript/stream`
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 13 suites, 32 tests.
+- `npm run db:generate` passed.
+- `npm run build` passed.
+
+Known limitations:
+
+- `/v1/calls/:id/transcript/stream` currently returns the transcript list shape; true SSE is deferred.
+- Real inbound call routing is deferred to provider integration phases.
+- Call usage/billing events are deferred to the usage slice.

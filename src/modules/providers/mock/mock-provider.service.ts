@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import type {
   CreateCallResult,
+  CreateCallInput,
+  EndCallInput,
   EndCallResult,
   ProvisionNumberInput,
   ProvisionNumberResult,
@@ -13,6 +15,7 @@ import type {
   SendSmsResult,
   TelecomProvider,
   TransferCallResult,
+  TransferCallInput,
 } from '../../../domain/provider';
 
 @Injectable()
@@ -53,7 +56,8 @@ export class MockProviderService implements TelecomProvider {
     };
   }
 
-  async createCall(): Promise<CreateCallResult> {
+  async createCall(input: CreateCallInput): Promise<CreateCallResult> {
+    void input;
     return {
       provider: 'mock',
       providerCallId: `mock_call_${Date.now()}`,
@@ -62,11 +66,13 @@ export class MockProviderService implements TelecomProvider {
     };
   }
 
-  async endCall(): Promise<EndCallResult> {
+  async endCall(input: EndCallInput): Promise<EndCallResult> {
+    void input;
     return { status: 'completed' };
   }
 
-  async transferCall(): Promise<TransferCallResult> {
+  async transferCall(input: TransferCallInput): Promise<TransferCallResult> {
+    void input;
     return { status: 'transferred' };
   }
 
