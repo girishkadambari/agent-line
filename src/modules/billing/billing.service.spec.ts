@@ -41,6 +41,13 @@ describe('BillingService', () => {
     };
   }
 
+  function withTransaction(prisma: Record<string, unknown>) {
+    return {
+      ...prisma,
+      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) => callback(prisma)),
+    } as unknown as PrismaService;
+  }
+
   it('debits workspace balance', async () => {
     const prisma = {
       billingBalance: {
@@ -162,7 +169,7 @@ describe('BillingService', () => {
   });
 
   it('credits balance from verified checkout completed webhook once', async () => {
-    const prisma = {
+    const prisma = withTransaction({
       billingTransaction: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({
@@ -179,10 +186,9 @@ describe('BillingService', () => {
         }),
       },
       billingBalance: {
-        findUnique: jest.fn().mockResolvedValue(balanceFixture()),
-        update: jest.fn().mockResolvedValue(balanceFixture({ balanceCents: 2500 })),
+        upsert: jest.fn().mockResolvedValue(balanceFixture({ balanceCents: 2500 })),
       },
-    } as unknown as PrismaService;
+    });
     const { service } = createService(prisma, {
       constructWebhookEvent: jest.fn().mockReturnValue({
         id: 'evt_123',
@@ -199,10 +205,16 @@ describe('BillingService', () => {
 
     const result = await service.handleStripeWebhook(Buffer.from('{}'), 't=1,v1=test');
 
-    expect(result).toEqual({ received: true, duplicate: false });
-    expect(prisma.billingBalance.update).toHaveBeenCalledWith({
+    expect(result).toEqual({ received: true, duplicate: false, ignored: false });
+    expect(prisma.billingBalance.upsert).toHaveBeenCalledWith({
       where: { workspaceId: 'ws_123' },
-      data: { balanceCents: { increment: 2000 } },
+      update: { balanceCents: { increment: 2000 } },
+      create: {
+        id: expect.stringMatching(/^bal_/),
+        workspaceId: 'ws_123',
+        currency: 'USD',
+        balanceCents: 2500,
+      },
     });
     expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -211,5 +223,51 @@ describe('BillingService', () => {
         amountCents: 2000,
       }),
     });
+  });
+
+  it('returns duplicate without crediting for repeated Stripe event', async () => {
+    const prisma = withTransaction({
+      billingTransaction: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'btxn_existing' }),
+        create: jest.fn(),
+      },
+      billingBalance: {
+        upsert: jest.fn(),
+      },
+    });
+    const { service } = createService(prisma, {
+      constructWebhookEvent: jest.fn().mockReturnValue({
+        id: 'evt_123',
+        type: 'checkout.session.completed',
+        data: { object: { metadata: { workspaceId: 'ws_123', amountCents: '2000' } } },
+      }),
+    });
+
+    const result = await service.handleStripeWebhook(Buffer.from('{}'), 't=1,v1=test');
+
+    expect(result).toEqual({ received: true, duplicate: true, ignored: false });
+    expect(prisma.billingBalance.upsert).not.toHaveBeenCalled();
+    expect(prisma.billingTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores unscoped Stripe event without writing invalid workspace id', async () => {
+    const prisma = withTransaction({
+      billingTransaction: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
+      },
+    });
+    const { service } = createService(prisma, {
+      constructWebhookEvent: jest.fn().mockReturnValue({
+        id: 'evt_unscoped',
+        type: 'invoice.payment_failed',
+        data: { object: {} },
+      }),
+    });
+
+    const result = await service.handleStripeWebhook(Buffer.from('{}'), 't=1,v1=test');
+
+    expect(result).toEqual({ received: true, duplicate: false, ignored: true });
+    expect(prisma.billingTransaction.create).not.toHaveBeenCalled();
   });
 });

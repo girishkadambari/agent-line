@@ -100,6 +100,14 @@ export class StripeClientService {
       throw new ApiException('unauthorized', 'Invalid Stripe signature header.', 401);
     }
 
+    const parsedTimestamp = Number.parseInt(timestamp, 10);
+    const toleranceSeconds = this.config.get<number>('STRIPE_WEBHOOK_TOLERANCE_SECONDS', 300);
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    if (Number.isNaN(parsedTimestamp) || Math.abs(currentTimestamp - parsedTimestamp) > toleranceSeconds) {
+      throw new ApiException('unauthorized', 'Stripe signature timestamp is outside tolerance.', 401);
+    }
+
     const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
     const computed = createHmac('sha256', webhookSecret).update(signedPayload).digest('hex');
     const computedBuffer = Buffer.from(computed, 'hex');

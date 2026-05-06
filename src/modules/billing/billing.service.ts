@@ -129,36 +129,55 @@ export class BillingService {
 
   async handleStripeWebhook(rawBody: Buffer, signature: string | undefined) {
     const event = this.stripe.constructWebhookEvent(rawBody, signature);
-    const existing = await this.prisma.billingTransaction.findFirst({
-      where: {
-        provider: 'stripe',
-        providerEventId: event.id,
-      },
-    });
 
-    if (existing) {
-      return { received: true, duplicate: true };
-    }
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.billingTransaction.findFirst({
+          where: {
+            provider: 'stripe',
+            providerEventId: event.id,
+          },
+        });
 
-    if (event.type === 'checkout.session.completed') {
-      await this.handleCheckoutCompleted(event);
-    } else {
-      await this.prisma.billingTransaction.create({
-        data: {
-          id: createId('btxn'),
-          workspaceId: this.workspaceIdFromEvent(event) ?? 'ws_unknown',
-          provider: 'stripe',
-          providerEventId: event.id,
-          type: event.type,
-          amountCents: 0,
-          currency: 'USD',
-          status: 'ignored',
-          metadata: event.data.object as Prisma.InputJsonValue,
-        },
+        if (existing) {
+          return { received: true, duplicate: true, ignored: false };
+        }
+
+        if (event.type === 'checkout.session.completed') {
+          await this.handleCheckoutCompleted(tx, event);
+          return { received: true, duplicate: false, ignored: false };
+        }
+
+        const workspaceId = this.workspaceIdFromEvent(event);
+        if (!workspaceId) {
+          return { received: true, duplicate: false, ignored: true };
+        }
+
+        await tx.billingTransaction.create({
+          data: {
+            id: createId('btxn'),
+            workspaceId,
+            provider: 'stripe',
+            providerEventId: event.id,
+            type: event.type,
+            amountCents: 0,
+            currency: 'USD',
+            status: 'ignored',
+            metadata: event.data.object as Prisma.InputJsonValue,
+          },
+        });
+
+        return { received: true, duplicate: false, ignored: true };
       });
-    }
 
-    return { received: true, duplicate: false };
+      return result;
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        return { received: true, duplicate: true, ignored: false };
+      }
+
+      throw error;
+    }
   }
 
   private async getWorkspaceSpentCents(workspaceId: string) {
@@ -229,7 +248,10 @@ export class BillingService {
     });
   }
 
-  private async handleCheckoutCompleted(event: StripeWebhookEvent) {
+  private async handleCheckoutCompleted(
+    tx: Prisma.TransactionClient,
+    event: StripeWebhookEvent,
+  ) {
     const stripeObject = event.data.object;
     const workspaceId = this.workspaceIdFromEvent(event);
 
@@ -238,8 +260,7 @@ export class BillingService {
     }
 
     const amountCents = this.amountCentsFromCheckoutSession(stripeObject);
-    await this.creditWorkspace(workspaceId, amountCents);
-    await this.prisma.billingTransaction.create({
+    await tx.billingTransaction.create({
       data: {
         id: createId('btxn'),
         workspaceId,
@@ -250,6 +271,16 @@ export class BillingService {
         currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
         status: 'succeeded',
         metadata: stripeObject as Prisma.InputJsonValue,
+      },
+    });
+    await tx.billingBalance.upsert({
+      where: { workspaceId },
+      update: { balanceCents: { increment: amountCents } },
+      create: {
+        id: createId('bal'),
+        workspaceId,
+        currency: 'USD',
+        balanceCents: 500 + amountCents,
       },
     });
   }
@@ -275,5 +306,14 @@ export class BillingService {
     }
 
     return amountTotal;
+  }
+
+  private isUniqueConstraintError(error: unknown) {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    );
   }
 }

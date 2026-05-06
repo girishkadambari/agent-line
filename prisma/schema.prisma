@@ -413,6 +413,7 @@ model BillingTransaction {
 
   @@index([workspaceId])
   @@index([providerEventId])
+  @@unique([provider, providerEventId])
 }
 
 model Recording {
