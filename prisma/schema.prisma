@@ -27,6 +27,8 @@ model Workspace {
   deliveries      WebhookDelivery[]
   usageEvents     UsageEvent[]
   billingBalance  BillingBalance?
+  billingAccounts BillingAccount[]
+  billingTransactions BillingTransaction[]
   recordings      Recording[]
   providerEvents  ProviderRawEvent[]
   auditEvents     AuditEvent[]
@@ -378,6 +380,39 @@ model BillingBalance {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   workspace    Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model BillingAccount {
+  id                 String    @id
+  workspaceId        String
+  provider           String
+  providerCustomerId String
+  status             String    @default("active")
+  defaultCurrency    String    @default("USD")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([provider, providerCustomerId])
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+}
+
+model BillingTransaction {
+  id              String    @id
+  workspaceId     String
+  provider        String
+  providerEventId String?
+  type            String
+  amountCents     Int
+  currency        String    @default("USD")
+  status          String
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId])
+  @@index([providerEventId])
 }
 
 model Recording {

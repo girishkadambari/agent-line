@@ -2,46 +2,43 @@
 
 ## Current Focus
 
-**Phase 1 Decision Point: Stripe Billing Or DB-Backed E2E**
+**Phase 1 Hardening: DB-Backed E2E Tests**
 
-The mock core product and API-key management are now implemented. The next work should either validate payments with Stripe or validate the full backend loop against a real Postgres database.
+The mock product loop, API-key management, and Stripe billing endpoints are implemented. The next best phase is to prove the whole system against a real Postgres database.
 
-## Recommended Next Track
+## Goals
 
-**Stripe Billing Endpoints** are the recommended next implementation track if business validation and paid beta readiness are the priority.
+- Run the golden smoke flow through HTTP API tests.
+- Verify seeded workspace/project/API key.
+- Verify auth, agents, numbers, messages, calls, webhooks, usage, billing, API-key CRUD, and Stripe webhook idempotency.
+- Catch Prisma/schema/runtime issues that unit tests cannot catch.
 
-Build:
+## Build
 
-- `POST /v1/billing/checkout-sessions`
-- `POST /v1/billing/portal-sessions`
-- `POST /v1/billing/stripe/webhook`
-- `GET /v1/billing/transactions`
+- Configure a test database URL.
+- Add e2e setup/teardown.
+- Seed test data.
+- Add Supertest flows for:
+  - health.
+  - authenticated workspace scope.
+  - API-key create/revoke.
+  - agent create.
+  - number provision.
+  - outbound SMS.
+  - inbound SMS simulation.
+  - mock call.
+  - webhook endpoint/test delivery.
+  - usage and billing balance.
+  - Stripe webhook credit idempotency with mocked provider/signature.
 
-Rules:
+## Alternative Next Track
 
-- Use Stripe Checkout for prepaid credits.
-- Use Stripe Customer Portal for payment method and invoice management.
-- Credit AgentLine balance only from verified Stripe webhook events.
-- Store Stripe event ids for idempotency.
-- Keep AgentLine `UsageEvent` as product usage source of truth.
+Real provider prep:
 
-## Alternative Track
-
-**DB-Backed E2E Tests** if implementation confidence is the priority.
-
-Build:
-
-- seeded Postgres test setup.
-- Supertest smoke flow.
-- auth, agents, numbers, SMS, calls, webhooks, usage, and billing assertions.
+- Twilio/Telnyx adapter contract tests.
+- normalized provider errors.
+- provider raw event ingestion skeleton.
 
 ## Current Recommendation
 
-Implement **Stripe Billing Endpoints** next if you want faster go-to-market and paid beta readiness.
-
-## Not In The Immediate Next Slice
-
-- React frontend code.
-- Real Twilio/Telnyx.
-- Hosted AI.
-- Real outbound webhook worker.
+Implement **DB-Backed E2E Tests** next before touching real telecom.

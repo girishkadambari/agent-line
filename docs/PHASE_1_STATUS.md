@@ -32,6 +32,7 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Calls/transcripts module | review | Mock outbound calls, web-call token, list/get/end/transfer routes, transcript retrieval, summaries, outcomes, and internal call events implemented. |
 | Webhooks module | review | Endpoint CRUD, HMAC signatures, test delivery, delivery logs, retry simulation, and internal event delivery bridge implemented. |
 | Usage/billing module | review | Usage events, pricing constants, billing balance lookup/debit, SMS/call/number hooks, and daily/monthly rollups implemented. |
+| Stripe billing endpoints | review | Checkout sessions, portal sessions, verified webhook, billing accounts, and billing transactions implemented. |
 | Frontend integration contract | review | API examples, smoke flow, frontend integration notes, and completeness check added. |
 | Tests/verification | review | Unit tests and build checks pass; DB-backed manual smoke requires local Postgres. |
 
@@ -49,10 +50,11 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 7 implemented usage ledger, billing balance simulation, debits for numbers/SMS/calls, and usage rollups.
 - 2026-05-07: Slice 8 added API examples, local smoke flow, frontend integration notes, Stripe plan reference, and Phase 1 completeness check.
 - 2026-05-07: Slice 9 implemented API-key management CRUD with one-time raw key return, hash-only storage, revocation, and audit events.
+- 2026-05-07: Slice 10 implemented Stripe checkout, portal, webhook verification, billing accounts, and billing transactions.
 
 ## Next Steps
 
 1. Configure local Postgres and run `npm run db:push && npm run db:seed`.
 2. Add DB-backed API integration tests for auth, agents, and numbers once Postgres is available.
-3. Choose next implementation branch: Stripe checkout/portal/webhooks, DB-backed e2e tests, or real provider adapter prep.
+3. Choose next implementation branch: DB-backed e2e tests or real provider adapter prep.
 4. Add DB-backed API integration tests once local Postgres is configured.

@@ -580,3 +580,30 @@ Verification:
 - `npm run typecheck` passed.
 - `npm test` passed: 19 suites, 51 tests.
 - `npm run build` passed.
+
+## 2026-05-07: Phase 1 Slice 10 - Stripe Billing Endpoints
+
+**Status:** review
+
+Implemented:
+
+- `POST /v1/billing/checkout-sessions`
+- `POST /v1/billing/portal-sessions`
+- `POST /v1/billing/stripe/webhook`
+- `GET /v1/billing/transactions`
+- `BillingAccount` model.
+- `BillingTransaction` model.
+- Stripe customer creation.
+- Stripe checkout session creation for prepaid credits.
+- Stripe customer portal session creation.
+- Stripe webhook HMAC verification using raw request body.
+- idempotent Stripe event handling.
+- balance credit on verified `checkout.session.completed`.
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 19 suites, 53 tests.
+- `npm run db:generate` passed.
+- `npm run build` passed.

@@ -141,6 +141,16 @@ export const updateApiKeySchema = z.object({
   status: z.enum(['active', 'revoked']).optional(),
 });
 
+export const createCheckoutSessionSchema = z.object({
+  amountCents: z.number().int().min(500),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+});
+
+export const createPortalSessionSchema = z.object({
+  returnUrl: z.string().url(),
+});
+
 export const workspaceRoleSchema = z.enum([
   'owner',
   'admin',
@@ -182,6 +192,8 @@ export type WebhookDeliveryStatusQuery = z.infer<typeof webhookDeliveryStatusQue
 export type UsageQueryInput = z.infer<typeof usageQuerySchema>;
 export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
 export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>;
+export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionSchema>;
+export type CreatePortalSessionInput = z.infer<typeof createPortalSessionSchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;

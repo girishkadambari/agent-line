@@ -27,6 +27,15 @@ Phase 1 stays local/mock:
 
 ## Phase 2 Stripe Integration
 
+Initial backend endpoints are implemented:
+
+- `POST /v1/billing/checkout-sessions`
+- `POST /v1/billing/portal-sessions`
+- `POST /v1/billing/stripe/webhook`
+- `GET /v1/billing/transactions`
+
+The implementation uses Stripe HTTP APIs through a local provider wrapper. The Stripe SDK can be adopted later if richer types or automatic webhook helpers become useful.
+
 Add Stripe without changing product usage semantics.
 
 ### Data Fields To Add

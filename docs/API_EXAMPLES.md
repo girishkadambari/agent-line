@@ -240,6 +240,38 @@ curl "$AGENTLINE_API_URL/billing/balance" \
   -H "Authorization: Bearer $AGENTLINE_API_KEY"
 ```
 
+```bash
+curl -X POST "$AGENTLINE_API_URL/billing/checkout-sessions" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amountCents": 2000,
+    "successUrl": "https://app.agentline.dev/billing/success",
+    "cancelUrl": "https://app.agentline.dev/billing/cancel"
+  }'
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/billing/portal-sessions" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"returnUrl":"https://app.agentline.dev/settings/billing"}'
+```
+
+```bash
+curl "$AGENTLINE_API_URL/billing/transactions" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+```
+
+Stripe webhooks are public and verified with `Stripe-Signature`:
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/billing/stripe/webhook" \
+  -H "Stripe-Signature: t=timestamp,v1=signature" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"evt_123","type":"checkout.session.completed","data":{"object":{}}}'
+```
+
 ## Error Shape
 
 Validation, not-found, conflict, and billing errors use:

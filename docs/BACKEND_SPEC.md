@@ -649,6 +649,10 @@ GET /v1/usage
 GET /v1/usage/daily
 GET /v1/usage/monthly
 GET /v1/billing/balance
+POST /v1/billing/checkout-sessions
+POST /v1/billing/portal-sessions
+GET /v1/billing/transactions
+POST /v1/billing/stripe/webhook
 ```
 
 Usage endpoints must support filtering by:
@@ -659,6 +663,8 @@ Usage endpoints must support filtering by:
 - `to`
 
 Phase 1 usage creates mock billable events for number provisioning, inbound/outbound SMS, and outbound calls. Billing balance is debited in cents while usage events persist decimal cost fields for future provider reconciliation.
+
+Stripe checkout and portal endpoints require `STRIPE_SECRET_KEY`. The Stripe webhook endpoint requires raw body signature verification with `STRIPE_WEBHOOK_SECRET`; AgentLine balance is credited only after a verified `checkout.session.completed` event.
 
 ## Provider Adapter Interface
 

@@ -1,14 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
+import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import type { CreateCheckoutSessionInput, CreatePortalSessionInput } from '../../domain/schemas';
 import { PrismaService } from '../prisma/prisma.service';
-import { serializeBillingBalance } from './billing.serializer';
+import { serializeBillingBalance, serializeBillingTransaction } from './billing.serializer';
+import { StripeClientService, type StripeWebhookEvent } from './stripe-client.service';
 
 @Injectable()
 export class BillingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stripe: StripeClientService,
+  ) {}
 
   async getBalance(context: RequestContext) {
     const balance = await this.findOrCreateWorkspaceBalance(context.workspaceId);
@@ -55,6 +62,105 @@ export class BillingService {
     });
   }
 
+  async creditWorkspace(workspaceId: string, cents: number) {
+    await this.findOrCreateWorkspaceBalance(workspaceId);
+    return this.prisma.billingBalance.update({
+      where: { workspaceId },
+      data: { balanceCents: { increment: cents } },
+    });
+  }
+
+  async createCheckoutSession(context: RequestContext, input: CreateCheckoutSessionInput) {
+    const account = await this.findOrCreateStripeBillingAccount(context.workspaceId);
+    const session = await this.stripe.createCheckoutSession({
+      workspaceId: context.workspaceId,
+      customerId: account.providerCustomerId,
+      amountCents: input.amountCents,
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+    });
+
+    const transaction = await this.prisma.billingTransaction.create({
+      data: {
+        id: createId('btxn'),
+        workspaceId: context.workspaceId,
+        provider: 'stripe',
+        type: 'checkout_session.created',
+        amountCents: input.amountCents,
+        currency: 'USD',
+        status: 'pending',
+        metadata: {
+          checkoutSessionId: session.id,
+          customerId: session.customer,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return {
+      id: session.id,
+      url: session.url,
+      transaction: serializeBillingTransaction(transaction),
+    };
+  }
+
+  async createPortalSession(context: RequestContext, input: CreatePortalSessionInput) {
+    const account = await this.findOrCreateStripeBillingAccount(context.workspaceId);
+    const session = await this.stripe.createPortalSession({
+      customerId: account.providerCustomerId,
+      returnUrl: input.returnUrl,
+    });
+
+    return {
+      id: session.id,
+      url: session.url,
+      customerId: session.customer,
+    };
+  }
+
+  async listTransactions(context: RequestContext, limit: number) {
+    const transactions = await this.prisma.billingTransaction.findMany({
+      where: { workspaceId: context.workspaceId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return list(transactions.map(serializeBillingTransaction), { limit, nextCursor: null });
+  }
+
+  async handleStripeWebhook(rawBody: Buffer, signature: string | undefined) {
+    const event = this.stripe.constructWebhookEvent(rawBody, signature);
+    const existing = await this.prisma.billingTransaction.findFirst({
+      where: {
+        provider: 'stripe',
+        providerEventId: event.id,
+      },
+    });
+
+    if (existing) {
+      return { received: true, duplicate: true };
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      await this.handleCheckoutCompleted(event);
+    } else {
+      await this.prisma.billingTransaction.create({
+        data: {
+          id: createId('btxn'),
+          workspaceId: this.workspaceIdFromEvent(event) ?? 'ws_unknown',
+          provider: 'stripe',
+          providerEventId: event.id,
+          type: event.type,
+          amountCents: 0,
+          currency: 'USD',
+          status: 'ignored',
+          metadata: event.data.object as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    return { received: true, duplicate: false };
+  }
+
   private async getWorkspaceSpentCents(workspaceId: string) {
     const aggregate = await this.prisma.usageEvent.aggregate({
       where: { workspaceId },
@@ -86,5 +192,88 @@ export class BillingService {
         balanceCents: 500,
       },
     });
+  }
+
+  private async findOrCreateStripeBillingAccount(workspaceId: string) {
+    const existing = await this.prisma.billingAccount.findUnique({
+      where: {
+        workspaceId_provider: {
+          workspaceId,
+          provider: 'stripe',
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { name: true },
+    });
+    const customer = await this.stripe.createCustomer({
+      workspaceId,
+      name: workspace?.name ?? workspaceId,
+    });
+
+    return this.prisma.billingAccount.create({
+      data: {
+        id: createId('bacc'),
+        workspaceId,
+        provider: 'stripe',
+        providerCustomerId: customer.id,
+        status: 'active',
+        defaultCurrency: 'USD',
+      },
+    });
+  }
+
+  private async handleCheckoutCompleted(event: StripeWebhookEvent) {
+    const stripeObject = event.data.object;
+    const workspaceId = this.workspaceIdFromEvent(event);
+
+    if (!workspaceId) {
+      throw new ApiException('invalid_request', 'Stripe event is missing workspace id.', 400);
+    }
+
+    const amountCents = this.amountCentsFromCheckoutSession(stripeObject);
+    await this.creditWorkspace(workspaceId, amountCents);
+    await this.prisma.billingTransaction.create({
+      data: {
+        id: createId('btxn'),
+        workspaceId,
+        provider: 'stripe',
+        providerEventId: event.id,
+        type: event.type,
+        amountCents,
+        currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
+        status: 'succeeded',
+        metadata: stripeObject as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  private workspaceIdFromEvent(event: StripeWebhookEvent) {
+    const stripeObject = event.data.object;
+    const metadata = stripeObject.metadata as Record<string, unknown> | undefined;
+    return (metadata?.workspaceId ?? stripeObject.client_reference_id) as string | undefined;
+  }
+
+  private amountCentsFromCheckoutSession(stripeObject: Record<string, unknown>) {
+    const metadata = stripeObject.metadata as Record<string, unknown> | undefined;
+    const metadataAmount = Number.parseInt(String(metadata?.amountCents ?? ''), 10);
+
+    if (!Number.isNaN(metadataAmount) && metadataAmount > 0) {
+      return metadataAmount;
+    }
+
+    const amountTotal = Number(stripeObject.amount_total ?? 0);
+
+    if (amountTotal <= 0) {
+      throw new ApiException('invalid_request', 'Stripe checkout session has no amount.', 400);
+    }
+
+    return amountTotal;
   }
 }

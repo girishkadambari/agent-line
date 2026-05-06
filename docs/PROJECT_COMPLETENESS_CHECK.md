@@ -16,7 +16,7 @@ This document answers: "Are the complete project-related things implemented for 
 | Calls/transcripts | complete for Phase 1 | Mock outbound calls, web-call token, transcript list/SSE, end/transfer, usage, events, webhooks. |
 | Webhooks | complete for Phase 1 | Endpoint CRUD, signing, test delivery, delivery logs, retry simulation, internal event bridge. |
 | Usage/billing | complete for Phase 1 | Usage ledger, daily/monthly rollups, balance lookup/debit, mock spend controls. |
-| Stripe plan | planned | Stripe architecture is documented. SDK/endpoints are intentionally deferred. |
+| Stripe billing | complete for first paid beta path | Checkout session, customer portal session, verified webhook, billing account, and billing transaction records exist. |
 | Frontend | separate | Frontend will be generated separately in Lovable/React and integrated with this API. |
 | Real telecom | deferred | Twilio/Telnyx starts in later roadmap phases. |
 | Hosted AI | deferred | Hosted STT/TTS/LLM orchestration starts after real voice foundation. |
@@ -40,6 +40,7 @@ This document answers: "Are the complete project-related things implemented for 
 - Usage ledger.
 - Billing balance simulation.
 - Stripe billing plan.
+- Stripe checkout, portal, webhook, and billing transactions.
 - Phase tracking.
 - API examples.
 - Smoke flow.
@@ -51,7 +52,6 @@ These are not missing from Phase 1; they are intentionally later:
 - Real Twilio/Telnyx number buying and SMS.
 - Real inbound/outbound voice.
 - Real webhook HTTP delivery worker.
-- Stripe Checkout, Customer Portal, and Stripe webhook endpoints.
 - Google SSO/session auth.
 - Hosted AI agents.
 - SDKs, CLI, and MCP server.
@@ -61,13 +61,12 @@ These are not missing from Phase 1; they are intentionally later:
 
 - DB-backed e2e coverage is blocked until local Postgres is configured.
 - Mock provider behavior is deterministic and useful, but not provider-realistic.
-- Usage/billing is internally consistent for Phase 1 but not a replacement for Stripe or provider reconciliation.
+- Usage/billing is internally consistent for Phase 1, with Stripe prepaid-credit entry points now implemented. Provider cost reconciliation is still deferred.
 - The backend has no frontend yet by design.
 
 ## Recommended Next Work
 
 1. Run a DB-backed smoke flow locally.
-2. Add API-key CRUD routes if the frontend needs dashboard API-key management.
-3. Implement Stripe checkout/portal/webhook endpoints.
-4. Add real provider adapter interfaces for Twilio/Telnyx.
-5. Add SDK/client generation after API contracts stabilize.
+2. Add DB-backed e2e tests for the full smoke flow.
+3. Add real provider adapter interfaces for Twilio/Telnyx.
+4. Add SDK/client generation after API contracts stabilize.

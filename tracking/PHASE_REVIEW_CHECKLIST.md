@@ -674,3 +674,54 @@ Status: review
 ### Next Actions
 
 - Implement Stripe billing endpoints or DB-backed e2e tests.
+
+## 2026-05-07: Phase 1 Slice 10 - Stripe Billing Endpoints
+
+Status: review
+
+### Scope Completed
+
+- [x] Checkout session endpoint.
+- [x] Portal session endpoint.
+- [x] Stripe webhook endpoint.
+- [x] Billing transactions endpoint.
+- [x] Billing account model.
+- [x] Billing transaction model.
+- [x] Webhook signature verification.
+- [x] Stripe event idempotency.
+- [x] Balance credit on checkout completion.
+- [x] Service tests.
+
+### Architecture Review
+
+- [x] Stripe access is behind provider wrapper.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Usage ledger remains product source of truth.
+- [x] No frontend code was added to backend repo.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run db:generate`
+- [x] `npm run build`
+
+### Docs And Tracking
+
+- [x] `docs/API_EXAMPLES.md` updated.
+- [x] `docs/BACKEND_SPEC.md` updated.
+- [x] `docs/STRIPE_BILLING_PLAN.md` updated.
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+
+### Known Limitations
+
+- Stripe SDK is not installed; HTTP wrapper is used.
+- Live Stripe behavior still needs real credentials and manual sandbox verification.
+- DB-backed e2e tests are still pending.
+
+### Next Actions
+
+- Implement DB-backed e2e tests.
