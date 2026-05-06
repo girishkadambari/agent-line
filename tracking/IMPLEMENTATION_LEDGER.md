@@ -462,3 +462,67 @@ Known limitations:
 - Webhook delivery is still mock/local; no real outbound HTTP dispatch yet.
 - Background queue worker is deferred.
 - Usage/billing events are deferred to the usage slice.
+
+## 2026-05-07: Review Fixes - Webhook Query Validation And Empty Body Defaults
+
+**Status:** done
+
+Implemented:
+
+- delivery status query validation for `GET /v1/webhooks/deliveries`.
+- empty-body defaults for webhook test and retry actions.
+
+## 2026-05-07: Phase 1 Slice 7 - Usage Ledger And Billing Balance Simulation
+
+**Status:** review
+
+Implemented:
+
+- `UsageModule`
+- `BillingModule`
+- Phase 1 pricing constants.
+- billing balance lookup.
+- billing balance debit helper.
+- insufficient balance and spend-limit guards.
+- usage event creation for mock number provisioning.
+- usage event creation for outbound SMS.
+- usage event creation for inbound SMS simulation.
+- usage event creation for outbound mock call duration.
+- daily and monthly usage rollups.
+
+Routes added:
+
+- `GET /v1/usage`
+- `GET /v1/usage/daily`
+- `GET /v1/usage/monthly`
+- `GET /v1/billing/balance`
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 18 suites, 43 tests.
+- `npm run db:generate` passed.
+- `npm run build` passed.
+
+Known limitations:
+
+- Stripe, auto-recharge, and invoice generation are deferred.
+- Real provider cost reconciliation is deferred.
+- DB-backed API integration tests still need configured Postgres.
+
+## 2026-05-07: Billing Consistency Hardening And Stripe Plan
+
+**Status:** review
+
+Implemented:
+
+- billable number, SMS, and call records now perform usage/billing debit before persisted domain record creation.
+- billing debits use conditional `updateMany` with `balanceCents >= cents`.
+- spend limit checks use cumulative workspace usage before allowing a debit.
+- regression tests cover failed usage preventing number/message/call persistence.
+- `docs/STRIPE_BILLING_PLAN.md` added as the Stripe integration source of truth.
+
+Verification:
+
+- pending after final check.

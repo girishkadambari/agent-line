@@ -7,6 +7,7 @@ import { createId } from '../../common/ids';
 import type { CreateNumberInput, UpdateNumberInput } from '../../domain/schemas';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsageService } from '../usage/usage.service';
 import { serializeNumber } from './numbers.serializer';
 
 @Injectable()
@@ -14,7 +15,8 @@ export class NumbersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mockProvider: MockProviderService,
-  ) { }
+    private readonly usage: UsageService,
+  ) {}
 
   async listNumbers(context: RequestContext, limit: number) {
     const numbers = await this.prisma.phoneNumber.findMany({
@@ -42,9 +44,17 @@ export class NumbersService {
       capabilities: input.capabilities,
     });
 
+    const numberId = createId('num');
+    await this.usage.recordNumberProvisioned({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: input.agentId,
+      numberId,
+    });
+
     const number = await this.prisma.phoneNumber.create({
       data: {
-        id: createId('num'),
+        id: numberId,
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId: input.agentId,
@@ -57,7 +67,6 @@ export class NumbersService {
         providerNumberId: provisioned.providerNumberId,
       },
     });
-
     return serializeNumber(number);
   }
 

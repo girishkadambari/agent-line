@@ -10,6 +10,7 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeMessage } from './messages.serializer';
 
@@ -21,6 +22,7 @@ export class MessagesService {
     private readonly conversations: ConversationsService,
     private readonly events: EventsService,
     private readonly mockProvider: MockProviderService,
+    private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
   ) {}
 
@@ -39,9 +41,18 @@ export class MessagesService {
       body: input.body,
     });
 
+    const messageId = createId('msg');
+    await this.usage.recordSms({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: agent.id,
+      messageId,
+      direction: 'outbound',
+    });
+
     const message = await this.prisma.message.create({
       data: {
-        id: createId('msg'),
+        id: messageId,
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId: agent.id,
@@ -83,9 +94,18 @@ export class MessagesService {
       contact.id,
     );
 
+    const messageId = createId('msg');
+    await this.usage.recordSms({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: agent.id,
+      messageId,
+      direction: 'inbound',
+    });
+
     const message = await this.prisma.message.create({
       data: {
-        id: createId('msg'),
+        id: messageId,
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId: agent.id,

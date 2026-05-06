@@ -3,6 +3,7 @@ import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { UsageService } from '../usage/usage.service';
 import type { WebhooksService } from '../webhooks/webhooks.service';
 import { CallsService } from './calls.service';
 
@@ -70,13 +71,17 @@ function createService(prisma: PrismaService) {
   const webhooks = {
     createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
   } as unknown as WebhooksService;
+  const usage = {
+    recordVoiceCall: jest.fn().mockResolvedValue({ id: 'use_123' }),
+  } as unknown as UsageService;
   const provider = new MockProviderService();
 
   return {
-    service: new CallsService(prisma, contacts, conversations, events, provider, webhooks),
+    service: new CallsService(prisma, contacts, conversations, events, provider, usage, webhooks),
     contacts,
     conversations,
     events,
+    usage,
     webhooks,
   };
 }
@@ -142,6 +147,37 @@ describe('CallsService', () => {
         to: '+14155550100',
       }),
     ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  it('does not create call when usage debit fails', async () => {
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_123',
+          phoneNumber: '+14155551000',
+        }),
+      },
+      call: {
+        create: jest.fn(),
+      },
+      transcriptTurn: {
+        createMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, usage } = createService(prisma);
+    jest.spyOn(usage, 'recordVoiceCall').mockRejectedValue(new Error('insufficient balance'));
+
+    await expect(
+      service.createOutboundCall(context, {
+        agentId: 'agt_123',
+        to: '+14155550100',
+      }),
+    ).rejects.toThrow('insufficient balance');
+    expect(prisma.call.create).not.toHaveBeenCalled();
+    expect(prisma.transcriptTurn.createMany).not.toHaveBeenCalled();
   });
 
   it('lists transcript turns for a scoped call', async () => {

@@ -434,3 +434,127 @@ Status: review
 ### Next Actions
 
 - Implement usage ledger and billing balance simulation.
+
+## 2026-05-07: Phase 1 Slice 7 - Usage Ledger And Billing Balance Simulation
+
+Status: review
+
+### Scope Completed
+
+- [x] Usage pricing constants.
+- [x] Usage event creation.
+- [x] Billing balance lookup.
+- [x] Billing debit helper.
+- [x] Usage hooks for numbers, SMS, and calls.
+- [x] Daily usage rollup.
+- [x] Monthly usage rollup.
+- [x] Service tests.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code or dead folders remain.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Routes match `docs/BACKEND_SPEC.md`.
+- [x] Response shape uses `{ data }`.
+- [x] Error shape uses `{ error: { code, message, details } }`.
+- [x] Auth behavior is correct.
+- [x] Workspace/project scope is respected.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run db:generate`
+- [x] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+- [x] `docs/` updated.
+
+### Known Limitations
+
+- Stripe, auto-recharge, and invoices are deferred.
+- Real provider cost reconciliation is deferred.
+- DB-backed integration tests need Postgres.
+
+### Next Actions
+
+- Add Phase 1 API contract examples.
+- Add manual smoke-flow guide for frontend and agent integration.
+
+## 2026-05-07: Billing Consistency Hardening And Stripe Plan
+
+Status: review
+
+### Scope Completed
+
+- [x] Billing debit moved before persisted billable domain records.
+- [x] Atomic balance debit via conditional update.
+- [x] Cumulative spend-limit check.
+- [x] Stripe billing plan documented.
+- [x] Regression tests added.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code or dead folders remain.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] No public route contract changed in this hardening slice.
+- [x] Error shape uses `{ error: { code, message, details } }`.
+- [x] Auth behavior is unchanged.
+- [x] Workspace/project scope is preserved.
+
+### Testing And Verification
+
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run build`
+
+### Docs And Tracking
+
+- [x] `docs/STRIPE_BILLING_PLAN.md` added.
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+
+### Known Limitations
+
+- Stripe SDK and endpoints are not implemented yet.
+- Provider-side compensation is deferred to real telecom integration.
+
+### Next Actions
+
+- Run final verification.
+- Continue to API contract examples and smoke-flow docs.

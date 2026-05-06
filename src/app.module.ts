@@ -4,12 +4,14 @@ import { ConfigModule } from '@nestjs/config';
 import { AgentsModule } from './modules/agents/agents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { HealthModule } from './modules/health/health.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NumbersModule } from './modules/numbers/numbers.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { UsageModule } from './modules/usage/usage.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
@@ -25,10 +27,12 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     WorkspacesModule,
     AgentsModule,
     NumbersModule,
+    BillingModule,
     ConversationsModule,
     MessagesModule,
     CallsModule,
     WebhooksModule,
+    UsageModule,
   ],
 })
 export class AppModule {}

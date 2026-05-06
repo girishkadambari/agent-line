@@ -105,13 +105,31 @@ export const updateWebhookSchema = z.object({
   status: z.enum(['active', 'paused', 'disabled']).optional(),
 });
 
-export const testWebhookSchema = z.object({
-  simulateFailure: z.boolean().default(false),
-});
+export const testWebhookSchema = z.preprocess(
+  (value) => value ?? {},
+  z.object({
+    simulateFailure: z.boolean().default(false),
+  }),
+);
 
-export const retryWebhookDeliverySchema = z.object({
-  outcome: z.enum(['succeeded', 'failed']).default('succeeded'),
-  exhaust: z.boolean().default(false),
+export const retryWebhookDeliverySchema = z.preprocess(
+  (value) => value ?? {},
+  z.object({
+    outcome: z.enum(['succeeded', 'failed']).default('succeeded'),
+    exhaust: z.boolean().default(false),
+  }),
+);
+
+export const webhookDeliveryStatusQuerySchema = z
+  .enum(['pending', 'succeeded', 'failed', 'retrying', 'exhausted'])
+  .optional();
+
+export const usageQuerySchema = z.object({
+  agentId: z.string().optional(),
+  channel: z.string().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.string().optional(),
 });
 
 export const workspaceRoleSchema = z.enum([
@@ -151,6 +169,8 @@ export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
 export type UpdateWebhookInput = z.infer<typeof updateWebhookSchema>;
 export type TestWebhookInput = z.infer<typeof testWebhookSchema>;
 export type RetryWebhookDeliveryInput = z.infer<typeof retryWebhookDeliverySchema>;
+export type WebhookDeliveryStatusQuery = z.infer<typeof webhookDeliveryStatusQuerySchema>;
+export type UsageQueryInput = z.infer<typeof usageQuerySchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;

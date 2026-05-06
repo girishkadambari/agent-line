@@ -5,6 +5,7 @@ import { ContactsModule } from '../contacts/contacts.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { EventsModule } from '../events/events.module';
 import { MockProviderModule } from '../providers/mock/mock-provider.module';
+import { UsageModule } from '../usage/usage.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
@@ -16,6 +17,7 @@ import { MessagesService } from './messages.service';
     ConversationsModule,
     EventsModule,
     MockProviderModule,
+    UsageModule,
     WebhooksModule,
   ],
   controllers: [MessagesController],

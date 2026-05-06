@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { UsageService } from '../usage/usage.service';
 import { NumbersService } from './numbers.service';
 
 const context = {
@@ -9,6 +10,17 @@ const context = {
 };
 
 const now = new Date('2026-05-06T00:00:00.000Z');
+
+function createService(prisma: PrismaService) {
+  const usage = {
+    recordNumberProvisioned: jest.fn().mockResolvedValue({ id: 'use_123' }),
+  } as unknown as UsageService;
+
+  return {
+    service: new NumbersService(prisma, new MockProviderService(), usage),
+    usage,
+  };
+}
 
 function numberFixture(overrides = {}) {
   return {
@@ -39,7 +51,7 @@ describe('NumbersService', () => {
         create: jest.fn().mockResolvedValue(numberFixture()),
       },
     } as unknown as PrismaService;
-    const service = new NumbersService(prisma, new MockProviderService());
+    const { service, usage } = createService(prisma);
 
     const result = await service.provisionNumber(context, {
       agentId: 'agt_123',
@@ -59,6 +71,37 @@ describe('NumbersService', () => {
       }),
     });
     expect(result.id).toBe('num_123');
+    expect(usage.recordNumberProvisioned).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: 'agt_123',
+      numberId: 'num_123',
+    });
+  });
+
+  it('does not create number when usage debit fails', async () => {
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        create: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const usage = {
+      recordNumberProvisioned: jest.fn().mockRejectedValue(new Error('insufficient balance')),
+    } as unknown as UsageService;
+    const service = new NumbersService(prisma, new MockProviderService(), usage);
+
+    await expect(
+      service.provisionNumber(context, {
+        agentId: 'agt_123',
+        country: 'US',
+        areaCode: '415',
+        capabilities: ['sms', 'voice'],
+      }),
+    ).rejects.toThrow('insufficient balance');
+    expect(prisma.phoneNumber.create).not.toHaveBeenCalled();
   });
 
   it('detaches an attached number from an agent', async () => {
@@ -71,7 +114,7 @@ describe('NumbersService', () => {
         update: jest.fn().mockResolvedValue(numberFixture({ agentId: null })),
       },
     } as unknown as PrismaService;
-    const service = new NumbersService(prisma, new MockProviderService());
+    const { service } = createService(prisma);
 
     const result = await service.detachNumberFromAgent(context, 'agt_123', 'num_123');
 
@@ -89,7 +132,7 @@ describe('NumbersService', () => {
         update: jest.fn().mockResolvedValue(numberFixture({ status: 'released', agentId: null })),
       },
     } as unknown as PrismaService;
-    const service = new NumbersService(prisma, new MockProviderService());
+    const { service } = createService(prisma);
 
     const result = await service.releaseNumber(context, 'num_123');
 

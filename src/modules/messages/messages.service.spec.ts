@@ -3,6 +3,7 @@ import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { UsageService } from '../usage/usage.service';
 import type { WebhooksService } from '../webhooks/webhooks.service';
 import { MessagesService } from './messages.service';
 
@@ -48,13 +49,17 @@ function createService(prisma: PrismaService) {
   const webhooks = {
     createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
   } as unknown as WebhooksService;
+  const usage = {
+    recordSms: jest.fn().mockResolvedValue({ id: 'use_123' }),
+  } as unknown as UsageService;
   const provider = new MockProviderService();
 
   return {
-    service: new MessagesService(prisma, contacts, conversations, events, provider, webhooks),
+    service: new MessagesService(prisma, contacts, conversations, events, provider, usage, webhooks),
     contacts,
     conversations,
     events,
+    usage,
     webhooks,
   };
 }
@@ -110,6 +115,34 @@ describe('MessagesService', () => {
         body: 'Hello',
       }),
     ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  it('does not create outbound message when usage debit fails', async () => {
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_123',
+          phoneNumber: '+14155551000',
+        }),
+      },
+      message: {
+        create: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, usage } = createService(prisma);
+    jest.spyOn(usage, 'recordSms').mockRejectedValue(new Error('insufficient balance'));
+
+    await expect(
+      service.sendMessage(context, {
+        agentId: 'agt_123',
+        to: '+14155550100',
+        body: 'Hello',
+      }),
+    ).rejects.toThrow('insufficient balance');
+    expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
   it('simulates inbound SMS and creates received event', async () => {

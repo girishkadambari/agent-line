@@ -637,6 +637,7 @@ Phase 1 retry simulation updates delivery state locally without performing real 
 GET /v1/usage
 GET /v1/usage/daily
 GET /v1/usage/monthly
+GET /v1/billing/balance
 ```
 
 Usage endpoints must support filtering by:
@@ -645,6 +646,8 @@ Usage endpoints must support filtering by:
 - `channel`
 - `from`
 - `to`
+
+Phase 1 usage creates mock billable events for number provisioning, inbound/outbound SMS, and outbound calls. Billing balance is debited in cents while usage events persist decimal cost fields for future provider reconciliation.
 
 ## Provider Adapter Interface
 

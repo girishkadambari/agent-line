@@ -9,6 +9,7 @@ import {
   retryWebhookDeliverySchema,
   testWebhookSchema,
   updateWebhookSchema,
+  webhookDeliveryStatusQuerySchema,
 } from '../../domain/schemas';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { WebhooksService } from './webhooks.service';
@@ -16,7 +17,7 @@ import { WebhooksService } from './webhooks.service';
 @UseGuards(ApiKeyGuard)
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly webhooks: WebhooksService) { }
+  constructor(private readonly webhooks: WebhooksService) {}
 
   @Get()
   listEndpoints(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
@@ -51,7 +52,9 @@ export class WebhooksController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(testWebhookSchema)) body: unknown,
   ) {
-    return success(await this.webhooks.createTestDelivery(context, id, testWebhookSchema.parse(body)));
+    return success(
+      await this.webhooks.createTestDelivery(context, id, testWebhookSchema.parse(body ?? {})),
+    );
   }
 
   @Get('deliveries')
@@ -65,7 +68,7 @@ export class WebhooksController {
     return this.webhooks.listDeliveries(context, parseLimit(limit), {
       endpointId,
       eventId,
-      status: status as never,
+      status: webhookDeliveryStatusQuerySchema.parse(status),
     });
   }
 
@@ -76,7 +79,7 @@ export class WebhooksController {
     @Body(new ZodValidationPipe(retryWebhookDeliverySchema)) body: unknown,
   ) {
     return success(
-      await this.webhooks.retryDelivery(context, id, retryWebhookDeliverySchema.parse(body)),
+      await this.webhooks.retryDelivery(context, id, retryWebhookDeliverySchema.parse(body ?? {})),
     );
   }
 }

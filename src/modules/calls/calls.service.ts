@@ -10,6 +10,7 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeCall, serializeTranscriptTurn } from './calls.serializer';
 
@@ -30,6 +31,7 @@ export class CallsService {
     private readonly conversations: ConversationsService,
     private readonly events: EventsService,
     private readonly mockProvider: MockProviderService,
+    private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
   ) {}
 
@@ -48,9 +50,18 @@ export class CallsService {
     });
     const now = new Date();
 
+    const callId = createId('call');
+    await this.usage.recordVoiceCall({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: agent.id,
+      callId,
+      durationSeconds: providerCall.durationSeconds,
+    });
+
     const call = await this.prisma.call.create({
       data: {
-        id: createId('call'),
+        id: callId,
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId: agent.id,
