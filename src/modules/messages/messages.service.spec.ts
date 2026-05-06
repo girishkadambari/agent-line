@@ -3,6 +3,7 @@ import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { WebhooksService } from '../webhooks/webhooks.service';
 import { MessagesService } from './messages.service';
 
 const context = {
@@ -44,13 +45,17 @@ function createService(prisma: PrismaService) {
   const events = {
     create: jest.fn().mockResolvedValue({ id: 'evt_123' }),
   } as unknown as EventsService;
+  const webhooks = {
+    createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
+  } as unknown as WebhooksService;
   const provider = new MockProviderService();
 
   return {
-    service: new MessagesService(prisma, contacts, conversations, events, provider),
+    service: new MessagesService(prisma, contacts, conversations, events, provider, webhooks),
     contacts,
     conversations,
     events,
+    webhooks,
   };
 }
 

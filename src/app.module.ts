@@ -10,6 +10,7 @@ import { HealthModule } from './modules/health/health.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NumbersModule } from './modules/numbers/numbers.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     ConversationsModule,
     MessagesModule,
     CallsModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}

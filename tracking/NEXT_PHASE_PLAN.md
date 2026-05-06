@@ -2,67 +2,66 @@
 
 ## Current Focus
 
-**Phase 1 Backend Slice 6: Webhooks, Delivery Logs, And Retry Simulation**
+**Phase 1 Backend Slice 7: Usage Ledger And Billing Balance Simulation**
 
-The backend now has API auth, workspace/team/invites/audit, agents, numbers, messages, conversations, mock calls, transcripts, and durable internal events. The next slice should expose webhook configuration and turn internal events into inspectable signed delivery records.
+The backend now supports mock agents, numbers, messages, calls, transcripts, internal events, and webhook delivery logs. The next slice should make costs inspectable and bounded in mock mode.
 
 ## Goals
 
 This slice must deliver:
 
-- Webhook endpoint CRUD.
-- Webhook secret generation.
-- Event subscription filtering.
-- Signed test delivery payloads.
-- Delivery log records.
-- Retry simulation for failed deliveries.
-- Delivery list filtering by endpoint/event/status.
-- Service tests for signing and delivery state transitions.
+- Usage event creation for number provisioning, SMS, calls, and recordings where applicable.
+- Billing balance lookup.
+- Mock billing balance debit simulation.
+- Usage list and rollup endpoints.
+- Daily and monthly usage summaries.
+- Tests for usage event math and workspace/project scoping.
 
 ## Execution Order
 
-### Step 1: Webhook Signature Helper
+### Step 1: Usage Pricing Constants
 
-- Generate endpoint secrets.
-- Sign payloads with HMAC SHA-256.
-- Provide timestamped signature headers.
-- Add tests for deterministic signing.
+- Define Phase 1 mock unit costs in one place.
+- Keep prices provider-neutral and easy to replace later.
+- Use decimal-safe calculation for persisted `Decimal` fields.
 
-### Step 2: Webhooks Module
-
-Implement:
-
-- `GET /v1/webhooks`
-- `POST /v1/webhooks`
-- `PATCH /v1/webhooks/:id`
-- `DELETE /v1/webhooks/:id`
-- `POST /v1/webhooks/:id/test`
-
-### Step 3: Delivery Logs
+### Step 2: Usage Module
 
 Implement:
 
-- `GET /v1/webhooks/deliveries`
-- delivery creation from test events.
-- failed delivery simulation.
-- retry state update.
-- exhausted final state.
+- `GET /v1/usage`
+- `GET /v1/usage/daily`
+- `GET /v1/usage/monthly`
 
-### Step 4: Internal Event Bridge
+### Step 3: Billing Module
 
-- Add a service method that creates deliveries for matching endpoints from an `InternalEvent`.
-- Keep network dispatch mocked in Phase 1.
-- Do not perform real outbound HTTP calls yet.
+Implement:
+
+- billing balance lookup.
+- balance debit helper.
+- spend-limit conflict guard.
+- mock balance response for dashboard.
+
+### Step 4: Usage Hooks
+
+Create usage events for:
+
+- mock number provisioning.
+- outbound SMS.
+- inbound SMS simulation.
+- outbound mock call duration.
+- transcript/recording placeholder only if billable in Phase 1.
 
 ### Step 5: Tests
 
 Add tests for:
 
-- endpoint CRUD.
-- endpoint delete disables rather than destroys useful history.
-- signature creation.
-- test delivery records.
-- failed delivery retry simulation.
+- usage event creation.
+- cost calculation.
+- billing debit.
+- insufficient balance/spend-limit conflict.
+- daily rollup.
+- monthly rollup.
 - workspace/project scoping.
 
 ## Definition Of Done
@@ -76,10 +75,10 @@ Add tests for:
 
 ## Not In This Slice
 
-- Real outbound webhook HTTP dispatch.
-- Background queue worker.
-- Usage rollups.
-- Billing debits.
+- Stripe.
+- Auto-recharge.
+- Invoice generation.
+- Real provider cost reconciliation.
 - React frontend.
 - Real Twilio/Telnyx.
 - Hosted AI.

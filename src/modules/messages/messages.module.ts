@@ -5,11 +5,19 @@ import { ContactsModule } from '../contacts/contacts.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { EventsModule } from '../events/events.module';
 import { MockProviderModule } from '../providers/mock/mock-provider.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 
 @Module({
-  imports: [AuthModule, ContactsModule, ConversationsModule, EventsModule, MockProviderModule],
+  imports: [
+    AuthModule,
+    ContactsModule,
+    ConversationsModule,
+    EventsModule,
+    MockProviderModule,
+    WebhooksModule,
+  ],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],

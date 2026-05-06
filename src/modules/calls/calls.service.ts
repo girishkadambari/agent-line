@@ -10,16 +10,27 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeCall, serializeTranscriptTurn } from './calls.serializer';
 
 @Injectable()
 export class CallsService {
+  private readonly terminalCallStatuses = new Set([
+    'completed',
+    'failed',
+    'busy',
+    'no_answer',
+    'canceled',
+    'transferred',
+  ]);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly contacts: ContactsService,
     private readonly conversations: ConversationsService,
     private readonly events: EventsService,
     private readonly mockProvider: MockProviderService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
@@ -61,7 +72,7 @@ export class CallsService {
     });
 
     await this.createMockTranscript(context, call.id, input.to);
-    await this.events.create({
+    const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type: 'agent.call.completed',
@@ -74,6 +85,7 @@ export class CallsService {
         durationSeconds: call.durationSeconds,
       },
     });
+    await this.webhooks.createDeliveriesForEvent(event);
 
     return serializeCall(call);
   }
@@ -108,6 +120,11 @@ export class CallsService {
 
   async endCall(context: RequestContext, id: string) {
     const existing = await this.findCallOrThrow(context, id);
+
+    if (this.terminalCallStatuses.has(existing.status)) {
+      return serializeCall(existing);
+    }
+
     const providerCall = existing.providerCallId
       ? await this.mockProvider.endCall({ providerCallId: existing.providerCallId })
       : { status: 'completed' as const };
@@ -120,7 +137,7 @@ export class CallsService {
       },
     });
 
-    await this.events.create({
+    const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type: 'agent.call.ended',
@@ -128,6 +145,7 @@ export class CallsService {
       resourceId: call.id,
       payload: { agentId: call.agentId, conversationId: call.conversationId },
     });
+    await this.webhooks.createDeliveriesForEvent(event);
 
     return serializeCall(call);
   }
@@ -153,7 +171,7 @@ export class CallsService {
       },
     });
 
-    await this.events.create({
+    const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type: 'agent.call.transferred',
@@ -161,6 +179,7 @@ export class CallsService {
       resourceId: call.id,
       payload: { agentId: call.agentId, conversationId: call.conversationId, to: input.to },
     });
+    await this.webhooks.createDeliveriesForEvent(event);
 
     return serializeCall(call);
   }

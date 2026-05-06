@@ -3,6 +3,7 @@ import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { WebhooksService } from '../webhooks/webhooks.service';
 import { CallsService } from './calls.service';
 
 const context = {
@@ -66,13 +67,17 @@ function createService(prisma: PrismaService) {
   const events = {
     create: jest.fn().mockResolvedValue({ id: 'evt_123' }),
   } as unknown as EventsService;
+  const webhooks = {
+    createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
+  } as unknown as WebhooksService;
   const provider = new MockProviderService();
 
   return {
-    service: new CallsService(prisma, contacts, conversations, events, provider),
+    service: new CallsService(prisma, contacts, conversations, events, provider, webhooks),
     contacts,
     conversations,
     events,
+    webhooks,
   };
 }
 
@@ -181,5 +186,21 @@ describe('CallsService', () => {
         type: 'agent.call.transferred',
       }),
     );
+  });
+
+  it('does not emit another event when ending an already terminal call', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(callFixture({ status: 'completed' })),
+        update: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, events } = createService(prisma);
+
+    const result = await service.endCall(context, 'call_123');
+
+    expect(result.status).toBe('completed');
+    expect(prisma.call.update).not.toHaveBeenCalled();
+    expect(events.create).not.toHaveBeenCalled();
   });
 });

@@ -614,9 +614,7 @@ GET /v1/calls/:id/transcript
 GET /v1/calls/:id/transcript/stream
 ```
 
-Transcript stream uses Server-Sent Events in early implementation.
-
-Phase 1 currently returns the same transcript list shape for `/stream`; true SSE remains part of the real-time voice/webhook hardening work.
+Transcript stream uses Server-Sent Events. In mock mode it emits the persisted transcript turns in order.
 
 ### Webhooks
 
@@ -627,9 +625,11 @@ PATCH /v1/webhooks/:id
 DELETE /v1/webhooks/:id
 GET /v1/webhooks/deliveries
 POST /v1/webhooks/:id/test
+POST /v1/webhooks/deliveries/:id/retry
 ```
 
 Test delivery sends a signed `webhook.test` event and records a delivery attempt.
+Phase 1 retry simulation updates delivery state locally without performing real outbound HTTP.
 
 ### Usage
 

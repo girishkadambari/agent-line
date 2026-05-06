@@ -29,7 +29,7 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Workspace/team/invites/audit | review | Global users, memberships, invites, audit events, workspace/team/invite routes, and tests implemented. |
 | Messages/conversations module | review | Contacts, conversations, outbound SMS, inbound SMS simulation, message records, and internal message events implemented. |
 | Calls/transcripts module | review | Mock outbound calls, web-call token, list/get/end/transfer routes, transcript retrieval, summaries, outcomes, and internal call events implemented. |
-| Webhooks module | todo | Endpoint CRUD, signatures, deliveries, retries. |
+| Webhooks module | review | Endpoint CRUD, HMAC signatures, test delivery, delivery logs, retry simulation, and internal event delivery bridge implemented. |
 | Usage/billing module | todo | Usage events, rollups, simulated balance. |
 | Frontend integration contract | todo | API examples and contract notes for later React/Lovable frontend integration. |
 | Tests/verification | todo | Unit/API tests and manual smoke flow. |
@@ -44,10 +44,11 @@ Add review feedback here as implementation progresses.
 - 2026-05-06: Review found missing team/invite/audit foundation. Implemented workspace members, invites, audit events, routes, and tests before continuing to messages.
 - 2026-05-07: Slice 4 implemented contacts, conversations, messages, inbound SMS simulation, and durable internal message events.
 - 2026-05-07: Slice 5 implemented mock calls, transcript turns, web-call token route, call end/transfer actions, and durable internal call events.
+- 2026-05-07: Slice 6 implemented webhook endpoints, signed test deliveries, delivery logs, retry simulation, and pending deliveries for matching message/call events.
 
 ## Next Steps
 
 1. Configure local Postgres and run `npm run db:push && npm run db:seed`.
 2. Add DB-backed API integration tests for auth, agents, and numbers once Postgres is available.
-3. Implement webhook endpoint CRUD, signed delivery records, test delivery, and retry simulation.
-4. Add usage ledger and mock billing debits for numbers, SMS, and calls.
+3. Add usage ledger and mock billing debits for numbers, SMS, and calls.
+4. Add DB-backed API integration tests once local Postgres is configured.

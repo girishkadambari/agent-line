@@ -10,6 +10,7 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeMessage } from './messages.serializer';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class MessagesService {
     private readonly conversations: ConversationsService,
     private readonly events: EventsService,
     private readonly mockProvider: MockProviderService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   async sendMessage(context: RequestContext, input: SendMessageInput) {
@@ -54,7 +56,7 @@ export class MessagesService {
       },
     });
 
-    await this.events.create({
+    const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type: 'agent.message.sent',
@@ -66,6 +68,7 @@ export class MessagesService {
         contactId: contact.id,
       },
     });
+    await this.webhooks.createDeliveriesForEvent(event);
 
     return serializeMessage(message);
   }
@@ -97,7 +100,7 @@ export class MessagesService {
       },
     });
 
-    await this.events.create({
+    const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type: 'agent.message.received',
@@ -109,6 +112,7 @@ export class MessagesService {
         contactId: contact.id,
       },
     });
+    await this.webhooks.createDeliveriesForEvent(event);
 
     return serializeMessage(message);
   }

@@ -407,3 +407,58 @@ Known limitations:
 - `/v1/calls/:id/transcript/stream` currently returns the transcript list shape; true SSE is deferred.
 - Real inbound call routing is deferred to provider integration phases.
 - Call usage/billing events are deferred to the usage slice.
+
+## 2026-05-07: Review Fixes - Call Lifecycle Idempotency And Transcript SSE
+
+**Status:** done
+
+Implemented:
+
+- `POST /v1/calls/:id/end` is idempotent for terminal call statuses and no longer emits duplicate terminal lifecycle events.
+- `GET /v1/calls/:id/transcript/stream` now uses Nest SSE and emits transcript turns as stream events.
+- Added a regression test for ending an already completed call.
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 13 suites, 33 tests.
+
+## 2026-05-07: Phase 1 Slice 6 - Webhooks, Delivery Logs, And Retry Simulation
+
+**Status:** review
+
+Implemented:
+
+- `WebhooksModule`
+- webhook endpoint CRUD.
+- webhook secret generation.
+- HMAC SHA-256 payload signing.
+- signed webhook test deliveries.
+- delivery log listing and filtering.
+- retry simulation with succeeded, failed, and exhausted outcomes.
+- internal event bridge that creates pending deliveries for matching active endpoints.
+- message and call services now create webhook deliveries from internal events.
+
+Routes added:
+
+- `GET /v1/webhooks`
+- `POST /v1/webhooks`
+- `PATCH /v1/webhooks/:id`
+- `DELETE /v1/webhooks/:id`
+- `POST /v1/webhooks/:id/test`
+- `GET /v1/webhooks/deliveries`
+- `POST /v1/webhooks/deliveries/:id/retry`
+
+Verification:
+
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test` passed: 15 suites, 38 tests.
+- `npm run build` passed.
+
+Known limitations:
+
+- Webhook delivery is still mock/local; no real outbound HTTP dispatch yet.
+- Background queue worker is deferred.
+- Usage/billing events are deferred to the usage slice.

@@ -99,7 +99,29 @@ export const createWebhookSchema = z.object({
   events: z.array(z.string().min(1)).min(1),
 });
 
-export const workspaceRoleSchema = z.enum(['owner', 'admin', 'developer', 'billing', 'viewer', 'member']);
+export const updateWebhookSchema = z.object({
+  url: z.string().url().optional(),
+  events: z.array(z.string().min(1)).min(1).optional(),
+  status: z.enum(['active', 'paused', 'disabled']).optional(),
+});
+
+export const testWebhookSchema = z.object({
+  simulateFailure: z.boolean().default(false),
+});
+
+export const retryWebhookDeliverySchema = z.object({
+  outcome: z.enum(['succeeded', 'failed']).default('succeeded'),
+  exhaust: z.boolean().default(false),
+});
+
+export const workspaceRoleSchema = z.enum([
+  'owner',
+  'admin',
+  'developer',
+  'billing',
+  'viewer',
+  'member',
+]);
 
 export const updateWorkspaceSchema = z.object({
   name: z.string().min(1).optional(),
@@ -126,6 +148,9 @@ export type CreateCallInput = z.infer<typeof createCallSchema>;
 export type CreateWebCallInput = z.infer<typeof createWebCallSchema>;
 export type TransferCallInput = z.infer<typeof transferCallSchema>;
 export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
+export type UpdateWebhookInput = z.infer<typeof updateWebhookSchema>;
+export type TestWebhookInput = z.infer<typeof testWebhookSchema>;
+export type RetryWebhookDeliveryInput = z.infer<typeof retryWebhookDeliverySchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;

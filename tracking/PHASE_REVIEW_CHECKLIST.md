@@ -364,7 +364,6 @@ Status: review
 
 ### Known Limitations
 
-- Transcript stream route returns the transcript list shape; true SSE is deferred.
 - Real inbound voice routing is deferred.
 - Usage/billing events are deferred.
 
@@ -372,3 +371,66 @@ Status: review
 
 - Implement webhook endpoint CRUD.
 - Implement signed delivery logs and retry simulation.
+
+## 2026-05-07: Phase 1 Slice 6 - Webhooks, Delivery Logs, And Retry Simulation
+
+Status: review
+
+### Scope Completed
+
+- [x] Webhook endpoint CRUD.
+- [x] Webhook secret generation.
+- [x] HMAC SHA-256 signature helper.
+- [x] Signed test delivery records.
+- [x] Delivery list filters.
+- [x] Retry simulation.
+- [x] Internal event delivery bridge.
+- [x] Service tests.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code or dead folders remain.
+- [x] No secrets are committed.
+- [x] No generated build output is tracked.
+
+### API Review
+
+- [x] Routes match `docs/BACKEND_SPEC.md`.
+- [x] Response shape uses `{ data }`.
+- [x] Error shape uses `{ error: { code, message, details } }`.
+- [x] Auth behavior is correct.
+- [x] Workspace/project scope is respected.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+- [x] `docs/` updated.
+
+### Known Limitations
+
+- Real outbound webhook HTTP dispatch is deferred.
+- Queue worker is deferred.
+- Usage/billing events are deferred.
+
+### Next Actions
+
+- Implement usage ledger and billing balance simulation.

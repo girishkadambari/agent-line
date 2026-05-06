@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, MessageEvent, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import { from, map, mergeMap, Observable } from 'rxjs';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -59,7 +60,14 @@ export class CallsController {
   }
 
   @Get(':id/transcript/stream')
-  streamTranscript(@CurrentContext() context: RequestContext, @Param('id') id: string) {
-    return this.calls.listTranscript(context, id);
+  @Sse()
+  streamTranscript(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+  ): Observable<MessageEvent> {
+    return from(this.calls.listTranscript(context, id)).pipe(
+      mergeMap((response) => from(response.data)),
+      map((turn) => ({ data: turn })),
+    );
   }
 }
