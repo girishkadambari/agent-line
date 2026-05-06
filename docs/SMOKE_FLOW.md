@@ -6,6 +6,7 @@ This smoke flow proves the mock backend loop works end to end without Twilio, Te
 
 ```bash
 npm install
+npm run db:docker:up
 npm run db:generate
 npm run db:push
 npm run db:seed
@@ -219,10 +220,13 @@ Expected UI states:
 
 ## Known Phase 1 Limitations
 
-- No real telecom provider calls.
+- Mock mode is the default. Twilio adapter support exists behind `TELECOM_PROVIDER=twilio`, but live Twilio behavior still needs real credentials and sandbox verification.
 - No real outbound webhook HTTP dispatch.
-- No Stripe checkout or portal endpoints yet.
 - No hosted AI execution yet.
-- DB-backed e2e tests need a configured local Postgres URL.
-- API-key management CRUD is not implemented yet; seed/local API key is available.
+- DB-backed e2e tests require Docker Postgres:
 
+```bash
+npm run db:docker:up
+npm run db:test:push
+npm run test:e2e:db
+```

@@ -56,16 +56,23 @@ describe('StripeClientService', () => {
     });
     const service = createService(1_777_777_777);
 
-    expect(() =>
+    try {
       service.constructWebhookEvent(
         Buffer.from(payload),
         signatureFor(payload, 'whsec_test', 1_777_777_000),
-      ),
-    ).toThrow(
-      expect.objectContaining({
+      );
+      throw new Error('Expected stale signature to throw.');
+    } catch (error) {
+      expect(error).toMatchObject({
         code: 'unauthorized',
-        message: 'Stripe signature timestamp is outside tolerance.',
-      }),
-    );
+      });
+      expect((error as { getResponse: () => unknown }).getResponse()).toEqual({
+        error: {
+          code: 'unauthorized',
+          message: 'Stripe signature timestamp is outside tolerance.',
+          details: {},
+        },
+      });
+    }
   });
 });

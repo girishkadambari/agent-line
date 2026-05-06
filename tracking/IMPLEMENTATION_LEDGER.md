@@ -607,3 +607,24 @@ Verification:
 - `npm test` passed: 19 suites, 53 tests.
 - `npm run db:generate` passed.
 - `npm run build` passed.
+
+## 2026-05-07: Stripe Webhook Hardening
+
+**Status:** review
+
+Implemented:
+
+- unique Prisma constraint for Stripe `provider + providerEventId`.
+- Stripe checkout completion processing now runs in a DB transaction.
+- balance credit and billing transaction insert are atomic.
+- duplicate Stripe events return duplicate without crediting balance.
+- unscoped/unknown Stripe events are ignored without writing invalid workspace ids.
+- Stripe webhook signatures reject timestamps outside tolerance.
+- tests added for duplicate event handling, unscoped event ignore, valid timestamp, and stale timestamp.
+
+Verification:
+
+- `npm test` passed: 20 suites, 57 tests.
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.

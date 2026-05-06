@@ -684,6 +684,34 @@ interface TelecomProvider {
 
 Mock provider must implement the same interface as real providers.
 
+Runtime provider selection:
+
+```env
+TELECOM_PROVIDER="mock"
+```
+
+Valid values:
+
+- `mock`: default local and test provider. Requires no external credentials.
+- `twilio`: real Twilio REST API adapter. Requires `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`; voice calls also require `TWILIO_VOICE_WEBHOOK_URL` before live use.
+
+Twilio is the first real provider target. The public AgentLine API must not change when switching from mock to Twilio. Provider-specific IDs may be stored internally as `providerNumberId`, `providerMessageId`, or `providerCallId`; public responses should stay normalized around AgentLine objects and statuses.
+
+Local database defaults:
+
+```bash
+npm run db:docker:up
+npm run db:push
+npm run db:seed
+```
+
+DB-backed e2e tests use Docker Postgres on port `5433`:
+
+```bash
+npm run db:test:push
+npm run test:e2e:db
+```
+
 ## Event And Webhook Flow
 
 Internal flow:

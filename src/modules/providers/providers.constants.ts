@@ -1,0 +1,1 @@
+export const TELECOM_PROVIDER = Symbol('TELECOM_PROVIDER');

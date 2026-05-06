@@ -15,7 +15,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripe: StripeClientService,
-  ) {}
+  ) { }
 
   async getBalance(context: RequestContext) {
     const balance = await this.findOrCreateWorkspaceBalance(context.workspaceId);

@@ -654,10 +654,10 @@ Status: review
 
 ### Testing And Verification
 
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm run typecheck`
 - [ ] `npm test`
-- [ ] `npm run build`
+- [x] `npm run build`
 
 ### Docs And Tracking
 
@@ -720,6 +720,47 @@ Status: review
 
 - Stripe SDK is not installed; HTTP wrapper is used.
 - Live Stripe behavior still needs real credentials and manual sandbox verification.
+- DB-backed e2e tests are still pending.
+
+### Next Actions
+
+- Implement DB-backed e2e tests.
+
+## 2026-05-07: Stripe Webhook Hardening
+
+Status: review
+
+### Scope Completed
+
+- [x] Atomic checkout completion credit.
+- [x] Unique Stripe event constraint.
+- [x] Duplicate event guard.
+- [x] Unscoped event ignore behavior.
+- [x] Signature timestamp tolerance.
+- [x] Regression tests.
+
+### Architecture Review
+
+- [x] Stripe verification remains in Stripe client wrapper.
+- [x] Money movement stays in billing service.
+- [x] Balance credit and transaction insert are transaction-bound.
+
+### Testing And Verification
+
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run db:generate`
+- [ ] `npm run build`
+
+### Docs And Tracking
+
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+
+### Known Limitations
+
+- Live Stripe sandbox verification still needs real credentials.
 - DB-backed e2e tests are still pending.
 
 ### Next Actions

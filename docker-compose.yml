@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agentline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentline
+      POSTGRES_PASSWORD: agentline
+      POSTGRES_DB: agentline
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentline_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentline -d agentline"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: agentline-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentline
+      POSTGRES_PASSWORD: agentline
+      POSTGRES_DB: agentline_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentline -d agentline_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  agentline_postgres_data:

@@ -1,15 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import type { TelecomProvider } from '../../domain/provider';
 import type { CreateCallInput, CreateWebCallInput, TransferCallInput } from '../../domain/schemas';
 import { ContactsService } from '../contacts/contacts.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MockProviderService } from '../providers/mock/mock-provider.service';
+import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeCall, serializeTranscriptTurn } from './calls.serializer';
@@ -30,7 +31,7 @@ export class CallsService {
     private readonly contacts: ContactsService,
     private readonly conversations: ConversationsService,
     private readonly events: EventsService,
-    private readonly mockProvider: MockProviderService,
+    @Inject(TELECOM_PROVIDER) private readonly telecomProvider: TelecomProvider,
     private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
   ) { }
@@ -44,7 +45,7 @@ export class CallsService {
       agent.id,
       contact.id,
     );
-    const providerCall = await this.mockProvider.createCall({
+    const providerCall = await this.telecomProvider.createCall({
       from: phoneNumber.phoneNumber,
       to: input.to,
     });
@@ -137,7 +138,7 @@ export class CallsService {
     }
 
     const providerCall = existing.providerCallId
-      ? await this.mockProvider.endCall({ providerCallId: existing.providerCallId })
+      ? await this.telecomProvider.endCall({ providerCallId: existing.providerCallId })
       : { status: 'completed' as const };
 
     const call = await this.prisma.call.update({
@@ -168,7 +169,7 @@ export class CallsService {
       throw new ApiException('conflict', 'Call does not have a provider call id.', 409, { id });
     }
 
-    const transfer = await this.mockProvider.transferCall({
+    const transfer = await this.telecomProvider.transferCall({
       providerCallId: existing.providerCallId,
       to: input.to,
     });

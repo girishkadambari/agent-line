@@ -33,8 +33,11 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Webhooks module | review | Endpoint CRUD, HMAC signatures, test delivery, delivery logs, retry simulation, and internal event delivery bridge implemented. |
 | Usage/billing module | review | Usage events, pricing constants, billing balance lookup/debit, SMS/call/number hooks, and daily/monthly rollups implemented. |
 | Stripe billing endpoints | review | Checkout sessions, portal sessions, verified webhook, billing accounts, and billing transactions implemented. |
+| Docker Postgres | review | Docker Compose dev/test Postgres services and `.env.test.example` added. |
+| Provider abstraction | review | Mock and Twilio adapters now resolve through a shared `TELECOM_PROVIDER` token. |
+| DB-backed e2e smoke | review | Golden Phase 1 Supertest flow added for Docker test Postgres. |
 | Frontend integration contract | review | API examples, smoke flow, frontend integration notes, and completeness check added. |
-| Tests/verification | review | Unit tests and build checks pass; DB-backed manual smoke requires local Postgres. |
+| Tests/verification | review | Unit tests and build checks pass; DB-backed e2e requires Docker Postgres. |
 
 ## Review Notes
 
@@ -51,10 +54,11 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 8 added API examples, local smoke flow, frontend integration notes, Stripe plan reference, and Phase 1 completeness check.
 - 2026-05-07: Slice 9 implemented API-key management CRUD with one-time raw key return, hash-only storage, revocation, and audit events.
 - 2026-05-07: Slice 10 implemented Stripe checkout, portal, webhook verification, billing accounts, and billing transactions.
+- 2026-05-07: Slice 11 added Docker Postgres, DB-backed Phase 1 smoke e2e, provider selection token, and Twilio adapter prep.
 
 ## Next Steps
 
-1. Configure local Postgres and run `npm run db:push && npm run db:seed`.
-2. Add DB-backed API integration tests for auth, agents, and numbers once Postgres is available.
-3. Choose next implementation branch: DB-backed e2e tests or real provider adapter prep.
-4. Add DB-backed API integration tests once local Postgres is configured.
+1. Run Docker Postgres and verify `npm run db:test:push && npm run test:e2e:db`.
+2. Start Phase 2 real SMS/number infrastructure with Twilio sandbox credentials.
+3. Add inbound Twilio SMS webhook ingestion and provider raw event persistence.
+4. Add Twilio delivery status callback normalization.

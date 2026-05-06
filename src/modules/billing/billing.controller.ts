@@ -10,7 +10,7 @@ import { BillingService } from './billing.service';
 
 @Controller('billing')
 export class BillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(private readonly billing: BillingService) { }
 
   @UseGuards(ApiKeyGuard)
   @Get('balance')

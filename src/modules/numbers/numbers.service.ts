@@ -1,12 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import type { TelecomProvider } from '../../domain/provider';
 import type { CreateNumberInput, UpdateNumberInput } from '../../domain/schemas';
-import { MockProviderService } from '../providers/mock/mock-provider.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
 import { serializeNumber } from './numbers.serializer';
 
@@ -14,7 +15,7 @@ import { serializeNumber } from './numbers.serializer';
 export class NumbersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mockProvider: MockProviderService,
+    @Inject(TELECOM_PROVIDER) private readonly telecomProvider: TelecomProvider,
     private readonly usage: UsageService,
   ) {}
 
@@ -36,7 +37,7 @@ export class NumbersService {
       await this.assertAgentExists(context, input.agentId);
     }
 
-    const provisioned = await this.mockProvider.provisionNumber({
+    const provisioned = await this.telecomProvider.provisionNumber({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       country: input.country,
@@ -132,7 +133,7 @@ export class NumbersService {
     }
 
     if (number.providerNumberId) {
-      await this.mockProvider.releaseNumber({ providerNumberId: number.providerNumberId });
+      await this.telecomProvider.releaseNumber({ providerNumberId: number.providerNumberId });
     }
 
     const released = await this.prisma.phoneNumber.update({

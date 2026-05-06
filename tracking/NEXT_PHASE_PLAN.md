@@ -4,7 +4,7 @@
 
 **Phase 1 Hardening: DB-Backed E2E Tests**
 
-The mock product loop, API-key management, and Stripe billing endpoints are implemented. The next best phase is to prove the whole system against a real Postgres database.
+The mock product loop, API-key management, Stripe billing endpoints, and Stripe webhook hardening are implemented. The next best phase is to prove the whole system against a real Postgres database.
 
 ## Goals
 

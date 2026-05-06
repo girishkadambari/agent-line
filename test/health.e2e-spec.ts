@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { applyApiBehavior } from './apply-api-behavior';
 
 describe('Health route', () => {
   let app: INestApplication;
@@ -13,7 +14,7 @@ describe('Health route', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('v1');
+    applyApiBehavior(app);
     await app.init();
   });
 

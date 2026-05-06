@@ -4,7 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { EventsModule } from '../events/events.module';
-import { MockProviderModule } from '../providers/mock/mock-provider.module';
+import { ProvidersModule } from '../providers/providers.module';
 import { UsageModule } from '../usage/usage.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CallsController } from './calls.controller';
@@ -16,7 +16,7 @@ import { CallsService } from './calls.service';
     ContactsModule,
     ConversationsModule,
     EventsModule,
-    MockProviderModule,
+    ProvidersModule,
     UsageModule,
     WebhooksModule,
   ],

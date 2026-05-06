@@ -80,6 +80,16 @@ Mock provider must support:
 - Producing call summaries and outcomes.
 - Producing provider-like error states for testing.
 
+### Active Adapter Boundary
+
+The backend resolves telecom behavior through `TELECOM_PROVIDER`.
+
+- `mock` is the default and must remain credential-free.
+- `twilio` is the first real provider adapter.
+- future `telnyx` support must use the same `TelecomProvider` interface.
+
+Local and CI tests should use mock mode unless a specific Twilio sandbox/live verification task is being run.
+
 ### Later Phases: Twilio/Telnyx Providers
 
 Real providers must be added behind the same adapter interface used by mock mode.
@@ -90,6 +100,30 @@ Provider adapters must:
 - Record raw payloads for debugging.
 - Return typed provider errors.
 - Avoid leaking provider-specific fields into public API responses unless placed under a clearly named `provider` object.
+
+## Docker Database
+
+Use Docker Postgres for local development and DB-backed tests.
+
+```bash
+npm run db:docker:up
+npm run db:push
+npm run db:seed
+```
+
+Test database:
+
+```bash
+npm run db:test:push
+npm run test:e2e:db
+```
+
+Ports:
+
+- app/dev database: `localhost:5432`, database `agentline`.
+- e2e database: `localhost:5433`, database `agentline_test`.
+
+Keep `.env.test.example` aligned with `docker-compose.yml`.
 
 ## Data Persistence Strategy
 
