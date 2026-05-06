@@ -2,43 +2,48 @@
 
 ## Current Focus
 
-**Phase 1 Hardening: DB-Backed E2E Tests**
+**Phase 2B: Twilio Hardening And Live Verification**
 
-The mock product loop, API-key management, Stripe billing endpoints, and Stripe webhook hardening are implemented. The next best phase is to prove the whole system against a real Postgres database.
+Phase 2A added provider-safe billing flow, Twilio SMS callback URLs, inbound/status callback ingestion, raw provider event persistence, and callback simulation in DB-backed e2e. The next phase is to harden public Twilio ingress and prepare bounded live verification.
 
 ## Goals
 
-- Run the golden smoke flow through HTTP API tests.
-- Verify seeded workspace/project/API key.
-- Verify auth, agents, numbers, messages, calls, webhooks, usage, billing, API-key CRUD, and Stripe webhook idempotency.
-- Catch Prisma/schema/runtime issues that unit tests cannot catch.
+- Keep `TELECOM_PROVIDER=mock` as the default for local development.
+- Verify Twilio request signatures on public callback routes.
+- Add provider request timeout/retry behavior.
+- Add live Twilio sandbox verification guide and checklist.
+- Add 10DLC/compliance fields to numbers/projects.
+- Add rate limits and abuse guards around outbound SMS.
+- Keep provider errors normalized as `provider_error`.
 
 ## Build
 
-- Configure a test database URL.
-- Add e2e setup/teardown.
-- Seed test data.
-- Add Supertest flows for:
-  - health.
-  - authenticated workspace scope.
-  - API-key create/revoke.
-  - agent create.
-  - number provision.
-  - outbound SMS.
-  - inbound SMS simulation.
-  - mock call.
-  - webhook endpoint/test delivery.
-  - usage and billing balance.
-  - Stripe webhook credit idempotency with mocked provider/signature.
+- Twilio HMAC signature verifier for callbacks.
+- callback timestamp/replay tolerance where applicable.
+- provider request timeout wrapper.
+- provider retry policy for safe idempotent operations.
+- project/number compliance fields.
+- outbound SMS rate limiting by workspace/project/agent.
+- live sandbox checklist.
+
+## Phase 2A Implementation Order
+
+1. Add Twilio callback signature verification.
+2. Add provider timeout and normalized retry handling.
+3. Add outbound SMS rate-limit guard.
+4. Add 10DLC/compliance fields.
+5. Run live Twilio sandbox verification.
+6. Document production callback URLs and rollback plan.
 
 ## Alternative Next Track
 
-Real provider prep:
+Production safety prep:
 
-- Twilio/Telnyx adapter contract tests.
-- normalized provider errors.
-- provider raw event ingestion skeleton.
+- provider request retry/backoff.
+- provider rate-limit normalization.
+- abuse controls for outbound SMS.
+- 10DLC/compliance fields.
 
 ## Current Recommendation
 
-Implement **DB-Backed E2E Tests** next before touching real telecom.
+Implement **Twilio hardening and live verification** next, while keeping mock mode as the default.

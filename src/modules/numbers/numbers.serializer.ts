@@ -12,7 +12,6 @@ export function serializeNumber(number: PhoneNumber) {
     capabilities: number.capabilities,
     status: number.status,
     provider: number.provider,
-    providerNumberId: number.providerNumberId,
     createdAt: number.createdAt.toISOString(),
     updatedAt: number.updatedAt.toISOString(),
   };

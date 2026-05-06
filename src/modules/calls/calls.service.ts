@@ -45,10 +45,6 @@ export class CallsService {
       agent.id,
       contact.id,
     );
-    const providerCall = await this.telecomProvider.createCall({
-      from: phoneNumber.phoneNumber,
-      to: input.to,
-    });
     const now = new Date();
 
     const callId = createId('call');
@@ -57,49 +53,82 @@ export class CallsService {
       projectId: context.projectId,
       agentId: agent.id,
       callId,
-      durationSeconds: providerCall.durationSeconds,
+      durationSeconds: 60,
     });
 
-    const call = await this.prisma.call.create({
-      data: {
-        id: callId,
+    let providerStarted = false;
+    try {
+      await this.prisma.call.create({
+        data: {
+          id: callId,
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          agentId: agent.id,
+          conversationId: conversation.id,
+          phoneNumberId: phoneNumber.id,
+          contactId: contact.id,
+          direction: 'outbound',
+          fromNumber: phoneNumber.phoneNumber,
+          toNumber: input.to,
+          status: 'queued',
+          durationSeconds: 0,
+          provider: phoneNumber.provider,
+          startedAt: now,
+        },
+      });
+
+      const providerCall = await this.telecomProvider.createCall({
+        from: phoneNumber.phoneNumber,
+        to: input.to,
+      });
+      providerStarted = true;
+
+      const call = await this.prisma.call.update({
+        where: { id: callId },
+        data: {
+          status: providerCall.status,
+          durationSeconds: providerCall.durationSeconds,
+          summary: 'Mock call completed. The agent confirmed the caller intent and captured next step.',
+          outcome: providerCall.status === 'completed' ? 'completed' : providerCall.status,
+          provider: providerCall.provider,
+          providerCallId: providerCall.providerCallId,
+          endedAt: new Date(now.getTime() + providerCall.durationSeconds * 1000),
+        },
+      });
+
+      await this.createMockTranscript(context, call.id, input.to);
+      const event = await this.events.create({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        agentId: agent.id,
-        conversationId: conversation.id,
-        phoneNumberId: phoneNumber.id,
-        contactId: contact.id,
-        direction: 'outbound',
-        fromNumber: phoneNumber.phoneNumber,
-        toNumber: input.to,
-        status: providerCall.status,
-        durationSeconds: providerCall.durationSeconds,
-        summary: 'Mock call completed. The agent confirmed the caller intent and captured next step.',
-        outcome: 'completed',
-        provider: providerCall.provider,
-        providerCallId: providerCall.providerCallId,
-        startedAt: now,
-        endedAt: new Date(now.getTime() + providerCall.durationSeconds * 1000),
-      },
-    });
+        type: 'agent.call.completed',
+        resourceType: 'call',
+        resourceId: call.id,
+        payload: {
+          agentId: agent.id,
+          conversationId: conversation.id,
+          contactId: contact.id,
+          durationSeconds: call.durationSeconds,
+        },
+      });
+      await this.webhooks.createDeliveriesForEvent(event);
 
-    await this.createMockTranscript(context, call.id, input.to);
-    const event = await this.events.create({
-      workspaceId: context.workspaceId,
-      projectId: context.projectId,
-      type: 'agent.call.completed',
-      resourceType: 'call',
-      resourceId: call.id,
-      payload: {
-        agentId: agent.id,
-        conversationId: conversation.id,
-        contactId: contact.id,
-        durationSeconds: call.durationSeconds,
-      },
-    });
-    await this.webhooks.createDeliveriesForEvent(event);
-
-    return serializeCall(call);
+      return serializeCall(call);
+    } catch (error) {
+      if (!providerStarted) {
+        await this.usage.voidUsageForFailedOperation({
+          workspaceId: context.workspaceId,
+          resourceType: 'call',
+          resourceId: callId,
+        });
+      }
+      await this.prisma.call
+        .update({
+          where: { id: callId },
+          data: { status: 'failed', endedAt: new Date() },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
   }
 
   async createWebCallToken(context: RequestContext, input: CreateWebCallInput) {

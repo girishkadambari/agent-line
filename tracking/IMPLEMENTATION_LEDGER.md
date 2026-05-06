@@ -628,3 +628,69 @@ Verification:
 - `npm run lint` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.
+
+## 2026-05-07: Docker Postgres, DB E2E, And Twilio Provider Prep
+
+**Status:** review
+
+Implemented:
+
+- Docker Compose dev Postgres service on `localhost:5432`.
+- Docker Compose test Postgres service on `localhost:5433`.
+- `.env.test.example` for DB-backed e2e runs.
+- `db:test:push` and `test:e2e:db` scripts.
+- shared `TELECOM_PROVIDER` injection token.
+- provider resolver module for `mock` and `twilio`.
+- Twilio provider adapter behind the existing `TelecomProvider` interface.
+- Twilio contract tests for missing credentials, SMS send, number search, and provider error normalization.
+- DB-backed Phase 1 golden smoke e2e flow using Supertest and Docker test Postgres.
+- backend/project docs updated for Docker DB and provider selection.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 21 suites, 61 tests.
+- `npm run db:test:push` passed against Docker Postgres on `localhost:5433`.
+- `npm run test:e2e:db` passed: 2 suites, 2 tests.
+- `npm run build` passed.
+
+Open items:
+
+- Live-test Twilio with real sandbox credentials before enabling customer traffic.
+
+## 2026-05-07: Phase 2A - Twilio Number And SMS Safety
+
+**Status:** review
+
+Implemented:
+
+- billable number provisioning now authorizes usage before provider purchase.
+- number provisioning creates a local `provisioning` record before provider write.
+- provider number is released and local usage is voided if persistence fails after provider success.
+- outbound SMS now creates a local `sending` message before provider send.
+- outbound calls now create a local `queued` call before provider create.
+- failed pre-provider operations void usage debits through `UsageService.voidUsageForFailedOperation`.
+- Twilio number provisioning includes inbound SMS/status callback URL support.
+- Twilio outbound SMS includes message status callback URL support.
+- public serializers no longer expose raw provider IDs.
+- provider raw event idempotency constraints added for Twilio callbacks.
+- `POST /v1/providers/twilio/sms/inbound`.
+- `POST /v1/providers/twilio/sms/status`.
+- Twilio inbound callbacks create contacts, conversations, messages, usage, internal events, and webhook deliveries.
+- DB-backed smoke flow now simulates Twilio inbound and status callbacks.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 21 suites, 62 tests.
+- `npm run db:generate` passed.
+- `npm run build` passed.
+- `npm run db:test:push` passed against Docker Postgres on `localhost:5433`.
+- `npm run test:e2e:db` passed: 2 suites, 2 tests.
+
+Open items:
+
+- Add Twilio request signature verification before public internet exposure.
+- Live-test Twilio with sandbox credentials before customer traffic.

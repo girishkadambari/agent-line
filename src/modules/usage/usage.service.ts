@@ -54,6 +54,39 @@ export class UsageService {
     });
   }
 
+  async voidUsageForFailedOperation(input: {
+    workspaceId: string;
+    resourceType: string;
+    resourceId: string;
+  }) {
+    const events = await this.prisma.usageEvent.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+      },
+    });
+
+    if (events.length === 0) {
+      return { voided: false, refundedCents: 0 };
+    }
+
+    const refundedCents = events.reduce((sum, event) => {
+      return sum + Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
+    }, 0);
+
+    await this.prisma.usageEvent.deleteMany({
+      where: {
+        workspaceId: input.workspaceId,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+      },
+    });
+    await this.billing.creditWorkspace(input.workspaceId, refundedCents);
+
+    return { voided: true, refundedCents };
+  }
+
   recordNumberProvisioned(input: {
     workspaceId: string;
     projectId: string;

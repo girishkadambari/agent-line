@@ -766,3 +766,99 @@ Status: review
 ### Next Actions
 
 - Implement DB-backed e2e tests.
+
+## 2026-05-07: Docker Postgres, DB E2E, And Twilio Provider Prep
+
+Status: review
+
+### Scope Completed
+
+- [x] Docker Compose dev/test Postgres services.
+- [x] test env example for Docker-backed e2e.
+- [x] DB-backed Phase 1 golden smoke e2e test.
+- [x] provider selection token.
+- [x] mock provider remains default.
+- [x] Twilio provider adapter skeleton.
+- [x] Twilio provider contract tests.
+- [x] docs and tracking updated.
+
+### Architecture Review
+
+- [x] Provider-specific logic is isolated behind `TelecomProvider`.
+- [x] Public AgentLine API remains provider-neutral.
+- [x] mock mode requires no external credentials.
+- [x] Docker DB setup is explicit and repeatable.
+- [x] Frontend code remains outside this backend repo.
+
+### Testing And Verification
+
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run build`
+- [x] `npm run db:test:push`
+- [x] `npm run test:e2e:db`
+
+### Docs And Tracking
+
+- [x] `docs/BACKEND_SPEC.md` updated.
+- [x] `docs/PROJECT_DOCS.md` updated.
+- [x] `docs/SMOKE_FLOW.md` updated.
+- [x] `docs/PROJECT_COMPLETENESS_CHECK.md` updated.
+- [x] `docs/PHASE_1_STATUS.md` updated.
+- [x] `tracking/IMPLEMENTATION_LEDGER.md` updated.
+- [x] `tracking/NEXT_PHASE_PLAN.md` updated.
+
+### Known Limitations
+
+- Twilio adapter is not live-tested with real credentials.
+- Inbound Twilio SMS/call callbacks are not implemented yet.
+- DB-backed e2e requires Docker to be running locally.
+
+### Next Actions
+
+- Start Phase 2 Twilio number and SMS infrastructure.
+
+### Review Findings For Next Phase
+
+- [x] Live provider writes must not happen before billing authorization succeeds.
+- [x] Live Twilio provisioning must configure inbound SMS and status callback URLs.
+- [x] Public serializers should be reviewed before live provider launch so raw provider IDs do not become accidental public contract fields.
+
+## 2026-05-07: Phase 2A - Twilio Number And SMS Safety
+
+Status: review
+
+### Scope Completed
+
+- [x] Provider-safe billing order for number provisioning.
+- [x] Provider-safe local state before outbound SMS.
+- [x] Provider-safe local state before outbound calls.
+- [x] Usage void/refund helper for failed pre-provider operations.
+- [x] Twilio inbound SMS callback URL support during number provisioning.
+- [x] Twilio SMS status callback support during send.
+- [x] Public Twilio inbound SMS callback endpoint.
+- [x] Public Twilio SMS status callback endpoint.
+- [x] Provider raw event persistence and idempotency constraints.
+- [x] Raw provider IDs removed from public serializers.
+- [x] DB-backed e2e extended with Twilio callback simulation.
+
+### Testing And Verification
+
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm test`
+- [x] `npm run db:generate`
+- [x] `npm run build`
+- [x] `npm run db:test:push`
+- [x] `npm run test:e2e:db`
+
+### Known Limitations
+
+- Twilio callback signature verification is not implemented yet.
+- Twilio live sandbox verification is still pending.
+- Voice callbacks and real call lifecycle ingestion remain later.
+
+### Next Actions
+
+- Implement Twilio callback signature verification and live sandbox hardening.

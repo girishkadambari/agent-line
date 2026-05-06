@@ -73,6 +73,7 @@ function createService(prisma: PrismaService) {
   } as unknown as WebhooksService;
   const usage = {
     recordVoiceCall: jest.fn().mockResolvedValue({ id: 'use_123' }),
+    voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 3 }),
   } as unknown as UsageService;
   const provider = new MockProviderService();
 
@@ -99,7 +100,8 @@ describe('CallsService', () => {
         }),
       },
       call: {
-        create: jest.fn().mockResolvedValue(callFixture()),
+        create: jest.fn().mockResolvedValue(callFixture({ status: 'queued' })),
+        update: jest.fn().mockResolvedValue(callFixture()),
       },
       transcriptTurn: {
         createMany: jest.fn().mockResolvedValue({ count: 3 }),

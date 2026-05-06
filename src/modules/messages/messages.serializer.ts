@@ -13,7 +13,6 @@ export function serializeMessage(message: Message) {
     body: message.body,
     status: message.status,
     provider: message.provider,
-    providerMessageId: message.providerMessageId,
     createdAt: message.createdAt.toISOString(),
     updatedAt: message.updatedAt.toISOString(),
   };

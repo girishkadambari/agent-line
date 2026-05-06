@@ -37,14 +37,6 @@ export class NumbersService {
       await this.assertAgentExists(context, input.agentId);
     }
 
-    const provisioned = await this.telecomProvider.provisionNumber({
-      workspaceId: context.workspaceId,
-      projectId: context.projectId,
-      country: input.country,
-      areaCode: input.areaCode,
-      capabilities: input.capabilities,
-    });
-
     const numberId = createId('num');
     await this.usage.recordNumberProvisioned({
       workspaceId: context.workspaceId,
@@ -53,22 +45,62 @@ export class NumbersService {
       numberId,
     });
 
-    const number = await this.prisma.phoneNumber.create({
-      data: {
-        id: numberId,
+    let providerNumberId: string | undefined;
+    try {
+      await this.prisma.phoneNumber.create({
+        data: {
+          id: numberId,
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          agentId: input.agentId,
+          phoneNumber: `pending:${numberId}`,
+          country: input.country,
+          areaCode: input.areaCode,
+          capabilities: input.capabilities,
+          status: 'provisioning',
+          provider: 'mock',
+        },
+      });
+
+      const provisioned = await this.telecomProvider.provisionNumber({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        agentId: input.agentId,
-        phoneNumber: provisioned.phoneNumber,
-        country: provisioned.country,
-        areaCode: provisioned.areaCode,
-        capabilities: provisioned.capabilities,
-        status: 'active',
-        provider: provisioned.provider,
-        providerNumberId: provisioned.providerNumberId,
-      },
-    });
-    return serializeNumber(number);
+        country: input.country,
+        areaCode: input.areaCode,
+        capabilities: input.capabilities,
+      });
+      providerNumberId = provisioned.providerNumberId;
+
+      const number = await this.prisma.phoneNumber.update({
+        where: { id: numberId },
+        data: {
+          phoneNumber: provisioned.phoneNumber,
+          country: provisioned.country,
+          areaCode: provisioned.areaCode,
+          capabilities: provisioned.capabilities,
+          status: 'active',
+          provider: provisioned.provider,
+          providerNumberId: provisioned.providerNumberId,
+        },
+      });
+      return serializeNumber(number);
+    } catch (error) {
+      if (providerNumberId) {
+        await this.telecomProvider.releaseNumber({ providerNumberId }).catch(() => undefined);
+      }
+      await this.prisma.phoneNumber
+        .update({
+          where: { id: numberId },
+          data: { status: 'failed' },
+        })
+        .catch(() => undefined);
+      await this.usage.voidUsageForFailedOperation({
+        workspaceId: context.workspaceId,
+        resourceType: 'phone_number',
+        resourceId: numberId,
+      });
+      throw error;
+    }
   }
 
   async attachNewNumberToAgent(context: RequestContext, agentId: string, input: CreateNumberInput) {

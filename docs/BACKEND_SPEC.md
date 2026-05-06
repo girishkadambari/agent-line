@@ -697,6 +697,28 @@ Valid values:
 
 Twilio is the first real provider target. The public AgentLine API must not change when switching from mock to Twilio. Provider-specific IDs may be stored internally as `providerNumberId`, `providerMessageId`, or `providerCallId`; public responses should stay normalized around AgentLine objects and statuses.
 
+Provider safety rules:
+
+- Billable live writes must authorize/debit usage before calling the provider.
+- If the provider fails before creating an external resource, the usage debit must be voided/refunded.
+- If a live phone number is provisioned but local persistence fails, AgentLine must attempt to release the provider number and void the local usage debit.
+- Public serializers must not expose raw provider IDs as top-level API fields.
+
+Twilio SMS callback routes:
+
+```http
+POST /v1/providers/twilio/sms/inbound
+POST /v1/providers/twilio/sms/status
+```
+
+Twilio number provisioning should configure:
+
+- `TWILIO_INBOUND_SMS_WEBHOOK_URL`
+- `TWILIO_MESSAGE_STATUS_CALLBACK_URL`
+- optional `TWILIO_NUMBER_STATUS_CALLBACK_URL`
+
+Inbound/status callbacks must store raw provider payloads in `ProviderRawEvent` and normalize them into AgentLine `Message`, `InternalEvent`, usage, and webhook delivery records.
+
 Local database defaults:
 
 ```bash

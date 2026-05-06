@@ -14,6 +14,7 @@ const now = new Date('2026-05-06T00:00:00.000Z');
 function createService(prisma: PrismaService) {
   const usage = {
     recordNumberProvisioned: jest.fn().mockResolvedValue({ id: 'use_123' }),
+    voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 100 }),
   } as unknown as UsageService;
 
   return {
@@ -48,7 +49,8 @@ describe('NumbersService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
       },
       phoneNumber: {
-        create: jest.fn().mockResolvedValue(numberFixture()),
+        create: jest.fn().mockResolvedValue(numberFixture({ status: 'provisioning' })),
+        update: jest.fn().mockResolvedValue(numberFixture()),
       },
     } as unknown as PrismaService;
     const { service, usage } = createService(prisma);
@@ -65,8 +67,7 @@ describe('NumbersService', () => {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         agentId: 'agt_123',
-        phoneNumber: '+14155551000',
-        status: 'active',
+        status: 'provisioning',
         provider: 'mock',
       }),
     });

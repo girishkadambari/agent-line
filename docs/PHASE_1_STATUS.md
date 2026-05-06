@@ -36,8 +36,9 @@ Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, St
 | Docker Postgres | review | Docker Compose dev/test Postgres services and `.env.test.example` added. |
 | Provider abstraction | review | Mock and Twilio adapters now resolve through a shared `TELECOM_PROVIDER` token. |
 | DB-backed e2e smoke | review | Golden Phase 1 Supertest flow added for Docker test Postgres. |
+| Twilio SMS safety prep | review | Provider-safe billing order, callback URLs, inbound/status callback routes, raw provider events, and hidden provider IDs implemented. |
 | Frontend integration contract | review | API examples, smoke flow, frontend integration notes, and completeness check added. |
-| Tests/verification | review | Unit tests and build checks pass; DB-backed e2e requires Docker Postgres. |
+| Tests/verification | review | Lint, typecheck, unit tests, build, Docker schema push, and DB-backed e2e smoke pass. |
 
 ## Review Notes
 
@@ -54,11 +55,12 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 8 added API examples, local smoke flow, frontend integration notes, Stripe plan reference, and Phase 1 completeness check.
 - 2026-05-07: Slice 9 implemented API-key management CRUD with one-time raw key return, hash-only storage, revocation, and audit events.
 - 2026-05-07: Slice 10 implemented Stripe checkout, portal, webhook verification, billing accounts, and billing transactions.
-- 2026-05-07: Slice 11 added Docker Postgres, DB-backed Phase 1 smoke e2e, provider selection token, and Twilio adapter prep.
+- 2026-05-07: Slice 11 added Docker Postgres, DB-backed Phase 1 smoke e2e, provider selection token, Twilio adapter prep, and verified the flow against Docker test Postgres.
+- 2026-05-07: Phase 2A implemented Twilio SMS safety prep: billing before live writes, callback URLs, inbound/status callback ingestion, raw event idempotency, and hidden provider IDs.
 
 ## Next Steps
 
-1. Run Docker Postgres and verify `npm run db:test:push && npm run test:e2e:db`.
-2. Start Phase 2 real SMS/number infrastructure with Twilio sandbox credentials.
-3. Add inbound Twilio SMS webhook ingestion and provider raw event persistence.
-4. Add Twilio delivery status callback normalization.
+1. Add Twilio callback signature verification.
+2. Add outbound SMS rate limits and abuse protection.
+3. Add 10DLC/compliance fields for real SMS.
+4. Run bounded live-provider verification with Twilio sandbox credentials.

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
@@ -20,10 +20,6 @@ async function bootstrap() {
     credentials: true,
   });
   app.setGlobalPrefix('v1');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
 
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalPipes(

@@ -93,9 +93,21 @@ export class TwilioProviderService implements TelecomProvider {
       });
     }
 
-    const response = await this.request<TwilioIncomingNumber>('POST', '/IncomingPhoneNumbers.json', {
+    const body: Record<string, string> = {
       PhoneNumber: phoneNumber,
-    });
+    };
+    const inboundSmsUrl = input.inboundSmsUrl ?? this.config.get<string>('TWILIO_INBOUND_SMS_WEBHOOK_URL');
+    const statusCallbackUrl = input.statusCallbackUrl ?? this.config.get<string>('TWILIO_NUMBER_STATUS_CALLBACK_URL');
+
+    if (inboundSmsUrl) {
+      body.SmsUrl = inboundSmsUrl;
+      body.SmsMethod = input.inboundSmsMethod ?? 'POST';
+    }
+    if (statusCallbackUrl) {
+      body.StatusCallback = statusCallbackUrl;
+    }
+
+    const response = await this.request<TwilioIncomingNumber>('POST', '/IncomingPhoneNumbers.json', body);
 
     return {
       provider: 'twilio',
@@ -113,11 +125,17 @@ export class TwilioProviderService implements TelecomProvider {
   }
 
   async sendSms(input: SendSmsInput): Promise<SendSmsResult> {
-    const response = await this.request<TwilioMessage>('POST', '/Messages.json', {
+    const body: Record<string, string> = {
       From: input.from,
       To: input.to,
       Body: input.body,
-    });
+    };
+    const statusCallbackUrl = input.statusCallbackUrl ?? this.config.get<string>('TWILIO_MESSAGE_STATUS_CALLBACK_URL');
+    if (statusCallbackUrl) {
+      body.StatusCallback = statusCallbackUrl;
+    }
+
+    const response = await this.request<TwilioMessage>('POST', '/Messages.json', body);
 
     return {
       provider: 'twilio',

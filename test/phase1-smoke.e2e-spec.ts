@@ -100,6 +100,27 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
 
     await request(app.getHttpServer()).get('/v1/usage').set(auth).expect(200);
     await request(app.getHttpServer()).get('/v1/billing/balance').set(auth).expect(200);
+
+    const twilioInbound = await request(app.getHttpServer())
+      .post('/v1/providers/twilio/sms/inbound')
+      .type('form')
+      .send({
+        MessageSid: 'SM_e2e_inbound',
+        From: '+14155550123',
+        To: '+14155559999',
+        Body: 'Inbound from Twilio callback.',
+      })
+      .expect(201);
+    expect(twilioInbound.body.data.ignored).toBe(false);
+
+    await request(app.getHttpServer())
+      .post('/v1/providers/twilio/sms/status')
+      .type('form')
+      .send({
+        MessageSid: 'SM_e2e_inbound',
+        MessageStatus: 'delivered',
+      })
+      .expect(201);
   });
 });
 
@@ -162,6 +183,21 @@ async function seedE2eData(prisma: PrismaService) {
       mode: 'webhook',
       voice: 'alloy',
       systemPrompt: 'You are an e2e test agent.',
+    },
+  });
+  await prisma.phoneNumber.create({
+    data: {
+      id: 'num_twilio_e2e',
+      workspaceId: 'ws_e2e',
+      projectId: 'proj_e2e',
+      agentId: 'agt_e2e',
+      phoneNumber: '+14155559999',
+      country: 'US',
+      areaCode: '415',
+      capabilities: ['sms', 'voice'],
+      status: 'active',
+      provider: 'twilio',
+      providerNumberId: 'PN_e2e',
     },
   });
 }

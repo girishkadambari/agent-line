@@ -18,6 +18,9 @@ export interface SearchNumbersResult {
 export interface ProvisionNumberInput extends SearchNumbersInput {
   workspaceId: string;
   projectId: string;
+  inboundSmsUrl?: string;
+  inboundSmsMethod?: "POST" | "GET";
+  statusCallbackUrl?: string;
 }
 
 export interface ProvisionNumberResult {
@@ -41,6 +44,7 @@ export interface SendSmsInput {
   from: string;
   to: string;
   body: string;
+  statusCallbackUrl?: string;
 }
 
 export interface SendSmsResult {

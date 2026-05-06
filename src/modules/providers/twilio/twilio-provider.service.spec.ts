@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import type { ConfigService } from '@nestjs/config';
 
 import { ApiException } from '../../../common/errors/api.exception';
 import { TwilioProviderService } from './twilio-provider.service';
@@ -39,6 +39,7 @@ describe('TwilioProviderService', () => {
     const service = createService({
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
+      TWILIO_MESSAGE_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/sms/status',
     });
     const fetchMock = mockFetch({ sid: 'SM123', status: 'delivered' });
 
@@ -59,6 +60,8 @@ describe('TwilioProviderService', () => {
         }),
       }),
     );
+    const requestBody = fetchMock.mock.calls[0][1].body as URLSearchParams;
+    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/sms/status');
   });
 
   it('searches available numbers and normalizes capabilities', async () => {
@@ -88,6 +91,53 @@ describe('TwilioProviderService', () => {
         },
       ],
     });
+  });
+
+  it('provisions numbers with inbound SMS callback settings', async () => {
+    const service = createService({
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'secret',
+      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
+      TWILIO_NUMBER_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/number/status',
+    });
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({
+          available_phone_numbers: [
+            {
+              phone_number: '+14155550100',
+              iso_country: 'US',
+              capabilities: { SMS: true, MMS: false, voice: true },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({
+          sid: 'PN123',
+          phone_number: '+14155550100',
+          iso_country: 'US',
+          capabilities: { SMS: true, MMS: false, voice: true },
+        }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await service.provisionNumber({
+      workspaceId: 'ws_123',
+      projectId: 'proj_123',
+      country: 'US',
+      capabilities: ['sms', 'voice'],
+    });
+
+    const requestBody = fetchMock.mock.calls[1][1].body as URLSearchParams;
+    expect(requestBody.get('SmsUrl')).toBe('https://api.agentline.dev/v1/providers/twilio/sms/inbound');
+    expect(requestBody.get('SmsMethod')).toBe('POST');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/number/status');
   });
 
   it('surfaces Twilio API errors as provider errors', async () => {

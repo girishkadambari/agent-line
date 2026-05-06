@@ -182,6 +182,7 @@ model PhoneNumber {
   calls            Call[]
 
   @@unique([workspaceId, phoneNumber])
+  @@unique([provider, providerNumberId])
   @@index([workspaceId, projectId])
   @@index([agentId])
 }
@@ -252,6 +253,7 @@ model Message {
 
   @@index([workspaceId, projectId])
   @@index([conversationId])
+  @@unique([provider, providerMessageId])
 }
 
 model Call {
@@ -446,6 +448,7 @@ model ProviderRawEvent {
 
   @@index([workspaceId, projectId])
   @@index([providerEventId])
+  @@unique([provider, providerEventId])
 }
 
 model InternalEvent {
