@@ -745,3 +745,25 @@ Open items:
 - Add provider request timeout/retry behavior.
 - Add outbound SMS rate limits and 10DLC/compliance fields.
 - Live-test Twilio with sandbox credentials before customer traffic.
+
+## 2026-05-07: Contacts Public API
+
+**Status:** done
+
+Implemented:
+
+- `GET /v1/contacts`
+- `GET /v1/contacts/:id`
+- `PATCH /v1/contacts/:id`
+- Contacts controller protected by API-key auth.
+- Contacts module imports `AuthModule` so `ApiKeyGuard` can resolve `ApiKeysService`.
+- Contacts service list/detail/update methods.
+- Contacts serializer relation counts for conversations, messages, and calls.
+- Contact display-name and metadata update schema.
+- Contacts module registered in the app module.
+
+Verification:
+
+- `npm test -- contacts.service.spec.ts` passed.
+- `npm run lint` passed.
+- `npm run build` passed.

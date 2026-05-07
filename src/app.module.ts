@@ -6,6 +6,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { CallsModule } from './modules/calls/calls.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { HealthModule } from './modules/health/health.module';
 import { MessagesModule } from './modules/messages/messages.module';
@@ -29,6 +30,7 @@ import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks
     AgentsModule,
     NumbersModule,
     BillingModule,
+    ContactsModule,
     ConversationsModule,
     MessagesModule,
     CallsModule,
