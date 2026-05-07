@@ -36,6 +36,10 @@ npm run dev
 
 Phase 1 must run without Twilio, Telnyx, OpenAI, STT, TTS, Stripe, or real phone credentials.
 
+Stripe is optional for local development. To test real checkout, set `STRIPE_MODE=test`,
+`STRIPE_SECRET_KEY=sk_test_...` or `rk_test_...`, and `STRIPE_WEBHOOK_SECRET=whsec_...`; then follow
+[the Stripe billing plan](docs/STRIPE_BILLING_PLAN.md).
+
 ## Backend Bootstrap
 
 Use these commands for a fresh local setup:

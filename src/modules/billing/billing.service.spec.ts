@@ -32,6 +32,14 @@ describe('BillingService', () => {
         customer: 'cus_123',
       }),
       constructWebhookEvent: jest.fn(),
+      getConfigurationStatus: jest.fn().mockReturnValue({
+        mode: 'test',
+        secretKeyConfigured: true,
+        secretKeyMatchesMode: true,
+        webhookSecretConfigured: true,
+        webhookToleranceSeconds: 300,
+      }),
+      getMode: jest.fn().mockReturnValue('test'),
       ...stripeOverrides,
     } as unknown as StripeClientService;
 
@@ -166,6 +174,20 @@ describe('BillingService', () => {
         amountCents: 2000,
       }),
     );
+    expect(result.mode).toBe('test');
+  });
+
+  it('returns Stripe configuration status without exposing secrets', () => {
+    const prisma = {} as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    expect(service.getStripeStatus()).toEqual({
+      mode: 'test',
+      secretKeyConfigured: true,
+      secretKeyMatchesMode: true,
+      webhookSecretConfigured: true,
+      webhookToleranceSeconds: 300,
+    });
   });
 
   it('credits balance from verified checkout completed webhook once', async () => {
@@ -213,7 +235,7 @@ describe('BillingService', () => {
         id: expect.stringMatching(/^bal_/),
         workspaceId: 'ws_123',
         currency: 'USD',
-        balanceCents: 2500,
+        balanceCents: 2000,
       },
     });
     expect(prisma.billingTransaction.create).toHaveBeenCalledWith({

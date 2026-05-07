@@ -24,14 +24,35 @@ export interface StripeCustomer {
 export interface StripeWebhookEvent {
   id: string;
   type: string;
+  livemode?: boolean;
   data: {
     object: Record<string, unknown>;
   };
 }
 
+export type StripeMode = 'test' | 'live';
+
 @Injectable()
 export class StripeClientService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
+
+  getMode(): StripeMode {
+    return this.config.get<string>('STRIPE_MODE', 'test') === 'live' ? 'live' : 'test';
+  }
+
+  getConfigurationStatus() {
+    const secretKey = this.config.get<string>('STRIPE_SECRET_KEY') ?? '';
+    const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '';
+    const mode = this.getMode();
+
+    return {
+      mode,
+      secretKeyConfigured: secretKey.length > 0,
+      secretKeyMatchesMode: this.secretKeyMatchesMode(secretKey, mode),
+      webhookSecretConfigured: webhookSecret.length > 0,
+      webhookToleranceSeconds: this.config.get<number>('STRIPE_WEBHOOK_TOLERANCE_SECONDS', 300),
+    };
+  }
 
   async createCustomer(input: { workspaceId: string; name: string }) {
     return this.request<StripeCustomer>('POST', '/v1/customers', {
@@ -67,7 +88,7 @@ export class StripeClientService {
             currency: 'usd',
             unit_amount: input.amountCents,
             product_data: {
-              name: 'AgentLine prepaid credits',
+              name: this.config.get<string>('STRIPE_CREDIT_PRODUCT_NAME', 'AgentLine prepaid credits'),
             },
           },
         },
@@ -120,7 +141,10 @@ export class StripeClientService {
       throw new ApiException('unauthorized', 'Stripe signature verification failed.', 401);
     }
 
-    return JSON.parse(rawBody.toString('utf8')) as StripeWebhookEvent;
+    const event = JSON.parse(rawBody.toString('utf8')) as StripeWebhookEvent;
+    this.assertWebhookMode(event);
+
+    return event;
   }
 
   private async request<T>(method: 'POST', path: string, body: Record<string, unknown>): Promise<T> {
@@ -129,6 +153,7 @@ export class StripeClientService {
     if (!secretKey) {
       throw new ApiException('provider_error', 'Stripe secret key is not configured.', 500);
     }
+    this.assertSecretKeyMode(secretKey);
 
     const response = await fetch(`https://api.stripe.com${path}`, {
       method,
@@ -181,5 +206,44 @@ export class StripeClientService {
       .split(',')
       .map((part) => part.split('='))
       .find(([partKey]) => partKey === key)?.[1];
+  }
+
+  private assertSecretKeyMode(secretKey: string) {
+    const mode = this.getMode();
+
+    if (!this.secretKeyMatchesMode(secretKey, mode)) {
+      throw new ApiException(
+        'provider_error',
+        `Stripe secret key does not match STRIPE_MODE=${mode}.`,
+        500,
+      );
+    }
+  }
+
+  private assertWebhookMode(event: StripeWebhookEvent) {
+    if (typeof event.livemode !== 'boolean') {
+      return;
+    }
+
+    const mode = this.getMode();
+    const expectedLiveMode = mode === 'live';
+
+    if (event.livemode !== expectedLiveMode) {
+      throw new ApiException(
+        'unauthorized',
+        `Stripe webhook event mode does not match STRIPE_MODE=${mode}.`,
+        401,
+      );
+    }
+  }
+
+  private secretKeyMatchesMode(secretKey: string, mode: StripeMode) {
+    if (!secretKey) {
+      return false;
+    }
+
+    return mode === 'live'
+      ? secretKey.startsWith('sk_live_') || secretKey.startsWith('rk_live_')
+      : secretKey.startsWith('sk_test_') || secretKey.startsWith('rk_test_');
   }
 }

@@ -2,44 +2,48 @@
 
 ## Current Focus
 
-**Phase 2B: Twilio Hardening And Live Verification**
+**Phase 2C: Billing Live Verification And Frontend Billing Wiring**
 
-Phase 2B has started. Twilio callback signature verification, duplicate callback suppression, and voice usage preauthorization/finalization are implemented. The remaining work is provider resilience, abuse controls, compliance fields, and bounded live verification.
+Stripe test/live safeguards are implemented in the backend. The next work is to verify Stripe end-to-end with the user's real Stripe account, then wire the dashboard Billing page to the checkout, portal, status, balance, and transaction flows.
 
 ## Goals
 
-- Keep `TELECOM_PROVIDER=mock` as the default for local development.
-- Add provider request timeout/retry behavior.
-- Add live Twilio sandbox verification guide and checklist.
-- Add 10DLC/compliance fields to numbers/projects.
-- Add rate limits and abuse guards around outbound SMS.
-- Keep provider errors normalized as `provider_error`.
+- Keep `STRIPE_MODE=test` as the default for local development.
+- Verify Stripe Checkout locally with Stripe CLI webhook forwarding.
+- Verify live mode using a small internal production payment only after test mode passes.
+- Surface Stripe status, balance, transactions, checkout, and portal flows in the dashboard.
+- Keep Stripe webhooks as the only source of truth for credits.
+- Keep mock telecom as the default while billing is verified.
 
 ## Build
 
-- provider request timeout wrapper.
-- provider retry policy for safe idempotent operations.
-- project/number compliance fields.
-- outbound SMS rate limiting by workspace/project/agent.
-- live sandbox checklist.
+- Dashboard billing status panel.
+- Add-credit checkout flow using `POST /v1/billing/checkout-sessions`.
+- Customer portal launch flow using `POST /v1/billing/portal-sessions`.
+- Transaction list backed by `GET /v1/billing/transactions`.
+- Success/cancel handling that refreshes balance instead of crediting directly.
+- Local Stripe CLI checklist run.
+- Production webhook checklist run.
 
-## Phase 2B Implementation Order
+## Phase 2C Implementation Order
 
-1. Add provider timeout and normalized retry handling.
-2. Add outbound SMS rate-limit guard.
-3. Add 10DLC/compliance fields.
-4. Run live Twilio sandbox verification.
-5. Document production callback URLs and rollback plan.
+1. Run backend billing tests and build after Stripe hardening.
+2. Configure Stripe test keys and local webhook forwarding.
+3. Complete a test checkout and verify balance/transaction records.
+4. Wire frontend Billing page to checkout, portal, status, and transactions.
+5. Add frontend success/cancel routes that refresh billing state.
+6. Configure production Stripe webhook endpoint and run a small live verification.
 
-## Phase 2A Review Findings To Address
+## Review Findings To Watch
 
-- Provider HTTP requests do not yet have explicit timeout/retry policy.
-- Outbound SMS has no rate-limit or abuse guard yet.
-- Number/project compliance metadata is still missing.
+- Do not expose Stripe secret values in API responses or frontend logs.
+- Do not credit balance from browser redirect success pages.
+- Do not mix test keys, live keys, test webhooks, and live webhooks.
+- Keep local, staging, and production databases separate.
 
 ## Alternative Next Track
 
-Production safety prep:
+Twilio hardening can continue in parallel after Stripe verification:
 
 - provider request retry/backoff.
 - provider rate-limit normalization.
@@ -48,4 +52,4 @@ Production safety prep:
 
 ## Current Recommendation
 
-Implement **Twilio hardening and live verification** next, while keeping mock mode as the default.
+Implement **Stripe billing verification and frontend billing wiring** next because the user has created a Stripe account and the core backend contract is now ready for end-to-end testing.

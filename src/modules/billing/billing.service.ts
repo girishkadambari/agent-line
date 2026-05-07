@@ -22,6 +22,10 @@ export class BillingService {
     return serializeBillingBalance(balance);
   }
 
+  getStripeStatus() {
+    return this.stripe.getConfigurationStatus();
+  }
+
   async debitWorkspace(workspaceId: string, cents: number) {
     if (cents <= 0) {
       return this.findOrCreateWorkspaceBalance(workspaceId);
@@ -92,6 +96,7 @@ export class BillingService {
         metadata: {
           checkoutSessionId: session.id,
           customerId: session.customer,
+          stripeMode: this.stripe.getMode(),
         } as Prisma.InputJsonValue,
       },
     });
@@ -99,6 +104,7 @@ export class BillingService {
     return {
       id: session.id,
       url: session.url,
+      mode: this.stripe.getMode(),
       transaction: serializeBillingTransaction(transaction),
     };
   }
@@ -114,6 +120,7 @@ export class BillingService {
       id: session.id,
       url: session.url,
       customerId: session.customer,
+      mode: this.stripe.getMode(),
     };
   }
 
@@ -280,7 +287,7 @@ export class BillingService {
         id: createId('bal'),
         workspaceId,
         currency: 'USD',
-        balanceCents: 500 + amountCents,
+        balanceCents: amountCents,
       },
     });
   }

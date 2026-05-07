@@ -39,6 +39,7 @@ Implementation progress is tracked separately in `tracking/`.
 10. Read `TECH_STACK.md` before scaffolding the application or choosing libraries.
 11. Use `LOVABLE_FRONTEND_PROMPT.md` when generating the frontend shell in Lovable.
 12. Read `AI_DEVELOPMENT_GUIDE.md` before assigning work to AI coding agents.
+13. Read `STRIPE_BILLING_PLAN.md` before enabling test or live Stripe billing.
 
 ## Source-Of-Truth Rule
 

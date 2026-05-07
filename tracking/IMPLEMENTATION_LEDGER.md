@@ -165,16 +165,38 @@ Done:
 - Messages module.
 - Internal event module.
 - Calls module.
+- Stripe prepaid-credit checkout, portal, webhook idempotency, and test/live mode safeguards.
 
 In progress:
 
-- Phase 1 mock API implementation.
+- Phase 2 provider and billing hardening.
 
 Next:
 
 - Configure Postgres and verify DB push/seed.
 - Webhook endpoint and delivery module.
 - Usage ledger hooks.
+
+## 2026-05-07: Stripe Test And Production Billing Hardening
+
+**Status:** done
+
+Implemented:
+
+- Explicit `STRIPE_MODE` support for `test` and `live`.
+- Stripe secret-key mode validation so `sk_test_...` cannot run in live mode and `sk_live_...` cannot run in test mode.
+- Stripe webhook `livemode` validation so live events cannot credit a test backend and test events cannot credit a live backend.
+- `GET /v1/billing/stripe/status` for safe runtime configuration checks without exposing secrets.
+- Checkout and portal responses now include the Stripe mode.
+- Checkout transaction metadata now records `stripeMode`.
+- Stripe webhook balance creation now credits exactly the verified paid amount instead of adding local seed credits.
+- `.env.example` now includes `STRIPE_MODE` and `STRIPE_CREDIT_PRODUCT_NAME`.
+- Stripe billing docs now include complete local test and production setup flows.
+
+Verification:
+
+- `npm test -- billing.service.spec.ts stripe-client.service.spec.ts` passed.
+- `npm run build` passed.
 
 ## 2026-05-06: Tracking System And Engineering Rules
 

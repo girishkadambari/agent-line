@@ -241,6 +241,11 @@ curl "$AGENTLINE_API_URL/billing/balance" \
 ```
 
 ```bash
+curl "$AGENTLINE_API_URL/billing/stripe/status" \
+  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+```
+
+```bash
 curl -X POST "$AGENTLINE_API_URL/billing/checkout-sessions" \
   -H "Authorization: Bearer $AGENTLINE_API_KEY" \
   -H "Content-Type: application/json" \
@@ -265,11 +270,19 @@ curl "$AGENTLINE_API_URL/billing/transactions" \
 
 Stripe webhooks are public and verified with `Stripe-Signature`:
 
+For local testing, use Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:3000/v1/billing/stripe/webhook
+```
+
+Then set the printed `whsec_...` value as `STRIPE_WEBHOOK_SECRET` and restart the backend.
+
 ```bash
 curl -X POST "$AGENTLINE_API_URL/billing/stripe/webhook" \
   -H "Stripe-Signature: t=timestamp,v1=signature" \
   -H "Content-Type: application/json" \
-  -d '{"id":"evt_123","type":"checkout.session.completed","data":{"object":{}}}'
+  -d '{"id":"evt_123","type":"checkout.session.completed","livemode":false,"data":{"object":{}}}'
 ```
 
 ## Error Shape

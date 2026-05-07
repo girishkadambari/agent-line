@@ -19,6 +19,12 @@ export class BillingController {
   }
 
   @UseGuards(ApiKeyGuard)
+  @Get('stripe/status')
+  getStripeStatus() {
+    return success(this.billing.getStripeStatus());
+  }
+
+  @UseGuards(ApiKeyGuard)
   @Post('checkout-sessions')
   async createCheckoutSession(
     @CurrentContext() context: RequestContext,

@@ -29,6 +29,7 @@ Phase 1 stays local/mock:
 
 Initial backend endpoints are implemented:
 
+- `GET /v1/billing/stripe/status`
 - `POST /v1/billing/checkout-sessions`
 - `POST /v1/billing/portal-sessions`
 - `POST /v1/billing/stripe/webhook`
@@ -37,6 +38,101 @@ Initial backend endpoints are implemented:
 The implementation uses Stripe HTTP APIs through a local provider wrapper. The Stripe SDK can be adopted later if richer types or automatic webhook helpers become useful.
 
 Add Stripe without changing product usage semantics.
+
+## Current Implementation Contract
+
+AgentLine supports Stripe as a prepaid-credit top-up provider.
+
+- Checkout sessions collect one-time payments for balance credits.
+- Checkout `successUrl` and `cancelUrl` are only browser navigation URLs.
+- AgentLine credits balance only from verified Stripe webhooks.
+- `checkout.session.completed` is the first required production event.
+- All Stripe event ids are stored for idempotency before balance is credited.
+- Duplicate Stripe webhook deliveries return success without crediting twice.
+- Test mode and live mode are explicit through `STRIPE_MODE`.
+- Test mode requires an `sk_test_...` secret key or `rk_test_...` restricted key.
+- Live mode requires an `sk_live_...` secret key or `rk_live_...` restricted key.
+- Webhook payload `livemode` must match `STRIPE_MODE` when Stripe includes it.
+- Webhook signing secrets are separate from API keys and are configured per endpoint.
+
+### Environment Variables
+
+```bash
+STRIPE_MODE="test"
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
+STRIPE_CREDIT_PRODUCT_NAME="AgentLine prepaid credits"
+```
+
+Use `GET /v1/billing/stripe/status` to verify backend configuration from the API without exposing secrets:
+
+```json
+{
+  "data": {
+    "mode": "test",
+    "secretKeyConfigured": true,
+    "secretKeyMatchesMode": true,
+    "webhookSecretConfigured": true,
+    "webhookToleranceSeconds": 300
+  }
+}
+```
+
+## Local Test Flow
+
+Use this flow before any production attempt.
+
+1. Set `STRIPE_MODE=test`.
+2. Set `STRIPE_SECRET_KEY` to a Stripe sandbox server key beginning with `sk_test_` or `rk_test_`.
+3. Start the backend on `http://localhost:3000`.
+4. In a second terminal, run Stripe CLI webhook forwarding:
+
+```bash
+stripe listen --forward-to localhost:3000/v1/billing/stripe/webhook
+```
+
+5. Copy the printed `whsec_...` signing secret into `STRIPE_WEBHOOK_SECRET`.
+6. Restart the backend so the webhook secret is loaded.
+7. Call `POST /v1/billing/checkout-sessions` from the dashboard or curl.
+8. Open the returned Checkout URL.
+9. Use Stripe test card `4242 4242 4242 4242` with any future expiry and CVC.
+10. Verify `GET /v1/billing/balance` increased by the paid amount.
+11. Verify `GET /v1/billing/transactions` shows a pending checkout transaction and a succeeded webhook transaction.
+
+Do not credit balance from the browser success page. The success page can refresh balance, but the webhook is the source of truth.
+
+## Production Flow
+
+Use this only after the test flow works end-to-end.
+
+1. Set `STRIPE_MODE=live`.
+2. Set `STRIPE_SECRET_KEY` to a live server key beginning with `sk_live_` or `rk_live_`.
+3. Create a live Stripe webhook endpoint:
+
+```text
+https://api.yourdomain.com/v1/billing/stripe/webhook
+```
+
+4. Subscribe the endpoint to `checkout.session.completed`.
+5. Copy that endpoint's live `whsec_...` signing secret into `STRIPE_WEBHOOK_SECRET`.
+6. Configure Stripe Customer Portal in the live Stripe Dashboard.
+7. Deploy with live backend env values in the production secret manager.
+8. Call `GET /v1/billing/stripe/status` and confirm:
+
+```json
+{
+  "mode": "live",
+  "secretKeyConfigured": true,
+  "secretKeyMatchesMode": true,
+  "webhookSecretConfigured": true
+}
+```
+
+9. Run a small real checkout using an internal account.
+10. Confirm balance credit, transaction records, receipts, and portal access.
+
+Production should use a separate production database from local/test data. Never point a live Stripe webhook at a local or staging database that does not contain the referenced workspace.
 
 ### Data Fields To Add
 
