@@ -24,6 +24,23 @@ AgentLine is an API-first platform for AI-agent phone infrastructure. It lets de
 | Usage event | Internal metered record for billing and analytics. |
 | Webhook delivery | Attempt to send a signed AgentLine event to a customer endpoint. |
 
+## Product Hierarchy
+
+The source of truth for object ownership is `PRODUCT_HIERARCHY.md`.
+
+Current Phase 1 hierarchy:
+
+```text
+User -> WorkspaceMember -> Workspace -> Project -> Agent/Number/Contact/Conversation/Call/Message/Webhook/Usage
+```
+
+Important Phase 1 rule:
+
+- API-key auth resolves exactly one `workspaceId` and one `projectId`.
+- The dashboard can show and edit the current workspace.
+- The dashboard must not pretend to create or switch workspaces until session
+  auth and multi-workspace APIs exist.
+
 ## Local Development Assumptions
 
 - Build mock mode first.

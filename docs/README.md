@@ -15,6 +15,7 @@ Implementation progress is tracked separately in `tracking/`.
 | `IMPLEMENTATION_PLAN.md` | Phase 1 execution plan, build order, AI-agent task breakdown, and definition of done. |
 | `PHASE_1_STATUS.md` | Live Phase 1 implementation tracker, review notes, and next steps. |
 | `PROJECT_DOCS.md` | Engineering conventions, architecture, modules, provider strategy, testing, and documentation rules. |
+| `PRODUCT_HIERARCHY.md` | Ownership hierarchy for user, workspace, project, API keys, agents, telephony records, usage, and billing. |
 | `BACKEND_SPEC.md` | Backend routes, data model, states, provider adapter contract, webhooks, usage, and acceptance criteria. |
 | `API_EXAMPLES.md` | Concrete curl examples for every Phase 1 API route group. |
 | `SMOKE_FLOW.md` | End-to-end local mock flow from API key to usage and billing. |
@@ -32,14 +33,15 @@ Implementation progress is tracked separately in `tracking/`.
 3. Read `IMPLEMENTATION_PLAN.md` before starting Phase 1 work.
 4. Check `PHASE_1_STATUS.md` before making Phase 1 changes.
 5. Read `PROJECT_DOCS.md` to understand architecture and engineering boundaries.
-6. Read `BACKEND_SPEC.md` before implementing API or services.
-7. Use `API_EXAMPLES.md` and `SMOKE_FLOW.md` to integrate or test the backend.
-8. Read `PROJECT_COMPLETENESS_CHECK.md` before deciding what Phase 1 still needs.
-9. Read `FRONTEND_SPEC.md` before implementing dashboard UI.
-10. Read `TECH_STACK.md` before scaffolding the application or choosing libraries.
-11. Use `LOVABLE_FRONTEND_PROMPT.md` when generating the frontend shell in Lovable.
-12. Read `AI_DEVELOPMENT_GUIDE.md` before assigning work to AI coding agents.
-13. Read `STRIPE_BILLING_PLAN.md` before enabling test or live Stripe billing.
+6. Read `PRODUCT_HIERARCHY.md` before implementing workspace, project, auth, billing, or dashboard context behavior.
+7. Read `BACKEND_SPEC.md` before implementing API or services.
+8. Use `API_EXAMPLES.md` and `SMOKE_FLOW.md` to integrate or test the backend.
+9. Read `PROJECT_COMPLETENESS_CHECK.md` before deciding what Phase 1 still needs.
+10. Read `FRONTEND_SPEC.md` before implementing dashboard UI.
+11. Read `TECH_STACK.md` before scaffolding the application or choosing libraries.
+12. Use `LOVABLE_FRONTEND_PROMPT.md` when generating the frontend shell in Lovable.
+13. Read `AI_DEVELOPMENT_GUIDE.md` before assigning work to AI coding agents.
+14. Read `STRIPE_BILLING_PLAN.md` before enabling test or live Stripe billing.
 
 ## Source-Of-Truth Rule
 

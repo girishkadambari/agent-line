@@ -198,6 +198,43 @@ Verification:
 - `npm test -- billing.service.spec.ts stripe-client.service.spec.ts` passed.
 - `npm run build` passed.
 
+## 2026-05-07: Backend Gap Register
+
+**Status:** done
+
+Implemented:
+
+- Added `tracking/BACKEND_GAP_REGISTER.md`.
+- Captured partially closed backend surfaces for workspace settings, team
+  members, and invites.
+- Captured open backend gaps for real auth/session/Google SSO, current-user
+  profile, dashboard summary, provider runtime status, usage controls, and
+  compliance settings.
+
+Reason:
+
+- The dashboard Settings screen now uses real workspace/member/invite APIs, and
+  the remaining fake or pending UI states need an explicit backend source of
+  truth before the next implementation phase.
+
+## 2026-05-07: Product Hierarchy Source Of Truth
+
+**Status:** done
+
+Implemented:
+
+- Added `docs/PRODUCT_HIERARCHY.md`.
+- Linked the hierarchy document from `docs/README.md`.
+- Added hierarchy rules to `docs/PROJECT_DOCS.md`.
+- Updated the backend gap register to call out workspace list, workspace
+  creation, and active workspace/project context as session-auth requirements.
+
+Decision:
+
+- Phase 1 API-key auth resolves exactly one workspace and one project.
+- Workspace creation and workspace switching are intentionally deferred until
+  user/session auth exists.
+
 ## 2026-05-06: Tracking System And Engineering Rules
 
 **Status:** done
