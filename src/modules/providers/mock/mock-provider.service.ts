@@ -32,10 +32,12 @@ export class MockProviderService implements TelecomProvider {
   }
 
   async provisionNumber(input: ProvisionNumberInput): Promise<ProvisionNumberResult> {
+    const uniqueSuffix = this.uniqueSuffix();
+
     return {
       provider: 'mock',
-      providerNumberId: `mock_num_${input.projectId}_${input.areaCode ?? '000'}`,
-      phoneNumber: this.mockPhoneNumber(input.country, input.areaCode, 0),
+      providerNumberId: `mock_num_${input.projectId}_${input.areaCode ?? '000'}_${uniqueSuffix}`,
+      phoneNumber: this.mockPhoneNumber(input.country, input.areaCode, Number(uniqueSuffix.slice(-4))),
       country: input.country,
       areaCode: input.areaCode,
       capabilities: input.capabilities,
@@ -77,10 +79,18 @@ export class MockProviderService implements TelecomProvider {
   }
 
   private mockPhoneNumber(country: string, areaCode = '415', index: number) {
+    const lineNumber = String(1000 + (index % 9000)).padStart(4, '0');
+
     if (country !== 'US' && country !== 'CA') {
-      return `+1999${areaCode}${String(index).padStart(4, '0')}`;
+      return `+1999${areaCode}${lineNumber}`;
     }
 
-    return `+1${areaCode}555${String(1000 + index)}`;
+    return `+1${areaCode}555${lineNumber}`;
+  }
+
+  private uniqueSuffix() {
+    return `${Date.now()}${Math.floor(Math.random() * 10_000)
+      .toString()
+      .padStart(4, '0')}`;
   }
 }

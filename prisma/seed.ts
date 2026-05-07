@@ -57,13 +57,16 @@ async function main() {
 
   await prisma.billingBalance.upsert({
     where: { workspaceId },
-    update: {},
+    update: {
+      balanceCents: 5000,
+      spendLimitCents: 50000,
+    },
     create: {
       id: 'bal_local',
       workspaceId,
       currency: 'USD',
-      balanceCents: 500,
-      spendLimitCents: 5000,
+      balanceCents: 5000,
+      spendLimitCents: 50000,
     },
   });
 

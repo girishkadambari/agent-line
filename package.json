@@ -21,6 +21,7 @@
     "db:push": "prisma db push",
     "db:test:push": "DATABASE_URL=postgresql://agentline:agentline@localhost:5433/agentline_test?schema=public prisma db push --accept-data-loss",
     "db:seed": "tsx prisma/seed.ts",
+    "db:topup": "tsx prisma/topup-local-balance.ts",
     "verify": "npm run typecheck && npm run test"
   },
   "dependencies": {

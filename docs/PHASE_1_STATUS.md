@@ -57,6 +57,13 @@ Add review feedback here as implementation progresses.
 - 2026-05-07: Slice 10 implemented Stripe checkout, portal, webhook verification, billing accounts, and billing transactions.
 - 2026-05-07: Slice 11 added Docker Postgres, DB-backed Phase 1 smoke e2e, provider selection token, Twilio adapter prep, and verified the flow against Docker test Postgres.
 - 2026-05-07: Phase 2A implemented Twilio SMS safety prep: billing before live writes, callback URLs, inbound/status callback ingestion, raw event idempotency, and hidden provider IDs.
+- 2026-05-07: Fixed mock number provisioning to generate unique provider IDs and
+  phone numbers for repeated local provisions with the same area code. This
+  prevents Prisma unique constraint failures from surfacing as generic
+  unexpected server errors.
+- 2026-05-07: Improved local billing bootstrap. Rerunning `npm run db:seed`
+  restores local credits, and `npm run db:topup` adds development balance when
+  mock usage exhausts `ws_local`.
 
 ## Next Steps
 

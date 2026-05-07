@@ -27,6 +27,7 @@ Track implementation in [docs/PHASE_1_STATUS.md](docs/PHASE_1_STATUS.md).
 
 ```bash
 npm install
+npm run db:docker:up
 npm run db:generate
 npm run db:push
 npm run db:seed
@@ -34,3 +35,87 @@ npm run dev
 ```
 
 Phase 1 must run without Twilio, Telnyx, OpenAI, STT, TTS, Stripe, or real phone credentials.
+
+## Backend Bootstrap
+
+Use these commands for a fresh local setup:
+
+```bash
+cd /Users/girish/girish-workspace/girish-own/agent-line
+
+npm install
+cp .env.example .env
+
+npm run db:docker:up
+npm run db:generate
+npm run db:push
+npm run db:seed
+
+npm run dev
+```
+
+The API runs at:
+
+```text
+http://localhost:3000/v1
+```
+
+Seeded local API key:
+
+```text
+sk_test_agentline_local
+```
+
+Quick health check:
+
+```bash
+curl http://localhost:3000/v1/health
+```
+
+Quick authenticated check:
+
+```bash
+curl http://localhost:3000/v1/workspaces/current \
+  -H "Authorization: Bearer sk_test_agentline_local"
+```
+
+### Bootstrap Commands
+
+- `npm run db:docker:up`: starts local Postgres on `localhost:5432` and test Postgres on `localhost:5433`.
+- `npm run db:generate`: generates the Prisma client.
+- `npm run db:push`: creates or syncs database tables from `prisma/schema.prisma`.
+- `npm run db:seed`: creates the local workspace, project, API key, billing balance, seed agents, and seed webhook.
+- `npm run db:topup`: adds local development credits to `ws_local` when mock calls/SMS/numbers exhaust the balance.
+- `npm run dev`: starts the NestJS backend in watch mode.
+
+If local testing returns `insufficient_balance`, run:
+
+```bash
+npm run db:topup
+```
+
+You can change the top-up amount in cents:
+
+```bash
+AGENTLINE_LOCAL_TOPUP_CENTS=10000 npm run db:topup
+```
+
+### Frontend Connection
+
+For the separate dashboard repository, create:
+
+```text
+/Users/girish/girish-workspace/girish-own/agentline-dashboard/.env
+```
+
+with:
+
+```bash
+VITE_AGENTLINE_API_URL=http://localhost:3000/v1
+```
+
+Then sign in to the dashboard with:
+
+```text
+sk_test_agentline_local
+```

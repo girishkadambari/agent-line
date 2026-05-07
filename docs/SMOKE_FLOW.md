@@ -22,6 +22,12 @@ Default local values:
 - Seed agent: `agt_support`
 - Seed webhook: `wh_local`
 
+If local testing exhausts the mock billing balance:
+
+```bash
+npm run db:topup
+```
+
 ```bash
 export AGENTLINE_API_URL="http://localhost:3000/v1"
 export AGENTLINE_API_KEY="sk_test_agentline_local"
