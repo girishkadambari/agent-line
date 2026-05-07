@@ -87,6 +87,46 @@ export class UsageService {
     return { voided: true, refundedCents };
   }
 
+  async finalizeVoiceCall(input: {
+    workspaceId: string;
+    callId: string;
+    durationSeconds: number;
+  }) {
+    const event = await this.prisma.usageEvent.findFirst({
+      where: {
+        workspaceId: input.workspaceId,
+        resourceType: 'call',
+        resourceId: input.callId,
+        channel: 'voice',
+      },
+    });
+
+    if (!event) {
+      return { finalized: false, deltaCents: 0 };
+    }
+
+    const quantity = secondsToBillableMinutes(input.durationSeconds);
+    const totalCents = quantity * USAGE_PRICING_CENTS.voiceMinute;
+    const currentCents = Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
+    const deltaCents = totalCents - currentCents;
+
+    if (deltaCents > 0) {
+      await this.billing.debitWorkspace(input.workspaceId, deltaCents);
+    } else if (deltaCents < 0) {
+      await this.billing.creditWorkspace(input.workspaceId, Math.abs(deltaCents));
+    }
+
+    await this.prisma.usageEvent.update({
+      where: { id: event.id },
+      data: {
+        quantity: new Decimal(quantity),
+        totalCost: new Decimal(centsToUsdDecimal(totalCents)),
+      },
+    });
+
+    return { finalized: true, deltaCents };
+  }
+
   recordNumberProvisioned(input: {
     workspaceId: string;
     projectId: string;

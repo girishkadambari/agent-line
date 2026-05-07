@@ -692,5 +692,34 @@ Verification:
 
 Open items:
 
-- Add Twilio request signature verification before public internet exposure.
+- Live-test Twilio with sandbox credentials before customer traffic.
+
+## 2026-05-07: Phase 2B - Twilio Callback And Voice Billing Hardening
+
+**Status:** review
+
+Implemented:
+
+- Twilio callback signature verifier using `X-Twilio-Signature`.
+- inbound SMS callback route verifies against `TWILIO_INBOUND_SMS_WEBHOOK_URL`.
+- SMS status callback route verifies against `TWILIO_MESSAGE_STATUS_CALLBACK_URL`.
+- signed Twilio callback simulation in DB-backed e2e.
+- duplicate Twilio inbound/status raw events suppress duplicate downstream side effects.
+- voice call usage now preauthorizes ten minutes instead of one minute.
+- voice call usage finalizes to actual provider duration and credits/debits the difference.
+- unit tests for Twilio signature verification.
+- unit tests for voice finalization/refund behavior.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 22 suites, 65 tests.
+- `npm run build` passed.
+- `npm run test:e2e:db` passed: 2 suites, 2 tests.
+
+Open items:
+
+- Add provider request timeout/retry behavior.
+- Add outbound SMS rate limits and 10DLC/compliance fields.
 - Live-test Twilio with sandbox credentials before customer traffic.

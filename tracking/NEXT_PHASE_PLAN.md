@@ -4,12 +4,11 @@
 
 **Phase 2B: Twilio Hardening And Live Verification**
 
-Phase 2A added provider-safe billing flow, Twilio SMS callback URLs, inbound/status callback ingestion, raw provider event persistence, and callback simulation in DB-backed e2e. The next phase is to harden public Twilio ingress and prepare bounded live verification.
+Phase 2B has started. Twilio callback signature verification, duplicate callback suppression, and voice usage preauthorization/finalization are implemented. The remaining work is provider resilience, abuse controls, compliance fields, and bounded live verification.
 
 ## Goals
 
 - Keep `TELECOM_PROVIDER=mock` as the default for local development.
-- Verify Twilio request signatures on public callback routes.
 - Add provider request timeout/retry behavior.
 - Add live Twilio sandbox verification guide and checklist.
 - Add 10DLC/compliance fields to numbers/projects.
@@ -18,22 +17,25 @@ Phase 2A added provider-safe billing flow, Twilio SMS callback URLs, inbound/sta
 
 ## Build
 
-- Twilio HMAC signature verifier for callbacks.
-- callback timestamp/replay tolerance where applicable.
 - provider request timeout wrapper.
 - provider retry policy for safe idempotent operations.
 - project/number compliance fields.
 - outbound SMS rate limiting by workspace/project/agent.
 - live sandbox checklist.
 
-## Phase 2A Implementation Order
+## Phase 2B Implementation Order
 
-1. Add Twilio callback signature verification.
-2. Add provider timeout and normalized retry handling.
-3. Add outbound SMS rate-limit guard.
-4. Add 10DLC/compliance fields.
-5. Run live Twilio sandbox verification.
-6. Document production callback URLs and rollback plan.
+1. Add provider timeout and normalized retry handling.
+2. Add outbound SMS rate-limit guard.
+3. Add 10DLC/compliance fields.
+4. Run live Twilio sandbox verification.
+5. Document production callback URLs and rollback plan.
+
+## Phase 2A Review Findings To Address
+
+- Provider HTTP requests do not yet have explicit timeout/retry policy.
+- Outbound SMS has no rate-limit or abuse guard yet.
+- Number/project compliance metadata is still missing.
 
 ## Alternative Next Track
 

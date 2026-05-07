@@ -73,6 +73,7 @@ function createService(prisma: PrismaService) {
   } as unknown as WebhooksService;
   const usage = {
     recordVoiceCall: jest.fn().mockResolvedValue({ id: 'use_123' }),
+    finalizeVoiceCall: jest.fn().mockResolvedValue({ finalized: true, deltaCents: -24 }),
     voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 3 }),
   } as unknown as UsageService;
   const provider = new MockProviderService();
@@ -107,7 +108,7 @@ describe('CallsService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 3 }),
       },
     } as unknown as PrismaService;
-    const { service, events } = createService(prisma);
+    const { service, events, usage } = createService(prisma);
 
     const result = await service.createOutboundCall(context, {
       agentId: 'agt_123',
@@ -115,6 +116,16 @@ describe('CallsService', () => {
     });
 
     expect(result.status).toBe('completed');
+    expect(usage.recordVoiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        durationSeconds: 600,
+      }),
+    );
+    expect(usage.finalizeVoiceCall).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      callId: expect.any(String),
+      durationSeconds: 64,
+    });
     expect(prisma.transcriptTurn.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({

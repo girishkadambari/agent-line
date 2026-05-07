@@ -855,10 +855,48 @@ Status: review
 
 ### Known Limitations
 
-- Twilio callback signature verification is not implemented yet.
 - Twilio live sandbox verification is still pending.
 - Voice callbacks and real call lifecycle ingestion remain later.
 
 ### Next Actions
 
-- Implement Twilio callback signature verification and live sandbox hardening.
+- Implement provider timeouts, outbound SMS rate limits, compliance fields, and live sandbox verification.
+
+### Review Findings For Next Phase
+
+- [x] Public Twilio callback routes must verify `X-Twilio-Signature` before processing inbound or status events.
+- [x] Duplicate Twilio status callbacks should not emit duplicate internal events or customer webhook deliveries.
+- [x] Real voice billing needs a separate preauthorization/finalization model before live voice is enabled.
+
+## 2026-05-07: Phase 2B - Twilio Callback And Voice Billing Hardening
+
+Status: review
+
+### Scope Completed
+
+- [x] Twilio callback signature verifier.
+- [x] inbound SMS callback signature verification.
+- [x] SMS status callback signature verification.
+- [x] signed Twilio callback e2e simulation.
+- [x] duplicate callback side-effect suppression.
+- [x] voice usage preauthorization.
+- [x] voice usage finalization/refund.
+
+### Testing And Verification
+
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm test`
+- [x] `npm run build`
+- [x] `npm run test:e2e:db`
+
+### Known Limitations
+
+- Provider request timeout/retry behavior is not implemented yet.
+- Outbound SMS rate limits are not implemented yet.
+- 10DLC/compliance fields are not implemented yet.
+- Twilio sandbox live verification is still pending.
+
+### Next Actions
+
+- Continue Phase 2B with provider timeout/retry, SMS rate limits, compliance fields, and live verification docs.

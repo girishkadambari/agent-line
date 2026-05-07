@@ -1,7 +1,9 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { success } from '../../../common/api/api-response';
 import { MessagesService } from '../../messages/messages.service';
+import { TwilioSignatureService } from './twilio-signature.service';
 
 interface TwilioSmsWebhookBody {
   MessageSid?: string;
@@ -20,10 +22,23 @@ interface TwilioSmsStatusWebhookBody {
 
 @Controller('providers/twilio')
 export class TwilioWebhooksController {
-  constructor(private readonly messages: MessagesService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly messages: MessagesService,
+    private readonly signatures: TwilioSignatureService,
+  ) {}
 
   @Post('sms/inbound')
-  async receiveInboundSms(@Body() body: TwilioSmsWebhookBody) {
+  async receiveInboundSms(
+    @Body() body: TwilioSmsWebhookBody,
+    @Headers('x-twilio-signature') signature?: string,
+  ) {
+    this.signatures.verifyCallback({
+      configuredUrl: this.config.get<string>('TWILIO_INBOUND_SMS_WEBHOOK_URL'),
+      signature,
+      params: body as Record<string, unknown>,
+    });
+
     const providerEventId = body.MessageSid ?? body.SmsSid;
     if (!providerEventId || !body.From || !body.To) {
       return success({ received: true, ignored: true });
@@ -42,7 +57,16 @@ export class TwilioWebhooksController {
   }
 
   @Post('sms/status')
-  async receiveSmsStatus(@Body() body: TwilioSmsStatusWebhookBody) {
+  async receiveSmsStatus(
+    @Body() body: TwilioSmsStatusWebhookBody,
+    @Headers('x-twilio-signature') signature?: string,
+  ) {
+    this.signatures.verifyCallback({
+      configuredUrl: this.config.get<string>('TWILIO_MESSAGE_STATUS_CALLBACK_URL'),
+      signature,
+      params: body as Record<string, unknown>,
+    });
+
     const providerMessageId = body.MessageSid ?? body.SmsSid;
     const status = body.MessageStatus ?? body.SmsStatus;
     if (!providerMessageId || !status) {

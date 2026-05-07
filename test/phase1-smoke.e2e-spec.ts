@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { createHmac } from 'node:crypto';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
@@ -9,6 +10,9 @@ import { applyApiBehavior } from './apply-api-behavior';
 
 const describeWithDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 const apiKey = 'sk_test_agentline_e2e';
+const twilioAuthToken = 'twilio_e2e_secret';
+const inboundCallbackUrl = 'http://localhost:3001/v1/providers/twilio/sms/inbound';
+const statusCallbackUrl = 'http://localhost:3001/v1/providers/twilio/sms/status';
 
 describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
   let app: INestApplication;
@@ -17,6 +21,9 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     process.env.TELECOM_PROVIDER = 'mock';
+    process.env.TWILIO_AUTH_TOKEN = twilioAuthToken;
+    process.env.TWILIO_INBOUND_SMS_WEBHOOK_URL = inboundCallbackUrl;
+    process.env.TWILIO_MESSAGE_STATUS_CALLBACK_URL = statusCallbackUrl;
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -101,28 +108,40 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
     await request(app.getHttpServer()).get('/v1/usage').set(auth).expect(200);
     await request(app.getHttpServer()).get('/v1/billing/balance').set(auth).expect(200);
 
+    const inboundPayload = {
+      MessageSid: 'SM_e2e_inbound',
+      From: '+14155550123',
+      To: '+14155559999',
+      Body: 'Inbound from Twilio callback.',
+    };
     const twilioInbound = await request(app.getHttpServer())
       .post('/v1/providers/twilio/sms/inbound')
+      .set('X-Twilio-Signature', createTwilioSignature(inboundCallbackUrl, inboundPayload))
       .type('form')
-      .send({
-        MessageSid: 'SM_e2e_inbound',
-        From: '+14155550123',
-        To: '+14155559999',
-        Body: 'Inbound from Twilio callback.',
-      })
+      .send(inboundPayload)
       .expect(201);
     expect(twilioInbound.body.data.ignored).toBe(false);
 
+    const statusPayload = {
+      MessageSid: 'SM_e2e_inbound',
+      MessageStatus: 'delivered',
+    };
     await request(app.getHttpServer())
       .post('/v1/providers/twilio/sms/status')
+      .set('X-Twilio-Signature', createTwilioSignature(statusCallbackUrl, statusPayload))
       .type('form')
-      .send({
-        MessageSid: 'SM_e2e_inbound',
-        MessageStatus: 'delivered',
-      })
+      .send(statusPayload)
       .expect(201);
   });
 });
+
+function createTwilioSignature(url: string, params: Record<string, string>) {
+  const data = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => `${acc}${key}${params[key]}`, url);
+
+  return createHmac('sha1', twilioAuthToken).update(data).digest('base64');
+}
 
 async function seedE2eData(prisma: PrismaService) {
   await prisma.billingTransaction.deleteMany({});

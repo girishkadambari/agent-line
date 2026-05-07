@@ -201,7 +201,7 @@ export class MessagesService {
       projectId: phoneNumber.projectId,
       apiKeyId: 'provider:twilio',
     };
-    await this.recordProviderRawEvent({
+    const recorded = await this.recordProviderRawEvent({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       provider: input.provider,
@@ -209,6 +209,9 @@ export class MessagesService {
       eventType: 'twilio.sms.inbound',
       payload: input.rawPayload,
     });
+    if (!recorded) {
+      return { received: true, duplicate: true, ignored: false };
+    }
 
     const contact = await this.contacts.findOrCreateByPhoneNumber(context, input.from);
     const conversation = await this.conversations.findOrCreateSmsConversation(
@@ -276,7 +279,7 @@ export class MessagesService {
       return { received: true, ignored: true };
     }
 
-    await this.recordProviderRawEvent({
+    const recorded = await this.recordProviderRawEvent({
       workspaceId: message.workspaceId,
       projectId: message.projectId,
       provider: input.provider,
@@ -284,6 +287,9 @@ export class MessagesService {
       eventType: 'twilio.sms.status',
       payload: input.rawPayload,
     });
+    if (!recorded) {
+      return { received: true, duplicate: true, ignored: false, message: serializeMessage(message) };
+    }
 
     const updated = await this.prisma.message.update({
       where: { id: message.id },
@@ -407,9 +413,10 @@ export class MessagesService {
           payload: input.payload as Prisma.InputJsonValue,
         },
       });
+      return true;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        return;
+        return false;
       }
       throw error;
     }

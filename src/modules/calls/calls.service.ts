@@ -17,6 +17,7 @@ import { serializeCall, serializeTranscriptTurn } from './calls.serializer';
 
 @Injectable()
 export class CallsService {
+  private readonly voicePreauthorizationSeconds = 10 * 60;
   private readonly terminalCallStatuses = new Set([
     'completed',
     'failed',
@@ -53,7 +54,7 @@ export class CallsService {
       projectId: context.projectId,
       agentId: agent.id,
       callId,
-      durationSeconds: 60,
+      durationSeconds: this.voicePreauthorizationSeconds,
     });
 
     let providerStarted = false;
@@ -82,6 +83,11 @@ export class CallsService {
         to: input.to,
       });
       providerStarted = true;
+      await this.usage.finalizeVoiceCall({
+        workspaceId: context.workspaceId,
+        callId,
+        durationSeconds: providerCall.durationSeconds,
+      });
 
       const call = await this.prisma.call.update({
         where: { id: callId },

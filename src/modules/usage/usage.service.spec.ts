@@ -34,6 +34,7 @@ function usageFixture(overrides = {}) {
 function createService(prisma: PrismaService) {
   const billing = {
     debitWorkspace: jest.fn().mockResolvedValue({ id: 'bal_123' }),
+    creditWorkspace: jest.fn().mockResolvedValue({ id: 'bal_123' }),
   } as unknown as BillingService;
 
   return {
@@ -94,5 +95,40 @@ describe('UsageService', () => {
         totalCost: '0.04',
       },
     ]);
+  });
+
+  it('finalizes voice usage and refunds unused preauthorization', async () => {
+    const prisma = {
+      usageEvent: {
+        findFirst: jest.fn().mockResolvedValue(
+          usageFixture({
+            resourceType: 'call',
+            resourceId: 'call_123',
+            channel: 'voice',
+            quantity: new Decimal(10),
+            unitCost: new Decimal('0.0300'),
+            totalCost: new Decimal('0.3000'),
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(usageFixture()),
+      },
+    } as unknown as PrismaService;
+    const { service, billing } = createService(prisma);
+
+    const result = await service.finalizeVoiceCall({
+      workspaceId: context.workspaceId,
+      callId: 'call_123',
+      durationSeconds: 64,
+    });
+
+    expect(result).toEqual({ finalized: true, deltaCents: -24 });
+    expect(billing.creditWorkspace).toHaveBeenCalledWith(context.workspaceId, 24);
+    expect(prisma.usageEvent.update).toHaveBeenCalledWith({
+      where: { id: 'use_123' },
+      data: expect.objectContaining({
+        quantity: new Decimal(2),
+        totalCost: new Decimal('0.0600'),
+      }),
+    });
   });
 });
