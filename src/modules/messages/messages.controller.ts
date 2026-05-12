@@ -4,7 +4,7 @@ import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { sendMessageSchema, simulateInboundSmsSchema } from '../../domain/schemas';
+import { sendMessageSchema } from '../../domain/schemas';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { MessagesService } from './messages.service';
 
@@ -33,15 +33,5 @@ export class MessagesController {
   @Post('messages/:id/reactions')
   async addReaction(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.messages.addReaction(context, id));
-  }
-
-  @Post('simulations/inbound-sms')
-  async simulateInboundSms(
-    @CurrentContext() context: RequestContext,
-    @Body(new ZodValidationPipe(simulateInboundSmsSchema)) body: unknown,
-  ) {
-    return success(
-      await this.messages.simulateInboundSms(context, simulateInboundSmsSchema.parse(body)),
-    );
   }
 }

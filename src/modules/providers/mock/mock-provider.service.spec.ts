@@ -32,8 +32,11 @@ describe('MockProviderService', () => {
       }),
     ).resolves.toMatchObject({
       provider: 'mock',
-      providerNumberId: 'mock_num_proj_123_650',
-      phoneNumber: '+16505551000',
+      providerNumberId: expect.stringMatching(/^mock_num_proj_123_650_/),
+      phoneNumber: expect.stringMatching(/^\+1650555\d{4}$/),
+      country: 'US',
+      areaCode: '650',
+      capabilities: ['sms'],
     });
   });
 });

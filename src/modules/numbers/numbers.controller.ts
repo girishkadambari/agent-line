@@ -4,7 +4,7 @@ import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { createNumberSchema, updateNumberSchema } from '../../domain/schemas';
+import { createNumberSchema, importNumberSchema, updateNumberSchema } from '../../domain/schemas';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { NumbersService } from './numbers.service';
 
@@ -24,6 +24,14 @@ export class NumbersController {
     @Body(new ZodValidationPipe(createNumberSchema)) body: unknown,
   ) {
     return success(await this.numbers.provisionNumber(context, createNumberSchema.parse(body)));
+  }
+
+  @Post('numbers/import')
+  async importNumber(
+    @CurrentContext() context: RequestContext,
+    @Body(new ZodValidationPipe(importNumberSchema)) body: unknown,
+  ) {
+    return success(await this.numbers.importNumber(context, importNumberSchema.parse(body)));
   }
 
   @Get('numbers/:id')

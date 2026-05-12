@@ -94,19 +94,26 @@ export class CallsService {
         data: {
           status: providerCall.status,
           durationSeconds: providerCall.durationSeconds,
-          summary: 'Mock call completed. The agent confirmed the caller intent and captured next step.',
-          outcome: providerCall.status === 'completed' ? 'completed' : providerCall.status,
+          summary:
+            providerCall.provider === 'mock'
+              ? 'Mock call completed. The agent confirmed the caller intent and captured next step.'
+              : null,
+          outcome: this.terminalCallStatuses.has(providerCall.status) ? providerCall.status : null,
           provider: providerCall.provider,
           providerCallId: providerCall.providerCallId,
-          endedAt: new Date(now.getTime() + providerCall.durationSeconds * 1000),
+          endedAt: this.terminalCallStatuses.has(providerCall.status)
+            ? new Date(now.getTime() + providerCall.durationSeconds * 1000)
+            : null,
         },
       });
 
-      await this.createMockTranscript(context, call.id, input.to);
+      if (providerCall.provider === 'mock') {
+        await this.createMockTranscript(context, call.id, input.to);
+      }
       const event = await this.events.create({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        type: 'agent.call.completed',
+        type: providerCall.status === 'completed' ? 'agent.call.completed' : 'agent.call.started',
         resourceType: 'call',
         resourceId: call.id,
         payload: {
@@ -197,6 +204,190 @@ export class CallsService {
     return serializeCall(call);
   }
 
+  async receiveProviderCallStatus(input: {
+    provider: 'twilio';
+    providerCallId: string;
+    status: string;
+    durationSeconds?: number;
+    rawPayload: Record<string, unknown>;
+  }) {
+    const status = this.normalizeProviderCallStatus(input.status);
+    const existing = await this.prisma.call.findFirst({
+      where: {
+        provider: input.provider,
+        providerCallId: input.providerCallId,
+      },
+    });
+
+    if (!existing) {
+      return { received: true, ignored: true, reason: 'call_not_found' };
+    }
+
+    const isTerminal = this.terminalCallStatuses.has(status);
+    const call = await this.prisma.call.update({
+      where: { id: existing.id },
+      data: {
+        status,
+        durationSeconds: input.durationSeconds ?? existing.durationSeconds,
+        outcome: isTerminal ? status : existing.outcome,
+        endedAt: isTerminal ? existing.endedAt ?? new Date() : existing.endedAt,
+      },
+    });
+
+    if (isTerminal) {
+      await this.usage.finalizeVoiceCall({
+        workspaceId: call.workspaceId,
+        callId: call.id,
+        durationSeconds: call.durationSeconds,
+      });
+
+      const event = await this.events.create({
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        type: 'agent.call.ended',
+        resourceType: 'call',
+        resourceId: call.id,
+        payload: {
+          agentId: call.agentId,
+          conversationId: call.conversationId,
+          providerCallId: input.providerCallId,
+          providerStatus: input.status,
+          durationSeconds: call.durationSeconds,
+        },
+      });
+      await this.webhooks.createDeliveriesForEvent(event);
+    }
+
+    return serializeCall(call);
+  }
+
+  async receiveProviderVoicePrompt(input: { provider: 'twilio'; providerCallId: string }) {
+    const call = await this.prisma.call.findFirst({
+      where: {
+        provider: input.provider,
+        providerCallId: input.providerCallId,
+      },
+    });
+
+    if (!call) {
+      return { received: true, ignored: true, reason: 'call_not_found' };
+    }
+
+    const existingPrompt = await this.prisma.transcriptTurn.findFirst({
+      where: {
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+        speaker: 'agent',
+        startedAtMs: 0,
+      },
+    });
+
+    if (!existingPrompt) {
+      await this.prisma.transcriptTurn.create({
+        data: {
+          id: createId('trn'),
+          workspaceId: call.workspaceId,
+          projectId: call.projectId,
+          callId: call.id,
+          speaker: 'agent',
+          text: 'Hello from AgentLine. This is your live phone agent. Please say a short reply after the tone.',
+          startedAtMs: 0,
+          endedAtMs: 5000,
+          confidence: 1,
+        },
+      });
+    }
+
+    return { received: true, ignored: false };
+  }
+
+  async receiveProviderVoiceSpeech(input: {
+    provider: 'twilio';
+    providerCallId: string;
+    speechResult: string;
+    confidence?: number;
+  }) {
+    const text = input.speechResult.trim();
+    if (!text) {
+      return { received: true, ignored: true, reason: 'empty_speech' };
+    }
+
+    const call = await this.prisma.call.findFirst({
+      where: {
+        provider: input.provider,
+        providerCallId: input.providerCallId,
+      },
+    });
+
+    if (!call) {
+      return { received: true, ignored: true, reason: 'call_not_found' };
+    }
+
+    const existingSpeech = await this.prisma.transcriptTurn.findFirst({
+      where: {
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+        speaker: 'user',
+        text,
+      },
+    });
+
+    if (existingSpeech) {
+      return { received: true, duplicate: true, ignored: false };
+    }
+
+    const lastTurn = await this.prisma.transcriptTurn.findFirst({
+      where: {
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+      },
+      orderBy: { endedAtMs: 'desc' },
+    });
+    const startedAtMs = Math.max(lastTurn?.endedAtMs ?? 0, 5000);
+    const endedAtMs = startedAtMs + Math.max(1000, Math.min(text.length * 80, 10000));
+
+    await this.prisma.transcriptTurn.create({
+      data: {
+        id: createId('trn'),
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+        speaker: 'user',
+        text,
+        startedAtMs,
+        endedAtMs,
+        confidence: Number.isFinite(input.confidence) ? input.confidence : null,
+      },
+    });
+
+    const updated = await this.prisma.call.update({
+      where: { id: call.id },
+      data: {
+        summary: `Caller said: ${text}`,
+        outcome: call.outcome ?? 'response_captured',
+      },
+    });
+
+    const event = await this.events.create({
+      workspaceId: call.workspaceId,
+      projectId: call.projectId,
+      type: 'agent.call.transcript_updated',
+      resourceType: 'call',
+      resourceId: call.id,
+      payload: {
+        agentId: call.agentId,
+        conversationId: call.conversationId,
+        providerCallId: input.providerCallId,
+      },
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
+
+    return { received: true, ignored: false, call: serializeCall(updated) };
+  }
+
   async transferCall(context: RequestContext, id: string, input: TransferCallInput) {
     const existing = await this.findCallOrThrow(context, id);
 
@@ -283,6 +474,22 @@ export class CallsService {
         confidence: 0.99,
       })),
     });
+  }
+
+  private normalizeProviderCallStatus(status: string) {
+    if (status === 'in-progress') {
+      return 'in_progress';
+    }
+    if (status === 'no-answer') {
+      return 'no_answer';
+    }
+    if (status === 'queued' || status === 'ringing' || status === 'completed' || status === 'failed') {
+      return status;
+    }
+    if (status === 'busy' || status === 'canceled') {
+      return status;
+    }
+    return 'queued';
   }
 
   private async findAgentOrThrow(context: RequestContext, agentId: string) {

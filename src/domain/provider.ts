@@ -32,6 +32,16 @@ export interface ProvisionNumberResult {
   capabilities: ProviderCapability[];
 }
 
+export interface ImportNumberInput {
+  phoneNumber: string;
+  capabilities: ProviderCapability[];
+  inboundSmsUrl?: string;
+  inboundSmsMethod?: "POST" | "GET";
+  statusCallbackUrl?: string;
+}
+
+export type ImportNumberResult = ProvisionNumberResult;
+
 export interface ReleaseNumberInput {
   providerNumberId: string;
 }
@@ -61,7 +71,7 @@ export interface CreateCallInput {
 export interface CreateCallResult {
   provider: "mock" | "twilio" | "telnyx";
   providerCallId: string;
-  status: "completed" | "failed" | "busy" | "no_answer";
+  status: "queued" | "ringing" | "in_progress" | "completed" | "failed" | "busy" | "no_answer" | "canceled";
   durationSeconds: number;
 }
 
@@ -85,6 +95,7 @@ export interface TransferCallResult {
 export interface TelecomProvider {
   searchNumbers(input: SearchNumbersInput): Promise<SearchNumbersResult>;
   provisionNumber(input: ProvisionNumberInput): Promise<ProvisionNumberResult>;
+  importNumber(input: ImportNumberInput): Promise<ImportNumberResult>;
   releaseNumber(input: ReleaseNumberInput): Promise<ReleaseNumberResult>;
   sendSms(input: SendSmsInput): Promise<SendSmsResult>;
   createCall(input: CreateCallInput): Promise<CreateCallResult>;

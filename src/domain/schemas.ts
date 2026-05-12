@@ -60,6 +60,14 @@ export const createNumberSchema = z.object({
   capabilities: z.array(z.enum(['sms', 'mms', 'voice'])).default(['sms', 'voice']),
 });
 
+export const importNumberSchema = z.object({
+  agentId: z.string().optional(),
+  phoneNumber: z.string().min(7),
+  country: z.string().default('US'),
+  areaCode: z.string().optional(),
+  capabilities: z.array(z.enum(['sms', 'mms', 'voice'])).default(['sms', 'voice']),
+});
+
 export const updateNumberSchema = z.object({
   agentId: z.string().nullable().optional(),
 });
@@ -182,6 +190,7 @@ export const createInviteSchema = z.object({
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
 export type UpdateAgentInput = z.infer<typeof updateAgentSchema>;
 export type CreateNumberInput = z.infer<typeof createNumberSchema>;
+export type ImportNumberInput = z.infer<typeof importNumberSchema>;
 export type UpdateNumberInput = z.infer<typeof updateNumberSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type SimulateInboundSmsInput = z.infer<typeof simulateInboundSmsSchema>;

@@ -20,6 +20,7 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
 
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+    process.env.APP_ENV = 'test';
     process.env.TELECOM_PROVIDER = 'mock';
     process.env.TWILIO_AUTH_TOKEN = twilioAuthToken;
     process.env.TWILIO_INBOUND_SMS_WEBHOOK_URL = inboundCallbackUrl;
@@ -41,7 +42,7 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
     await app?.close();
   });
 
-  it('runs the golden mock backend flow', async () => {
+  it('runs the golden backend flow without product-facing simulations', async () => {
     const auth = { Authorization: `Bearer ${apiKey}` };
 
     await request(app.getHttpServer()).get('/v1/workspaces/current').set(auth).expect(200);
@@ -70,13 +71,6 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
       .send({ agentId: 'agt_e2e', to: '+14155550123', body: 'Hello from e2e.' })
       .expect(201);
     expect(outbound.body.data.direction).toBe('outbound');
-
-    const inbound = await request(app.getHttpServer())
-      .post('/v1/simulations/inbound-sms')
-      .set(auth)
-      .send({ agentId: 'agt_e2e', from: '+14155550123', body: 'Inbound e2e.' })
-      .expect(201);
-    expect(inbound.body.data.direction).toBe('inbound');
 
     const call = await request(app.getHttpServer())
       .post('/v1/calls')
@@ -121,6 +115,7 @@ describeWithDatabase('Phase 1 smoke flow with Postgres', () => {
       .send(inboundPayload)
       .expect(201);
     expect(twilioInbound.body.data.ignored).toBe(false);
+    expect(twilioInbound.body.data.message.direction).toBe('inbound');
 
     const statusPayload = {
       MessageSid: 'SM_e2e_inbound',

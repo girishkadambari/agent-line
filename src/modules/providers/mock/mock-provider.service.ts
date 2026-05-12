@@ -5,6 +5,8 @@ import type {
   CreateCallInput,
   EndCallInput,
   EndCallResult,
+  ImportNumberInput,
+  ImportNumberResult,
   ProvisionNumberInput,
   ProvisionNumberResult,
   ReleaseNumberInput,
@@ -40,6 +42,16 @@ export class MockProviderService implements TelecomProvider {
       phoneNumber: this.mockPhoneNumber(input.country, input.areaCode, Number(uniqueSuffix.slice(-4))),
       country: input.country,
       areaCode: input.areaCode,
+      capabilities: input.capabilities,
+    };
+  }
+
+  async importNumber(input: ImportNumberInput): Promise<ImportNumberResult> {
+    return {
+      provider: 'mock',
+      providerNumberId: `mock_import_${input.phoneNumber.replace(/\D/g, '')}`,
+      phoneNumber: input.phoneNumber,
+      country: 'US',
       capabilities: input.capabilities,
     };
   }

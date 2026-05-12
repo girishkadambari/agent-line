@@ -5,7 +5,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import type { TelecomProvider } from '../../domain/provider';
-import type { CreateNumberInput, UpdateNumberInput } from '../../domain/schemas';
+import type { CreateNumberInput, ImportNumberInput, UpdateNumberInput } from '../../domain/schemas';
 import { PrismaService } from '../prisma/prisma.service';
 import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
@@ -106,6 +106,59 @@ export class NumbersService {
   async attachNewNumberToAgent(context: RequestContext, agentId: string, input: CreateNumberInput) {
     await this.assertAgentExists(context, agentId);
     return this.provisionNumber(context, { ...input, agentId });
+  }
+
+  async importNumber(context: RequestContext, input: ImportNumberInput) {
+    if (input.agentId) {
+      await this.assertAgentExists(context, input.agentId);
+    }
+
+    const imported = await this.telecomProvider.importNumber({
+      phoneNumber: input.phoneNumber,
+      capabilities: input.capabilities,
+    });
+
+    const existing = await this.prisma.phoneNumber.findFirst({
+      where: {
+        workspaceId: context.workspaceId,
+        phoneNumber: imported.phoneNumber,
+      },
+    });
+
+    if (existing) {
+      const updated = await this.prisma.phoneNumber.update({
+        where: { id: existing.id },
+        data: {
+          projectId: context.projectId,
+          agentId: input.agentId,
+          country: imported.country,
+          areaCode: input.areaCode,
+          capabilities: imported.capabilities,
+          status: 'active',
+          provider: imported.provider,
+          providerNumberId: imported.providerNumberId,
+        },
+      });
+      return serializeNumber(updated);
+    }
+
+    const number = await this.prisma.phoneNumber.create({
+      data: {
+        id: createId('num'),
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId: input.agentId,
+        phoneNumber: imported.phoneNumber,
+        country: imported.country,
+        areaCode: input.areaCode,
+        capabilities: imported.capabilities,
+        status: 'active',
+        provider: imported.provider,
+        providerNumberId: imported.providerNumberId,
+      },
+    });
+
+    return serializeNumber(number);
   }
 
   async getNumber(context: RequestContext, id: string) {

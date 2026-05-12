@@ -145,12 +145,15 @@ curl -X POST "$AGENTLINE_API_URL/messages" \
   -d '{"agentId":"agt_support","to":"+14155550123","body":"Hello from AgentLine."}'
 ```
 
-```bash
-curl -X POST "$AGENTLINE_API_URL/simulations/inbound-sms" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"agentId":"agt_support","from":"+14155550123","body":"I need help with my booking."}'
+Inbound SMS is created by Twilio callbacks, not by product-facing simulation
+routes:
+
+```http
+POST /v1/providers/twilio/sms/inbound
 ```
+
+Use `TWILIO_MODE=live-dev` with ngrok for local inbound SMS testing. Twilio test
+credentials do not receive inbound SMS or trigger callbacks.
 
 ```bash
 curl "$AGENTLINE_API_URL/conversations" \

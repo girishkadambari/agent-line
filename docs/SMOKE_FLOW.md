@@ -93,19 +93,22 @@ curl -X POST "$AGENTLINE_API_URL/messages" \
 Expected:
 
 - message direction is `outbound`.
-- status is `delivered` in mock mode.
+- status comes from the active Twilio mode.
 - conversation/contact are created or reused.
 - usage event is created.
 - matching webhook deliveries are created if subscribed.
 
-### 6. Simulate Inbound SMS
+### 6. Receive Inbound SMS Through Twilio Callback
 
-```bash
-curl -X POST "$AGENTLINE_API_URL/simulations/inbound-sms" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"agentId":"agt_support","from":"+14155550123","body":"Reply from customer."}'
+Inbound SMS must enter AgentLine through the Twilio callback route:
+
+```http
+POST /v1/providers/twilio/sms/inbound
 ```
+
+For local development, use `TWILIO_MODE=live-dev` with ngrok or another public
+tunnel. Twilio test credentials do not receive real inbound SMS or trigger
+callbacks.
 
 Expected:
 
@@ -226,7 +229,8 @@ Expected UI states:
 
 ## Known Phase 1 Limitations
 
-- Mock mode is the default. Twilio adapter support exists behind `TELECOM_PROVIDER=twilio`, but live Twilio behavior still needs real credentials and sandbox verification.
+- Local product development uses `TELECOM_PROVIDER=twilio` with `TWILIO_MODE=test`.
+  Mock mode is reserved for automated tests only.
 - No real outbound webhook HTTP dispatch.
 - No hosted AI execution yet.
 - DB-backed e2e tests require Docker Postgres:

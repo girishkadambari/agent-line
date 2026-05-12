@@ -9,6 +9,9 @@ describe('Health route', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    process.env.APP_ENV = 'test';
+    process.env.TELECOM_PROVIDER = 'mock';
+
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -29,7 +32,7 @@ describe('Health route', () => {
       .expect({
         data: {
           name: 'AgentLine',
-          phase: 'phase_1_mock_core_product',
+          phase: 'production_backend_flows',
           status: 'ok',
         },
       });

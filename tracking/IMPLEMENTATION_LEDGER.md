@@ -190,7 +190,7 @@ Implemented:
 - Checkout and portal responses now include the Stripe mode.
 - Checkout transaction metadata now records `stripeMode`.
 - Stripe webhook balance creation now credits exactly the verified paid amount instead of adding local seed credits.
-- `.env.example` now includes `STRIPE_MODE` and `STRIPE_CREDIT_PRODUCT_NAME`.
+- `.env.example` now includes `STRIPE_MODE`.
 - Stripe billing docs now include complete local test and production setup flows.
 
 Verification:
@@ -803,4 +803,258 @@ Verification:
 
 - `npm test -- contacts.service.spec.ts` passed.
 - `npm run lint` passed.
+- `npm run build` passed.
+
+## 2026-05-08: Production Backend Flow Planning
+
+**Status:** planned
+
+Context:
+
+- The product is moving from mock-first MVP behavior to real production flows.
+- Mock provider should remain available for local development and automated
+  tests, but production/staging must use real providers or fail closed.
+- Planned integrations: Google OAuth/session auth, Twilio telecom, Stripe
+  test/live billing, Brevo transactional email, and Google Cloud deployment.
+
+Implemented:
+
+- Added `docs/PRODUCTION_BACKEND_ROADMAP.md`.
+- Replaced `tracking/NEXT_PHASE_PLAN.md` with the production backend flow plan.
+
+Next implementation priority:
+
+1. P0 production configuration baseline.
+2. Provider runtime readiness endpoint.
+3. Google OAuth/session auth and current-user/workspace switching.
+4. Stripe test/live hardening.
+5. Twilio real number/SMS staging flow.
+
+Guardrails:
+
+- Do not let production run with `TELECOM_PROVIDER=mock`.
+- Do not reintroduce mock data into production user-facing flows.
+- Do not process unsigned provider webhooks.
+- Do not perform provider writes before billing authorization.
+
+## 2026-05-08: Twilio-First Local Testing Strategy
+
+**Status:** planned
+
+Context:
+
+- Local product development should also use actual provider-shaped data.
+- Twilio test credentials support selected REST API operations without charges,
+  but they do not trigger real callbacks or inbound webhooks.
+- Local inbound/callback testing needs a public tunnel and Twilio live-dev
+  credentials.
+
+Implemented:
+
+- Added `docs/TWILIO_TESTING_STRATEGY.md`.
+- Updated `docs/PRODUCTION_BACKEND_ROADMAP.md` so local defaults to Twilio test
+  credentials, not mock.
+- Updated `tracking/NEXT_PHASE_PLAN.md` to add `TWILIO_MODE` and local mock
+  opt-in rules.
+
+New policy:
+
+- `local`: Twilio test credentials by default.
+- `local-webhook`: Twilio live-dev credentials plus public tunnel.
+- `test`: mock/signed fixtures allowed for deterministic no-network tests.
+- `staging`: Twilio real/test provider flows, no silent mock.
+- `production`: Twilio live, no mock.
+
+Guardrails:
+
+- Local mock mode is rejected.
+- Twilio test mode must not expect status callbacks.
+- Inbound SMS/call and status callback tests need live-dev tunnel or signed
+  fixture contract tests.
+
+## 2026-05-08: Provider Mode Guardrails Implemented
+
+**Status:** done
+
+Implemented:
+
+- Added `src/config/env.validation.ts` with strict app/provider mode validation.
+- Added `APP_ENV` support with `local`, `test`, `staging`, and `production`.
+- Added `TWILIO_MODE` support with `test`, `live-dev`, and `live`.
+- Local defaults now resolve to `TELECOM_PROVIDER=twilio` and
+  `TWILIO_MODE=test`.
+- `TELECOM_PROVIDER=mock` is rejected unless `APP_ENV=test`.
+- Twilio test mode requires `TWILIO_TEST_ACCOUNT_SID` and
+  `TWILIO_TEST_AUTH_TOKEN`.
+- Twilio live-dev/live modes require `TWILIO_ACCOUNT_SID` and
+  `TWILIO_AUTH_TOKEN`.
+- Production requires `TWILIO_MODE=live`.
+- Twilio provider adapter now uses test credentials in `TWILIO_MODE=test`.
+- Removed product-facing `POST /v1/simulations/inbound-sms` from the controller.
+- Updated DB-backed smoke flow to use signed Twilio inbound callback instead of
+  product-facing inbound simulation.
+- Added `GET /v1/health/providers` for secret-safe provider readiness.
+- Added local/staging/production env examples.
+- Updated current API/smoke/backend docs to remove the old inbound simulation
+  route.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 23 suites, 81 tests.
+- `npm run test:e2e` passed: 1 suite passed, DB suite skipped without
+  `TEST_DATABASE_URL`.
+- `npm run build` passed.
+
+Next:
+
+- Add real Google OAuth/session auth.
+- Add Twilio local live-dev webhook guide and runbook for ngrok callback testing.
+- Add Stripe/Brevo readiness checks into deployment docs once credentials are
+  provided.
+
+## 2026-05-08: Environment Files Simplified
+
+**Status:** done
+
+Implemented:
+
+- Removed the duplicate `.env.local.example` template.
+- Made `.env.example` the single local development template.
+- Kept `.env.test.example` for automated tests where the mock provider is
+  allowed.
+- Simplified `.env.staging.example` and `.env.production.example` so they only
+  include deployment-relevant live-dev/live provider settings.
+- Removed unused local Twilio callback placeholders from `.env` while keeping
+  the configured local secrets intact.
+- Added `STRIPE_MODE=test` to the local `.env` so Stripe behavior is explicit.
+- Updated production backend, smoke, and Twilio testing docs to match the new
+  environment file set.
+
+Environment rule:
+
+- Local product flows use Twilio test credentials through `.env`.
+- Mock telecom stays in tests only.
+- Live-dev webhook work uses staging-style variables with ngrok/public callback
+  URLs.
+
+## 2026-05-08: Twilio Test Number Provisioning Fix
+
+**Status:** done
+
+Issue:
+
+- `TWILIO_MODE=test` was still calling Twilio available-number search before
+  purchase.
+- Twilio test credentials do not support `GET /AvailablePhoneNumbers`, so local
+  number provisioning returned provider error `20008`.
+
+Implemented:
+
+- In Twilio test mode, number search returns the configured Twilio magic test
+  number without calling Twilio.
+- In Twilio test mode, number provisioning calls the supported
+  `POST /IncomingPhoneNumbers` endpoint directly with `TWILIO_FROM_NUMBER`.
+- In Twilio test mode, number release is a local no-op because Twilio does not
+  create real account state for magic purchases.
+- Added provider tests for test-mode search, provision, and release behavior.
+- Updated `docs/TWILIO_TESTING_STRATEGY.md` to document the unsupported search
+  endpoint and magic-number provision path.
+
+## 2026-05-08: Twilio Live-Dev Voice Wiring
+
+**Status:** done
+
+Implemented:
+
+- Switched local `.env` to `TWILIO_MODE=live-dev` with the configured ngrok
+  public API URL and Twilio callback URLs.
+- Added `POST /v1/providers/twilio/voice/inbound` to return signed TwiML for a
+  real Twilio outbound call.
+- Added `POST /v1/providers/twilio/voice/status` to accept signed Twilio call
+  status callbacks and update the AgentLine call record.
+- Twilio outbound calls now send voice status callback settings.
+- Twilio call statuses now preserve `queued`, `ringing`, and `in_progress`
+  instead of forcing non-terminal calls to `completed`.
+- Twilio number provisioning now attaches both SMS and voice webhook URLs when
+  those URLs are configured.
+- Removed fake transcript/summary generation for Twilio calls; mock transcripts
+  are now only created when the mock provider is used in tests.
+- Updated env examples with `TWILIO_VOICE_STATUS_CALLBACK_URL`.
+
+Operational note:
+
+- A real live-dev call still requires a real Twilio-owned `PhoneNumber` record
+  attached to the agent. Old `+15005550006` records are Twilio test-mode residue
+  and should not be used for live-dev calls.
+
+## 2026-05-08: Existing Twilio Number Import Flow
+
+**Status:** done
+
+Issue:
+
+- Twilio trial accounts can own only one Twilio number.
+- The AgentLine Numbers page previously treated the primary number action as
+  provisioning, which means buying a new Twilio number.
+- When a trial account already had a number, provisioning returned Twilio error
+  `21404` instead of attaching the existing number to an AgentLine agent.
+
+Implemented:
+
+- Added `TelecomProvider.importNumber` to the provider contract.
+- Added Twilio import support:
+  - finds an existing `IncomingPhoneNumber` by E.164 phone number.
+  - configures AgentLine SMS and voice callback URLs on that Twilio number.
+  - returns the Twilio IncomingPhoneNumber SID as the provider number ID.
+- Added `POST /v1/numbers/import`.
+- Added Numbers service import behavior:
+  - updates an existing local `PhoneNumber` row when the workspace already has
+    the phone number.
+  - creates a local row when the Twilio number exists but AgentLine has not
+    recorded it yet.
+  - does not debit the AgentLine number-provision usage ledger because the
+    number was already bought in Twilio.
+- Added tests for service-level import and Twilio provider import callback
+  configuration.
+
+Verification:
+
+- `npm test -- numbers.service.spec.ts twilio-provider.service.spec.ts` passed.
+- `npm run typecheck` passed.
+
+Operational note:
+
+- Use **Import existing** for the current Twilio trial number
+  `+19012316325`.
+- Use **Provision number** only when the product should buy a new Twilio number.
+
+## 2026-05-08: Live-Dev Voice Transcript Capture
+
+**Status:** done
+
+Issue:
+
+- Live Twilio calls were creating call records and lifecycle status updates, but
+  no real conversation content because the TwiML only played a message and
+  ended.
+
+Implemented:
+
+- Updated the Twilio voice TwiML response to use speech `<Gather>`.
+- Added `POST /v1/providers/twilio/voice/gather`.
+- The inbound voice handler now records the agent prompt as a transcript turn.
+- The gather handler records the caller's speech result as a user transcript
+  turn.
+- Calls with captured speech now get a simple summary and
+  `agent.call.transcript_updated` webhook event.
+- Added `TWILIO_VOICE_GATHER_CALLBACK_URL` to env examples and Twilio testing
+  docs.
+- Added service tests for live Twilio prompt and speech transcript capture.
+
+Verification:
+
+- `npm test -- calls.service.spec.ts` passed.
+- `npm run typecheck` passed.
 - `npm run build` passed.

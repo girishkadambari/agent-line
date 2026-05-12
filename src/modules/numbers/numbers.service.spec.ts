@@ -106,6 +106,64 @@ describe('NumbersService', () => {
     expect(prisma.phoneNumber.create).not.toHaveBeenCalled();
   });
 
+  it('imports an existing provider number and updates the local record without billing a new number', async () => {
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue(numberFixture({ providerNumberId: null })),
+        update: jest.fn().mockResolvedValue(
+          numberFixture({
+            phoneNumber: '+19012316325',
+            provider: 'twilio',
+            providerNumberId: 'PN123',
+          }),
+        ),
+        create: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const provider = {
+      importNumber: jest.fn().mockResolvedValue({
+        provider: 'twilio',
+        providerNumberId: 'PN123',
+        phoneNumber: '+19012316325',
+        country: 'US',
+        capabilities: ['sms', 'voice'],
+      }),
+    } as unknown as MockProviderService;
+    const usage = {
+      recordNumberProvisioned: jest.fn(),
+      voidUsageForFailedOperation: jest.fn(),
+    } as unknown as UsageService;
+    const service = new NumbersService(prisma, provider, usage);
+
+    const result = await service.importNumber(context, {
+      agentId: 'agt_123',
+      phoneNumber: '+19012316325',
+      country: 'US',
+      areaCode: '901',
+      capabilities: ['sms', 'voice'],
+    });
+
+    expect(provider.importNumber).toHaveBeenCalledWith({
+      phoneNumber: '+19012316325',
+      capabilities: ['sms', 'voice'],
+    });
+    expect(prisma.phoneNumber.update).toHaveBeenCalledWith({
+      where: { id: 'num_123' },
+      data: expect.objectContaining({
+        agentId: 'agt_123',
+        provider: 'twilio',
+        providerNumberId: 'PN123',
+        status: 'active',
+      }),
+    });
+    expect(prisma.phoneNumber.create).not.toHaveBeenCalled();
+    expect(usage.recordNumberProvisioned).not.toHaveBeenCalled();
+    expect(result.phoneNumber).toBe('+19012316325');
+  });
+
   it('detaches an attached number from an agent', async () => {
     const prisma = {
       agent: {

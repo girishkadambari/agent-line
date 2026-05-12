@@ -585,13 +585,9 @@ POST /v1/messages/:id/reactions
 
 Inbound SMS provider callbacks must create `agent.message.received` webhook events.
 
-Phase 1 mock implementation also exposes:
-
-```http
-POST /v1/simulations/inbound-sms
-```
-
-This creates a received SMS message without requiring a real provider callback.
+Product-facing inbound SMS simulation routes are removed. Local inbound testing
+must use the Twilio callback route with `TWILIO_MODE=live-dev` and a public
+tunnel such as ngrok.
 
 ### Calls
 
@@ -687,13 +683,15 @@ Mock provider must implement the same interface as real providers.
 Runtime provider selection:
 
 ```env
-TELECOM_PROVIDER="mock"
+APP_ENV="local"
+TELECOM_PROVIDER="twilio"
+TWILIO_MODE="test"
 ```
 
 Valid values:
 
-- `mock`: default local and test provider. Requires no external credentials.
-- `twilio`: real Twilio REST API adapter. Requires `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`; voice calls also require `TWILIO_VOICE_WEBHOOK_URL` before live use.
+- `mock`: automated tests and contract tests only.
+- `twilio`: real Twilio REST API adapter. In `TWILIO_MODE=test`, requires `TWILIO_TEST_ACCOUNT_SID` and `TWILIO_TEST_AUTH_TOKEN`. In `TWILIO_MODE=live-dev` or `live`, requires `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`; voice calls also require `TWILIO_VOICE_WEBHOOK_URL` before live use.
 
 Twilio is the first real provider target. The public AgentLine API must not change when switching from mock to Twilio. Provider-specific IDs may be stored internally as `providerNumberId`, `providerMessageId`, or `providerCallId`; public responses should stay normalized around AgentLine objects and statuses.
 

@@ -62,7 +62,6 @@ STRIPE_MODE="test"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
-STRIPE_CREDIT_PRODUCT_NAME="AgentLine prepaid credits"
 ```
 
 Use `GET /v1/billing/stripe/status` to verify backend configuration from the API without exposing secrets:

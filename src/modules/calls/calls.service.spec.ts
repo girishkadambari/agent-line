@@ -252,4 +252,74 @@ describe('CallsService', () => {
     expect(prisma.call.update).not.toHaveBeenCalled();
     expect(events.create).not.toHaveBeenCalled();
   });
+
+  it('records a live Twilio prompt transcript turn once', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
+      },
+      transcriptTurn: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(transcriptTurnFixture()),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    await service.receiveProviderVoicePrompt({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+    });
+
+    expect(prisma.transcriptTurn.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        callId: 'call_123',
+        speaker: 'agent',
+        startedAtMs: 0,
+      }),
+    });
+  });
+
+  it('records live Twilio speech as a transcript turn and emits an update event', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
+        update: jest.fn().mockResolvedValue(callFixture({ summary: 'Caller said: Hello AgentLine' })),
+      },
+      transcriptTurn: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(transcriptTurnFixture({ endedAtMs: 5000 })),
+        create: jest.fn().mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello AgentLine' })),
+      },
+    } as unknown as PrismaService;
+    const { service, events } = createService(prisma);
+
+    await service.receiveProviderVoiceSpeech({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      speechResult: 'Hello AgentLine',
+      confidence: 0.92,
+    });
+
+    expect(prisma.transcriptTurn.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        callId: 'call_123',
+        speaker: 'user',
+        text: 'Hello AgentLine',
+        confidence: 0.92,
+      }),
+    });
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({
+        summary: 'Caller said: Hello AgentLine',
+      }),
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.transcript_updated',
+      }),
+    );
+  });
 });
