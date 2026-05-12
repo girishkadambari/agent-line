@@ -116,4 +116,96 @@ describe('WorkspacesService', () => {
       }),
     });
   });
+
+  it('creates a user-owned workspace with default project and billing balance', async () => {
+    const prisma = {
+      $transaction: jest.fn().mockImplementation(async (callback) =>
+        callback({
+          workspace: {
+            create: jest.fn().mockResolvedValue({
+              id: 'ws_new',
+              name: 'New workspace',
+              createdAt: now,
+              updatedAt: now,
+              projects: [
+                {
+                  id: 'proj_new',
+                  workspaceId: 'ws_new',
+                  name: 'Default project',
+                  environment: 'test',
+                  createdAt: now,
+                  updatedAt: now,
+                },
+              ],
+            }),
+          },
+          workspaceMember: {
+            create: jest.fn().mockResolvedValue(memberFixture({ workspaceId: 'ws_new' })),
+          },
+        }),
+      ),
+    } as unknown as PrismaService;
+    const service = new WorkspacesService(prisma, audit);
+
+    const result = await service.createWorkspaceForUser('usr_123', { name: 'New workspace' });
+
+    expect(result.id).toBe('ws_new');
+    expect(result.projects).toHaveLength(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_new',
+        actorUserId: 'usr_123',
+        action: 'workspace.created',
+      }),
+    );
+  });
+
+  it('accepts a pending invite for the signed-in email', async () => {
+    const invite = {
+      id: 'inv_123',
+      workspaceId: 'ws_123',
+      email: 'new@example.com',
+      role: 'developer',
+      status: 'pending',
+      tokenHash: 'hash',
+      invitedById: null,
+      acceptedById: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      acceptedAt: null,
+      revokedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const prisma = {
+      workspaceInvite: {
+        findFirst: jest.fn().mockResolvedValue(invite),
+      },
+      $transaction: jest.fn().mockImplementation(async (callback) =>
+        callback({
+          workspaceMember: {
+            upsert: jest.fn().mockResolvedValue(memberFixture({ role: 'developer' })),
+          },
+          workspaceInvite: {
+            update: jest.fn().mockResolvedValue({
+              ...invite,
+              status: 'accepted',
+              acceptedById: 'usr_123',
+              acceptedAt: now,
+            }),
+          },
+        }),
+      ),
+    } as unknown as PrismaService;
+    const service = new WorkspacesService(prisma, audit);
+
+    const result = await service.acceptInvite('usr_123', 'new@example.com', { token: 'inv_raw_token_123456' });
+
+    expect(result.status).toBe('accepted');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'invite.accepted',
+        actorUserId: 'usr_123',
+      }),
+    );
+  });
 });

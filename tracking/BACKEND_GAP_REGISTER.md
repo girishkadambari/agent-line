@@ -35,7 +35,6 @@ Implemented:
 
 Remaining:
 
-- Invite acceptance flow.
 - Invite email delivery.
 - Full role-based authorization enforcement.
 
@@ -45,20 +44,21 @@ Remaining:
 
 Priority: P1
 
+Status: partially closed
+
 Needed:
 
-- Session authentication.
-- Google OAuth start/callback.
-- Current user profile endpoint.
-- Logout/session revocation.
-- Workspace list endpoint for the signed-in user.
-- Workspace creation endpoint.
-- Active workspace/project context endpoint.
+- CSRF protection for session-authenticated mutations.
+- Session-or-API-key guard for shared dashboard resource routes.
+- Role-based authorization on session-authenticated workspace mutations.
+- DB-backed OAuth/session e2e tests with mocked Google responses.
 
 Reason:
 
-- API-key auth currently resolves exactly one workspace/project pair. Creating
-  and switching workspaces requires user/session identity first.
+- Google OAuth, HTTP-only opaque sessions, current user, workspace
+  list/create/switch, and invite acceptance now exist. Existing resource APIs
+  are still mostly API-key protected, so dashboard integration should migrate
+  routes carefully after session authorization rules are in place.
 
 ### Dashboard Summary Endpoint
 

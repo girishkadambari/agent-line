@@ -177,6 +177,10 @@ export const updateWorkspaceSchema = z.object({
   name: z.string().min(1).optional(),
 });
 
+export const createWorkspaceSchema = z.object({
+  name: z.string().min(1),
+});
+
 export const updateMemberSchema = z.object({
   role: workspaceRoleSchema.optional(),
   status: z.enum(['active', 'suspended', 'removed']).optional(),
@@ -185,6 +189,10 @@ export const updateMemberSchema = z.object({
 export const createInviteSchema = z.object({
   email: z.string().email(),
   role: workspaceRoleSchema.default('member'),
+});
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(16),
 });
 
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
@@ -210,5 +218,7 @@ export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>;
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionSchema>;
 export type CreatePortalSessionInput = z.infer<typeof createPortalSessionSchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
+export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;

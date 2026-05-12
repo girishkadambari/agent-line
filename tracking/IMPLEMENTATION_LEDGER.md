@@ -1058,3 +1058,59 @@ Verification:
 - `npm test -- calls.service.spec.ts` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.
+
+## 2026-05-12: P1 Auth, Sessions, And Workspace Context Slice
+
+**Status:** review
+
+Implemented:
+
+- Added `UserSession` Prisma model with hashed opaque session token storage.
+- Added session token utilities for raw token creation, SHA-256 hashing, cookie
+  parsing, session cookie creation, and logout cookie expiration.
+- Added `SessionGuard` that resolves HTTP-only session cookies into
+  `RequestContext` with active workspace/project scope.
+- Extended `RequestContext` to support both API-key and session auth actors.
+- Added Google OAuth backend endpoints:
+  - `GET /v1/auth/google/start`
+  - `GET /v1/auth/google/callback`
+- Added session endpoints:
+  - `POST /v1/auth/logout`
+  - `GET /v1/users/me`
+- Added dashboard workspace endpoints:
+  - `GET /v1/workspaces`
+  - `POST /v1/workspaces`
+  - `POST /v1/workspaces/:workspaceId/switch`
+  - `POST /v1/workspaces/invites/accept`
+- Google OAuth callback upserts users by verified email, creates a default
+  workspace/project for first-time users, stores an opaque session, and redirects
+  to `DASHBOARD_URL`.
+- Workspace creation creates:
+  - workspace
+  - default test project
+  - owner membership
+  - zero-dollar billing balance
+- Invite acceptance validates token, expiry, and email ownership before creating
+  or reactivating workspace membership.
+- Added production env validation for Google OAuth settings.
+- Added Google OAuth env variables to local, staging, and production env
+  examples.
+- Added tests for session token utilities, session creation/current-user
+  serialization, workspace creation, and invite acceptance.
+
+Verification:
+
+- `npm run db:generate` passed.
+- `npm test -- session-token.utils.spec.ts session-auth.service.spec.ts workspaces.service.spec.ts` passed.
+- `npm run typecheck` passed.
+
+Remaining P1 work:
+
+- Add CSRF protection for cookie-authenticated mutations.
+- Add route-level role checks for session-authenticated dashboard operations.
+- Add session-or-api-key auth guard and migrate dashboard resource routes away
+  from API-key-only auth.
+- Add frontend integration for Google login, `/users/me`, workspace create, and
+  workspace switch.
+- Add DB-backed e2e tests for the OAuth callback/session route using mocked
+  Google responses.

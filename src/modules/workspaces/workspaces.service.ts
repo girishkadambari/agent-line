@@ -4,7 +4,13 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import type { CreateInviteInput, UpdateMemberInput, UpdateWorkspaceInput } from '../../domain/schemas';
+import type {
+  AcceptInviteInput,
+  CreateInviteInput,
+  CreateWorkspaceInput,
+  UpdateMemberInput,
+  UpdateWorkspaceInput,
+} from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createInviteToken, hashInviteToken } from './invite-token.utils';
@@ -27,6 +33,103 @@ export class WorkspacesService {
     }
 
     return serializeWorkspace(workspace);
+  }
+
+  async listUserWorkspaces(userId: string, limit: number) {
+    const memberships = await this.prisma.workspaceMember.findMany({
+      where: {
+        userId,
+        status: 'active',
+      },
+      include: {
+        workspace: {
+          include: {
+            projects: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+
+    return list(
+      memberships.map((membership) => ({
+        ...serializeWorkspace(membership.workspace),
+        role: membership.role,
+        projects: membership.workspace.projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          environment: project.environment,
+          createdAt: project.createdAt.toISOString(),
+          updatedAt: project.updatedAt.toISOString(),
+        })),
+      })),
+      { limit, nextCursor: null },
+    );
+  }
+
+  async createWorkspaceForUser(userId: string, input: CreateWorkspaceInput) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const workspaceId = createId('ws');
+      const projectId = createId('proj');
+      const workspace = await tx.workspace.create({
+        data: {
+          id: workspaceId,
+          name: input.name,
+          projects: {
+            create: {
+              id: projectId,
+              name: 'Default project',
+              environment: 'test',
+            },
+          },
+          billingBalance: {
+            create: {
+              id: createId('bal'),
+              balanceCents: 0,
+              currency: 'USD',
+            },
+          },
+        },
+        include: {
+          projects: true,
+        },
+      });
+
+      await tx.workspaceMember.create({
+        data: {
+          id: createId('mem'),
+          workspaceId,
+          userId,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      return workspace;
+    });
+
+    await this.audit.record({
+      workspaceId: result.id,
+      actorUserId: userId,
+      action: 'workspace.created',
+      resourceType: 'workspace',
+      resourceId: result.id,
+      metadata: { name: result.name },
+    });
+
+    return {
+      ...serializeWorkspace(result),
+      projects: result.projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        environment: project.environment,
+        createdAt: project.createdAt.toISOString(),
+        updatedAt: project.updatedAt.toISOString(),
+      })),
+    };
   }
 
   async updateCurrentWorkspace(context: RequestContext, input: UpdateWorkspaceInput) {
@@ -179,6 +282,70 @@ export class WorkspacesService {
     });
 
     return serializeInvite(updated, rawToken);
+  }
+
+  async acceptInvite(userId: string, userEmail: string, input: AcceptInviteInput) {
+    const invite = await this.prisma.workspaceInvite.findFirst({
+      where: {
+        tokenHash: hashInviteToken(input.token),
+      },
+    });
+
+    if (!invite || invite.status !== 'pending') {
+      throw new ApiException('not_found', 'Invite not found.', 404);
+    }
+    if (invite.expiresAt <= new Date()) {
+      await this.prisma.workspaceInvite.update({
+        where: { id: invite.id },
+        data: { status: 'expired' },
+      });
+      throw new ApiException('conflict', 'Invite has expired.', 409, { inviteId: invite.id });
+    }
+    if (invite.email.toLowerCase() !== userEmail.toLowerCase()) {
+      throw new ApiException('forbidden', 'Invite belongs to a different email address.', 403);
+    }
+
+    const accepted = await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceMember.upsert({
+        where: {
+          workspaceId_userId: {
+            workspaceId: invite.workspaceId,
+            userId,
+          },
+        },
+        update: {
+          role: invite.role,
+          status: 'active',
+        },
+        create: {
+          id: createId('mem'),
+          workspaceId: invite.workspaceId,
+          userId,
+          role: invite.role,
+          status: 'active',
+        },
+      });
+
+      return tx.workspaceInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: 'accepted',
+          acceptedById: userId,
+          acceptedAt: new Date(),
+        },
+      });
+    });
+
+    await this.audit.record({
+      workspaceId: invite.workspaceId,
+      actorUserId: userId,
+      action: 'invite.accepted',
+      resourceType: 'workspace_invite',
+      resourceId: invite.id,
+      metadata: { email: invite.email, role: invite.role },
+    });
+
+    return serializeInvite(accepted);
   }
 
   private async findMemberOrThrow(context: RequestContext, memberId: string) {

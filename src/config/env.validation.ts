@@ -18,6 +18,10 @@ const rawEnvSchema = z
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_TEST_ACCOUNT_SID: z.string().optional(),
     TWILIO_TEST_AUTH_TOKEN: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_REDIRECT_URI: z.string().optional(),
+    DASHBOARD_URL: z.string().optional(),
   })
   .passthrough();
 
@@ -29,6 +33,7 @@ export function validateEnv(rawConfig: Record<string, unknown>) {
 
   validateMockPolicy({ appEnv, telecomProvider });
   validateTwilioConfig({ appEnv, telecomProvider, twilioMode, parsed });
+  validateGoogleConfig({ appEnv, parsed });
 
   return {
     ...rawConfig,
@@ -36,6 +41,17 @@ export function validateEnv(rawConfig: Record<string, unknown>) {
     TELECOM_PROVIDER: telecomProvider,
     TWILIO_MODE: twilioMode,
   };
+}
+
+function validateGoogleConfig(input: { appEnv: AppEnv; parsed: z.infer<typeof rawEnvSchema> }) {
+  if (input.appEnv !== 'production') {
+    return;
+  }
+
+  requireEnv(input.parsed.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID');
+  requireEnv(input.parsed.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET');
+  requireEnv(input.parsed.GOOGLE_REDIRECT_URI, 'GOOGLE_REDIRECT_URI');
+  requireEnv(input.parsed.DASHBOARD_URL, 'DASHBOARD_URL');
 }
 
 function resolveAppEnv(appEnv: string | undefined, nodeEnv: string | undefined): AppEnv {
@@ -113,4 +129,3 @@ function requireEnv(value: string | undefined, name: string) {
     throw new Error(`${name} is required for the selected provider mode.`);
   }
 }
-

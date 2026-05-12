@@ -157,6 +157,24 @@ Exit criteria:
 - Dashboard no longer depends on API key login for normal usage.
 - API-key auth still works for developer API calls.
 
+Current implementation status:
+
+- First backend slice implemented:
+  - `GET /v1/auth/google/start`
+  - `GET /v1/auth/google/callback`
+  - `POST /v1/auth/logout`
+  - `GET /v1/users/me`
+  - `GET /v1/workspaces`
+  - `POST /v1/workspaces`
+  - `POST /v1/workspaces/:workspaceId/switch`
+  - `POST /v1/workspaces/invites/accept`
+- Remaining before P1 is complete:
+  - CSRF protection.
+  - role checks for session-authenticated mutations.
+  - shared session-or-api-key guard for dashboard resource APIs.
+  - frontend Google login/workspace switch integration.
+  - DB-backed e2e tests for OAuth/session behavior.
+
 ## Phase P2: Brevo Transactional Email
 
 Goal:

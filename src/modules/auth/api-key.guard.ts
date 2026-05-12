@@ -41,6 +41,7 @@ export class ApiKeyGuard implements CanActivate {
     request.agentLineContext = {
       workspaceId: record.workspaceId,
       projectId: record.projectId,
+      authType: 'api_key',
       apiKeyId: record.id,
     };
 

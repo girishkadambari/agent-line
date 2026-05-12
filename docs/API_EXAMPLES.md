@@ -13,6 +13,58 @@ All protected routes use:
 -H "Authorization: Bearer $AGENTLINE_API_KEY"
 ```
 
+Dashboard session routes use the HTTP-only `agentline_session` cookie created
+by Google OAuth. API-key auth remains available for developer API calls.
+
+## Auth And Session
+
+Start Google login in a browser:
+
+```bash
+open "$AGENTLINE_API_URL/auth/google/start"
+```
+
+After Google redirects back, the backend sets `agentline_session` and redirects
+to `DASHBOARD_URL`.
+
+```bash
+curl "$AGENTLINE_API_URL/users/me" \
+  -b "agentline_session=$AGENTLINE_SESSION"
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/auth/logout" \
+  -b "agentline_session=$AGENTLINE_SESSION"
+```
+
+## Session Workspaces
+
+```bash
+curl "$AGENTLINE_API_URL/workspaces" \
+  -b "agentline_session=$AGENTLINE_SESSION"
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/workspaces" \
+  -b "agentline_session=$AGENTLINE_SESSION" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"New workspace"}'
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/workspaces/ws_123/switch" \
+  -b "agentline_session=$AGENTLINE_SESSION" \
+  -H "Content-Type: application/json" \
+  -d '{"projectId":"proj_123"}'
+```
+
+```bash
+curl -X POST "$AGENTLINE_API_URL/workspaces/invites/accept" \
+  -b "agentline_session=$AGENTLINE_SESSION" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"inv_raw_token"}'
+```
+
 ## Health
 
 ```bash
