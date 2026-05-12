@@ -44,20 +44,21 @@ Remaining:
 
 Priority: P1
 
-Status: partially closed
+Status: backend closed
 
 Needed:
 
-- Apply `AuthContextGuard` to remaining dashboard-facing resource routes that
-  need browser session access.
-- DB-backed OAuth/session e2e tests with mocked Google responses.
+- Frontend Google login/workspace switch integration.
 
 Reason:
 
 - Google OAuth, HTTP-only opaque sessions, current user, workspace
   list/create/switch, invite acceptance, CSRF protection, and initial workspace
-  role checks now exist. Existing non-workspace resource APIs still need a clear
-  route-by-route auth decision: dashboard session, developer API key, or both.
+  role checks now exist. Dashboard-facing resource APIs now use
+  `AuthContextGuard`, so the dashboard can use browser sessions while developer
+  automation can continue using API keys. DB-backed OAuth/session e2e tests now
+  cover the callback, session cookies, CSRF writes, workspace switching, a
+  shared-auth product route, logout, and invalid state rejection.
 
 ### Dashboard Summary Endpoint
 

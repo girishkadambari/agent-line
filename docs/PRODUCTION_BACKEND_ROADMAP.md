@@ -169,8 +169,6 @@ Current implementation status:
   - `POST /v1/workspaces/:workspaceId/switch`
   - `POST /v1/workspaces/invites/accept`
 - Remaining before P1 is complete:
-  - apply shared auth to remaining dashboard-facing resource APIs that need
-    browser sessions.
   - frontend Google login/workspace switch integration.
   - DB-backed e2e tests for OAuth/session behavior.
 - Hardening already added:
@@ -178,6 +176,17 @@ Current implementation status:
   - workspace role checks for workspace mutations.
   - `AuthContextGuard` for routes used by both the dashboard and developer API
     keys.
+  - Dashboard-facing resource APIs now use shared auth:
+    - agents, numbers, messages, calls, contacts, conversations, webhooks,
+      usage, billing dashboard endpoints, API keys, and audit events.
+  - DB-backed OAuth/session e2e tests now cover:
+    - mocked Google callback profile
+    - session and CSRF cookies
+    - `GET /v1/users/me`
+    - workspace creation
+    - workspace switching
+    - a session-authenticated product route
+    - logout and invalid-state rejection
 
 ## Phase P2: Brevo Transactional Email
 

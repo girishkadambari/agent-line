@@ -5,10 +5,11 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createApiKeySchema, updateApiKeySchema } from '../../domain/schemas';
-import { ApiKeyGuard } from './api-key.guard';
 import { ApiKeysService } from './api-keys.service';
+import { AuthContextGuard } from './auth-context.guard';
+import { CsrfGuard } from './csrf.guard';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('api-keys')
 export class ApiKeysController {
   constructor(private readonly apiKeys: ApiKeysService) {}

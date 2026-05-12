@@ -11,10 +11,11 @@ import {
   updateWebhookSchema,
   webhookDeliveryStatusQuerySchema,
 } from '../../domain/schemas';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
+import { CsrfGuard } from '../auth/csrf.guard';
 import { WebhooksService } from './webhooks.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}

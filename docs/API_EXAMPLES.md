@@ -7,7 +7,7 @@ export AGENTLINE_API_URL="http://localhost:3000/v1"
 export AGENTLINE_API_KEY="sk_test_agentline_local"
 ```
 
-All protected routes use:
+Developer API calls use:
 
 ```bash
 -H "Authorization: Bearer $AGENTLINE_API_KEY"
@@ -18,6 +18,9 @@ by Google OAuth. Google login also sets a readable `agentline_csrf` cookie.
 For session-authenticated `POST`, `PATCH`, and `DELETE` requests, send that
 value in `X-CSRF-Token`. API-key auth remains available for developer API calls
 and does not require CSRF.
+
+Dashboard-facing product routes support both authentication forms. Use API keys
+for scripts and SDKs. Use session cookies plus CSRF from the dashboard.
 
 ## Auth And Session
 

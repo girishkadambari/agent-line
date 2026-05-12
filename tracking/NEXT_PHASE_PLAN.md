@@ -62,7 +62,7 @@ Exit criteria:
 ## Following Phases
 
 1. **P1 Auth/users/sessions/workspace switching**
-   - Status: in review.
+   - Status: backend complete.
    - Implemented first backend slice:
      - Google OAuth start/callback.
      - HTTP-only opaque session cookies.
@@ -71,16 +71,26 @@ Exit criteria:
      - invite acceptance.
      - API-key auth remains for developer API calls.
    - Remaining:
-     - Apply the shared auth guard to dashboard-facing resource APIs that need
-       browser sessions.
      - frontend Google login and workspace switch integration.
-     - DB-backed OAuth/session e2e tests with mocked Google responses.
    - Implemented hardening:
      - CSRF double-submit cookie for session mutations.
      - `AuthContextGuard` for routes that support both browser sessions and
        developer API keys.
      - workspace role decorator/guard.
      - `workspaces/current` uses shared auth.
+     - Dashboard-facing resource APIs use shared auth:
+       - agents
+       - numbers
+       - messages
+       - calls
+       - contacts
+       - conversations
+       - webhooks
+       - usage
+       - billing dashboard endpoints
+       - API keys
+       - audit events
+     - DB-backed OAuth/session e2e tests with mocked Google responses.
 
 2. **P2 Brevo transactional email**
    - invite emails.

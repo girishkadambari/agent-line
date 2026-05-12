@@ -5,10 +5,11 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { updateConversationSchema } from '../../domain/schemas';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
+import { CsrfGuard } from '../auth/csrf.guard';
 import { ConversationsService } from './conversations.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversations: ConversationsService) { }

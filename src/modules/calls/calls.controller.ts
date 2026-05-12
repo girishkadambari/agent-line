@@ -6,10 +6,11 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createCallSchema, createWebCallSchema, transferCallSchema } from '../../domain/schemas';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
+import { CsrfGuard } from '../auth/csrf.guard';
 import { CallsService } from './calls.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('calls')
 export class CallsController {
   constructor(private readonly calls: CallsService) {}

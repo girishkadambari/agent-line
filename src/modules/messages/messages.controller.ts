@@ -5,10 +5,11 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { sendMessageSchema } from '../../domain/schemas';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
+import { CsrfGuard } from '../auth/csrf.guard';
 import { MessagesService } from './messages.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard, CsrfGuard)
 @Controller()
 export class MessagesController {
   constructor(private readonly messages: MessagesService) {}

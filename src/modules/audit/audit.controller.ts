@@ -3,10 +3,10 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { parseLimit } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
 import { AuditService } from './audit.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard)
 @Controller('audit-events')
 export class AuditController {
   constructor(private readonly audit: AuditService) {}

@@ -5,10 +5,10 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { usageQuerySchema } from '../../domain/schemas';
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuthContextGuard } from '../auth/auth-context.guard';
 import { UsageService } from './usage.service';
 
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthContextGuard)
 @Controller('usage')
 export class UsageController {
   constructor(private readonly usage: UsageService) { }

@@ -1106,8 +1106,6 @@ Verification:
 
 Remaining P1 work:
 
-- Apply `AuthContextGuard` to dashboard-facing resource route groups where the
-  UI should use browser sessions and developer automation should use API keys.
 - Add frontend integration for Google login, `/users/me`, workspace create, and
   workspace switch.
 - Add DB-backed e2e tests for the OAuth callback/session route using mocked
@@ -1145,3 +1143,70 @@ Verification:
 - `npm test -- api-key.guard.spec.ts session-token.utils.spec.ts csrf.guard.spec.ts auth-context.guard.spec.ts workspace-role.guard.spec.ts session-auth.service.spec.ts workspaces.service.spec.ts` passed.
 - `npm run typecheck` passed.
 - targeted `eslint` passed.
+
+## 2026-05-12: P1 Shared Dashboard Resource Auth
+
+**Status:** implemented
+
+Implemented:
+
+- Applied `AuthContextGuard` to dashboard-facing resource APIs so the same
+  endpoint can be used by:
+  - browser dashboard sessions
+  - developer API keys
+- Applied `CsrfGuard` to resource controllers with session-authenticated write
+  operations:
+  - agents
+  - numbers
+  - messages
+  - calls
+  - contacts
+  - conversations
+  - webhooks
+  - API keys
+  - billing checkout and portal sessions
+- Kept read-only dashboard data endpoints session/API-key compatible:
+  - usage
+  - audit events
+  - billing balance, Stripe status, and transactions
+- Left provider callback endpoints outside dashboard auth:
+  - Stripe webhook remains signature verified by Stripe logic.
+  - Twilio provider webhooks remain signature verified by Twilio logic.
+
+Verification:
+
+- `npm test -- api-key.guard.spec.ts auth-context.guard.spec.ts csrf.guard.spec.ts workspace-role.guard.spec.ts agents.service.spec.ts numbers.service.spec.ts messages.service.spec.ts calls.service.spec.ts contacts.service.spec.ts conversations.service.spec.ts webhooks.service.spec.ts usage.service.spec.ts billing.service.spec.ts audit.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- targeted `eslint` passed.
+
+## 2026-05-13: P1 OAuth Session E2E Coverage
+
+**Status:** implemented
+
+Implemented:
+
+- Added DB-backed e2e coverage for the Google OAuth/session contract in
+  `test/auth-session.e2e-spec.ts`.
+- Mocked Google OAuth responses at the provider boundary while using the real
+  Nest app, real Prisma/Postgres persistence, real session cookies, and real
+  CSRF checks.
+- Covered:
+  - OAuth start redirect and state cookie creation
+  - OAuth callback state validation
+  - user/session/workspace creation from a Google profile
+  - `GET /v1/users/me`
+  - session workspace creation
+  - session workspace switching
+  - session-authenticated product route access through `AuthContextGuard`
+  - logout and revoked-session rejection
+  - invalid OAuth state rejection
+
+Verification:
+
+- `npm run test:e2e -- auth-session.e2e-spec.ts` passed with the suite skipped
+  when `TEST_DATABASE_URL` is absent.
+- `npm run db:docker:up` passed.
+- `npm run db:test:push` passed.
+- `npm run test:e2e:db -- auth-session.e2e-spec.ts` passed.
+- `npm run typecheck` passed.
+- `npm exec eslint -- test/auth-session.e2e-spec.ts` passed.
