@@ -6,11 +6,12 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { acceptInviteSchema, createWorkspaceSchema } from '../../domain/schemas';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { CsrfGuard } from '../auth/csrf.guard';
 import { SessionAuthService } from '../auth/session-auth.service';
 import { SessionGuard, type SessionUser } from '../auth/session.guard';
 import { WorkspacesService } from './workspaces.service';
 
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, CsrfGuard)
 @Controller('workspaces')
 export class SessionWorkspacesController {
   constructor(

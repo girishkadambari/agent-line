@@ -75,7 +75,13 @@ describe('SessionAuthService', () => {
         activeProjectId: 'proj_123',
       }),
     });
-    expect(response.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringContaining('agentline_session='));
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.arrayContaining([
+        expect.stringContaining('agentline_session='),
+        expect.stringContaining('agentline_csrf='),
+      ]),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'auth.login',

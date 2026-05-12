@@ -63,6 +63,7 @@ describe('ApiKeyGuard', () => {
     const request = context.switchToHttp().getRequest();
     expect(request.agentLineContext).toEqual({
       apiKeyId: 'key_123',
+      authType: 'api_key',
       workspaceId: 'ws_123',
       projectId: 'proj_123',
     });

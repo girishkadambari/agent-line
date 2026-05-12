@@ -48,17 +48,16 @@ Status: partially closed
 
 Needed:
 
-- CSRF protection for session-authenticated mutations.
-- Session-or-API-key guard for shared dashboard resource routes.
-- Role-based authorization on session-authenticated workspace mutations.
+- Apply `AuthContextGuard` to remaining dashboard-facing resource routes that
+  need browser session access.
 - DB-backed OAuth/session e2e tests with mocked Google responses.
 
 Reason:
 
 - Google OAuth, HTTP-only opaque sessions, current user, workspace
-  list/create/switch, and invite acceptance now exist. Existing resource APIs
-  are still mostly API-key protected, so dashboard integration should migrate
-  routes carefully after session authorization rules are in place.
+  list/create/switch, invite acceptance, CSRF protection, and initial workspace
+  role checks now exist. Existing non-workspace resource APIs still need a clear
+  route-by-route auth decision: dashboard session, developer API key, or both.
 
 ### Dashboard Summary Endpoint
 

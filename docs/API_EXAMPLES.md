@@ -14,7 +14,10 @@ All protected routes use:
 ```
 
 Dashboard session routes use the HTTP-only `agentline_session` cookie created
-by Google OAuth. API-key auth remains available for developer API calls.
+by Google OAuth. Google login also sets a readable `agentline_csrf` cookie.
+For session-authenticated `POST`, `PATCH`, and `DELETE` requests, send that
+value in `X-CSRF-Token`. API-key auth remains available for developer API calls
+and does not require CSRF.
 
 ## Auth And Session
 
@@ -34,7 +37,8 @@ curl "$AGENTLINE_API_URL/users/me" \
 
 ```bash
 curl -X POST "$AGENTLINE_API_URL/auth/logout" \
-  -b "agentline_session=$AGENTLINE_SESSION"
+  -b "agentline_session=$AGENTLINE_SESSION; agentline_csrf=$AGENTLINE_CSRF" \
+  -H "X-CSRF-Token: $AGENTLINE_CSRF"
 ```
 
 ## Session Workspaces
@@ -46,22 +50,25 @@ curl "$AGENTLINE_API_URL/workspaces" \
 
 ```bash
 curl -X POST "$AGENTLINE_API_URL/workspaces" \
-  -b "agentline_session=$AGENTLINE_SESSION" \
+  -b "agentline_session=$AGENTLINE_SESSION; agentline_csrf=$AGENTLINE_CSRF" \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $AGENTLINE_CSRF" \
   -d '{"name":"New workspace"}'
 ```
 
 ```bash
 curl -X POST "$AGENTLINE_API_URL/workspaces/ws_123/switch" \
-  -b "agentline_session=$AGENTLINE_SESSION" \
+  -b "agentline_session=$AGENTLINE_SESSION; agentline_csrf=$AGENTLINE_CSRF" \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $AGENTLINE_CSRF" \
   -d '{"projectId":"proj_123"}'
 ```
 
 ```bash
 curl -X POST "$AGENTLINE_API_URL/workspaces/invites/accept" \
-  -b "agentline_session=$AGENTLINE_SESSION" \
+  -b "agentline_session=$AGENTLINE_SESSION; agentline_csrf=$AGENTLINE_CSRF" \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $AGENTLINE_CSRF" \
   -d '{"token":"inv_raw_token"}'
 ```
 

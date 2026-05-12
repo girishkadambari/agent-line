@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 
 export const sessionCookieName = 'agentline_session';
+export const csrfCookieName = 'agentline_csrf';
 
 export function createSessionToken() {
   return `sess_${randomBytes(32).toString('base64url')}`;
@@ -43,6 +44,29 @@ export function buildSessionCookie(token: string, maxAgeSeconds: number, secure:
   return parts.join('; ');
 }
 
+export function createCsrfToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+export function buildCsrfCookie(token: string, maxAgeSeconds: number, secure: boolean) {
+  const parts = [
+    `${csrfCookieName}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSeconds}`,
+  ];
+
+  if (secure) {
+    parts.push('Secure');
+  }
+
+  return parts.join('; ');
+}
+
 export function buildExpiredSessionCookie() {
   return `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+export function buildExpiredCsrfCookie() {
+  return `${csrfCookieName}=; Path=/; SameSite=Lax; Max-Age=0`;
 }

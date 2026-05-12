@@ -1,6 +1,9 @@
 import {
   buildExpiredSessionCookie,
+  buildExpiredCsrfCookie,
+  buildCsrfCookie,
   buildSessionCookie,
+  createCsrfToken,
   createSessionToken,
   hashSessionToken,
   parseCookieHeader,
@@ -24,5 +27,8 @@ describe('session token utils', () => {
     expect(cookie).toContain('Secure');
     expect(parseCookieHeader(`${cookie}; theme=dark`).get(sessionCookieName)).toBe('sess_123');
     expect(buildExpiredSessionCookie()).toContain('Max-Age=0');
+    expect(createCsrfToken()).toHaveLength(43);
+    expect(buildCsrfCookie('csrf_123', 3600, false)).not.toContain('HttpOnly');
+    expect(buildExpiredCsrfCookie()).toContain('Max-Age=0');
   });
 });

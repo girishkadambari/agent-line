@@ -8,6 +8,7 @@ import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { CurrentUser } from './current-user.decorator';
+import { CsrfGuard } from './csrf.guard';
 import { GoogleOAuthService } from './google-oauth.service';
 import { SessionAuthService } from './session-auth.service';
 import { SessionGuard, type SessionUser } from './session.guard';
@@ -55,7 +56,7 @@ export class AuthController {
     return response.redirect(this.config.get<string>('DASHBOARD_URL', 'http://localhost:5173'));
   }
 
-  @UseGuards(SessionGuard)
+  @UseGuards(SessionGuard, CsrfGuard)
   @Post('auth/logout')
   async logout(
     @CurrentContext() context: RequestContext,

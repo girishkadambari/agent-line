@@ -7,8 +7,11 @@ import { createId } from '../../common/ids';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  buildCsrfCookie,
+  buildExpiredCsrfCookie,
   buildExpiredSessionCookie,
   buildSessionCookie,
+  createCsrfToken,
   createSessionToken,
   hashSessionToken,
 } from './session-token.utils';
@@ -64,10 +67,12 @@ export class SessionAuthService {
       },
     });
 
-    response.setHeader(
-      'Set-Cookie',
-      buildSessionCookie(token, this.sessionDays * 24 * 60 * 60, this.shouldUseSecureCookies()),
-    );
+    const maxAgeSeconds = this.sessionDays * 24 * 60 * 60;
+    const secure = this.shouldUseSecureCookies();
+    response.setHeader('Set-Cookie', [
+      buildSessionCookie(token, maxAgeSeconds, secure),
+      buildCsrfCookie(createCsrfToken(), maxAgeSeconds, secure),
+    ]);
 
     await this.audit.record({
       workspaceId: membership.workspaceId,
@@ -89,7 +94,7 @@ export class SessionAuthService {
       });
     }
 
-    response.setHeader('Set-Cookie', buildExpiredSessionCookie());
+    response.setHeader('Set-Cookie', [buildExpiredSessionCookie(), buildExpiredCsrfCookie()]);
     return { loggedOut: true };
   }
 

@@ -71,11 +71,16 @@ Exit criteria:
      - invite acceptance.
      - API-key auth remains for developer API calls.
    - Remaining:
-     - CSRF protection.
-     - role checks for session-authenticated dashboard mutations.
-     - session-or-api-key guard for shared resource APIs.
+     - Apply the shared auth guard to dashboard-facing resource APIs that need
+       browser sessions.
      - frontend Google login and workspace switch integration.
      - DB-backed OAuth/session e2e tests with mocked Google responses.
+   - Implemented hardening:
+     - CSRF double-submit cookie for session mutations.
+     - `AuthContextGuard` for routes that support both browser sessions and
+       developer API keys.
+     - workspace role decorator/guard.
+     - `workspaces/current` uses shared auth.
 
 2. **P2 Brevo transactional email**
    - invite emails.

@@ -1106,11 +1106,42 @@ Verification:
 
 Remaining P1 work:
 
-- Add CSRF protection for cookie-authenticated mutations.
-- Add route-level role checks for session-authenticated dashboard operations.
-- Add session-or-api-key auth guard and migrate dashboard resource routes away
-  from API-key-only auth.
+- Apply `AuthContextGuard` to dashboard-facing resource route groups where the
+  UI should use browser sessions and developer automation should use API keys.
 - Add frontend integration for Google login, `/users/me`, workspace create, and
   workspace switch.
 - Add DB-backed e2e tests for the OAuth callback/session route using mocked
   Google responses.
+
+## 2026-05-12: P1 Session Auth Hardening
+
+**Status:** review
+
+Implemented:
+
+- Added CSRF double-submit cookie support for browser session mutations.
+- Google OAuth login now sets:
+  - HTTP-only `agentline_session`
+  - readable `agentline_csrf`
+- Logout expires both session and CSRF cookies.
+- Added `CsrfGuard`; it enforces `X-CSRF-Token` for session-authenticated
+  `POST`, `PATCH`, and `DELETE` requests, while leaving API-key calls
+  unchanged.
+- Added `AuthContextGuard` for shared product routes that support dashboard
+  sessions and developer API keys.
+- Added `WorkspaceRoles` decorator and `WorkspaceRoleGuard`.
+- Updated `workspaces/current` routes to use `AuthContextGuard`.
+- Added role checks for session-authenticated workspace mutations:
+  - workspace update
+  - member update/remove
+  - invite create/revoke/resend
+- Session workspace create/switch/invite-accept/logout now require CSRF.
+- Added tests for CSRF, auth-context selection, workspace role checks,
+  and updated session cookie behavior.
+- Updated API examples with session CSRF requirements.
+
+Verification:
+
+- `npm test -- api-key.guard.spec.ts session-token.utils.spec.ts csrf.guard.spec.ts auth-context.guard.spec.ts workspace-role.guard.spec.ts session-auth.service.spec.ts workspaces.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- targeted `eslint` passed.

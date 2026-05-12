@@ -169,11 +169,15 @@ Current implementation status:
   - `POST /v1/workspaces/:workspaceId/switch`
   - `POST /v1/workspaces/invites/accept`
 - Remaining before P1 is complete:
-  - CSRF protection.
-  - role checks for session-authenticated mutations.
-  - shared session-or-api-key guard for dashboard resource APIs.
+  - apply shared auth to remaining dashboard-facing resource APIs that need
+    browser sessions.
   - frontend Google login/workspace switch integration.
   - DB-backed e2e tests for OAuth/session behavior.
+- Hardening already added:
+  - CSRF double-submit cookie for session mutations.
+  - workspace role checks for workspace mutations.
+  - `AuthContextGuard` for routes used by both the dashboard and developer API
+    keys.
 
 ## Phase P2: Brevo Transactional Email
 
