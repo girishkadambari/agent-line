@@ -173,10 +173,16 @@ Remaining:
    - atomic balance credits.
 
 7. **P7 Webhook worker reliability**
-   - background delivery.
-   - retries.
-   - replay.
-   - final failed state.
+   - Status: first real dispatch slice implemented.
+   - Implemented:
+     - matching active webhook endpoints are delivered immediately over HTTP.
+     - delivery payloads are signed with AgentLine webhook headers.
+     - delivery ledger records `succeeded` or `failed` with HTTP status/error.
+   - Remaining:
+     - background delivery worker.
+     - automatic retry schedule.
+     - replay endpoint backed by real delivery, not simulation.
+     - final failed/exhausted state.
 
 8. **P8 Security/compliance/abuse**
    - rate limits.
