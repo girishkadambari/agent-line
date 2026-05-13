@@ -497,6 +497,19 @@ Exit criteria:
 - Failed customer endpoints do not block core product operations.
 - Dashboard can inspect and replay failed deliveries.
 
+Current implementation status:
+
+- First real dispatch slice implemented:
+  - active endpoints matching an event type are delivered immediately over HTTP.
+  - payloads are signed with AgentLine webhook headers.
+  - delivery records are updated to `succeeded` or `failed` with HTTP
+    status/error details.
+- Remaining:
+  - background worker for retries.
+  - real replay endpoint.
+  - final exhausted state after retry policy.
+  - timeout/backoff configuration per environment.
+
 ## Phase P8: Security, Compliance, And Abuse Protection
 
 Goal:
