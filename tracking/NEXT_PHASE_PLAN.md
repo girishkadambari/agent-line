@@ -230,6 +230,10 @@ Remaining:
      - matching active webhook endpoints are delivered immediately over HTTP.
      - delivery payloads are signed with AgentLine webhook headers.
      - delivery ledger records `succeeded` or `failed` with HTTP status/error.
+     - stable webhook event envelope documented in
+       `docs/WEBHOOK_EVENT_STANDARD.md`.
+     - exact, prefix wildcard, and global wildcard event subscriptions.
+     - richer call/message webhook payloads with primary resource data.
    - Remaining:
      - background delivery worker.
      - automatic retry schedule.

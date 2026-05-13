@@ -677,6 +677,9 @@ Recommended next backend sequence:
 6. **Brevo invites/security emails**.
 7. **Twilio voice staging flow**.
 8. **Webhook worker/retry reliability**.
+   - Stable event envelope and wildcard subscription matching are implemented.
+   - Remaining work is the background retry worker, replay API, and exhausted
+     state automation.
 9. **Production deploy on Google Cloud**.
 10. **Production E2E matrix and beta readiness review**.
 

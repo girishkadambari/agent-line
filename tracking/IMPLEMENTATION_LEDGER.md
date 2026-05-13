@@ -1210,3 +1210,30 @@ Verification:
 - `npm run test:e2e:db -- auth-session.e2e-spec.ts` passed.
 - `npm run typecheck` passed.
 - `npm exec eslint -- test/auth-session.e2e-spec.ts` passed.
+
+## 2026-05-13: P7 Webhook Event Contract Hardening
+
+**Status:** implemented
+
+Implemented:
+
+- Added `docs/WEBHOOK_EVENT_STANDARD.md` as the source of truth for customer
+  webhook envelopes, event families, subscription patterns, and delivery rules.
+- Updated webhook delivery matching to support:
+  - exact event names
+  - prefix wildcards such as `agent.call.*`
+  - global wildcard `*`
+- Expanded the webhook envelope with:
+  - `apiVersion`
+  - `resource.type`
+  - `resource.id`
+  - stable internal event `createdAt`
+- Enriched message webhook payloads with message ID, direction, body, status,
+  provider IDs, contact, phone number, and timestamps.
+- Enriched call webhook payloads with call ID, direction, phone numbers, status,
+  outcome, summary, duration, provider IDs, contact, phone number, and timing.
+- Included `agent.call.status_updated` in agent summary webhook diagnostics.
+
+Verification:
+
+- Pending final targeted tests and typecheck in this working session.
