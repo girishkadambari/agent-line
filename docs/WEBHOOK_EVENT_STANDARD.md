@@ -69,6 +69,7 @@ Message payloads include:
 - `agent.call.status_updated`
 - `agent.call.completed`
 - `agent.call.ended`
+- `agent.call.failed`
 - `agent.call.transferred`
 - `agent.call.transcript_updated`
 
@@ -99,4 +100,3 @@ Transcript update payloads also include `transcriptTurn`.
 - Failed deliveries keep `lastStatusCode`, `lastError`, and `nextAttemptAt`.
 - Provider callback duplicates are ignored before customer webhook emission.
 - Customer endpoints should treat `id` as the idempotency key.
-

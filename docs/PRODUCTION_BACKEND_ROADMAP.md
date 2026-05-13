@@ -36,31 +36,31 @@ paths.
 
 Recommended initial production stack:
 
-| Area | Choice | Notes |
-|---|---|---|
-| Runtime | NestJS on Node.js | Current backend stack. |
-| Database | PostgreSQL | Local Docker now; production Cloud SQL or equivalent. |
-| ORM | Prisma | Existing data layer. |
-| Hosting | Google Cloud Run | Good fit for early production and affordable scaling. |
-| Secrets | Google Secret Manager | Store OAuth, Stripe, Twilio, Brevo secrets. |
-| Auth | Google OAuth + secure backend sessions | API keys remain for developer API access. |
-| Telecom | Twilio first | Numbers, SMS, voice, callbacks, recordings. |
-| Payments | Stripe test and live | Checkout/top-up first, later subscriptions/invoices. |
-| Email | Brevo transactional email | Invites, auth emails, billing/security notifications. |
-| Jobs | Start with DB-backed worker/cron, later queue | Webhook retries, provider reconciliation, billing settlement. |
-| Logs/Monitoring | Google Cloud Logging + Error Reporting | Add OpenTelemetry/Sentry later if needed. |
+| Area            | Choice                                        | Notes                                                         |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| Runtime         | NestJS on Node.js                             | Current backend stack.                                        |
+| Database        | PostgreSQL                                    | Local Docker now; production Cloud SQL or equivalent.         |
+| ORM             | Prisma                                        | Existing data layer.                                          |
+| Hosting         | Google Cloud Run                              | Good fit for early production and affordable scaling.         |
+| Secrets         | Google Secret Manager                         | Store OAuth, Stripe, Twilio, Brevo secrets.                   |
+| Auth            | Google OAuth + secure backend sessions        | API keys remain for developer API access.                     |
+| Telecom         | Twilio first                                  | Numbers, SMS, voice, callbacks, recordings.                   |
+| Payments        | Stripe test and live                          | Checkout/top-up first, later subscriptions/invoices.          |
+| Email           | Brevo transactional email                     | Invites, auth emails, billing/security notifications.         |
+| Jobs            | Start with DB-backed worker/cron, later queue | Webhook retries, provider reconciliation, billing settlement. |
+| Logs/Monitoring | Google Cloud Logging + Error Reporting        | Add OpenTelemetry/Sentry later if needed.                     |
 
 ## Environment Modes
 
 Use explicit environment modes.
 
-| Mode | Purpose | Provider Behavior |
-|---|---|---|
-| `local` | developer machine | Twilio test credentials by default |
-| `local-webhook` | local inbound/callback testing | Twilio live-dev credentials with public tunnel |
-| `test` | automated tests | mock/signed fixtures only; no network dependency |
-| `staging` | real integration testing | Twilio test/live-dev, Stripe test, Brevo test sender |
-| `production` | real customers | Twilio live, Stripe live, Brevo production sender |
+| Mode            | Purpose                        | Provider Behavior                                    |
+| --------------- | ------------------------------ | ---------------------------------------------------- |
+| `local`         | developer machine              | Twilio test credentials by default                   |
+| `local-webhook` | local inbound/callback testing | Twilio live-dev credentials with public tunnel       |
+| `test`          | automated tests                | mock/signed fixtures only; no network dependency     |
+| `staging`       | real integration testing       | Twilio test/live-dev, Stripe test, Brevo test sender |
+| `production`    | real customers                 | Twilio live, Stripe live, Brevo production sender    |
 
 Required rule:
 
@@ -440,24 +440,24 @@ Exit criteria:
 
 Current implementation status:
 
-  - In progress:
-    - outbound call creation uses the configured provider adapter.
-    - Twilio voice prompt and speech callbacks can create transcript turns for a
-      live call.
-    - outbound Twilio calls register lifecycle callbacks for initiated, ringing,
-      answered, and completed status events.
-    - call transfer and manual end routes exist.
-  - Twilio voice status callbacks are idempotent through `ProviderRawEvent`.
-  - duplicate status callbacks do not create duplicate lifecycle webhook events
-    or duplicate billing settlement attempts.
-  - late callbacks cannot move a terminal call back to a non-terminal state.
-  - Twilio `answered` callbacks now move calls to `in_progress`.
-  - voice prompt callbacks can also move calls to `in_progress` when status
-    callbacks lag.
-  - late terminal callbacks can settle final duration and billing without
-    emitting duplicate lifecycle events.
-  - call detail responses include provider callback diagnostics and provider
-    failure reasons.
+- In progress:
+  - outbound call creation uses the configured provider adapter.
+  - Twilio voice prompt and speech callbacks can create transcript turns for a
+    live call.
+  - outbound Twilio calls register lifecycle callbacks for initiated, ringing,
+    answered, and completed status events.
+  - call transfer and manual end routes exist.
+- Twilio voice status callbacks are idempotent through `ProviderRawEvent`.
+- duplicate status callbacks do not create duplicate lifecycle webhook events
+  or duplicate billing settlement attempts.
+- late callbacks cannot move a terminal call back to a non-terminal state.
+- Twilio `answered` callbacks now move calls to `in_progress`.
+- voice prompt callbacks can also move calls to `in_progress` when status
+  callbacks lag.
+- late terminal callbacks can settle final duration and billing without
+  emitting duplicate lifecycle events.
+- call detail responses include provider callback diagnostics and provider
+  failure reasons.
 - Remaining:
   - inbound call record creation from the Twilio inbound voice webhook.
   - recording callbacks and recording consent settings.

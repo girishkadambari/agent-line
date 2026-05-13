@@ -173,7 +173,12 @@ export class MessagesService {
       },
     });
     if (existing) {
-      return { received: true, duplicate: true, ignored: false, message: serializeMessage(existing) };
+      return {
+        received: true,
+        duplicate: true,
+        ignored: false,
+        message: serializeMessage(existing),
+      };
     }
 
     const phoneNumber = await this.prisma.phoneNumber.findFirst({
@@ -276,7 +281,12 @@ export class MessagesService {
       payload: input.rawPayload,
     });
     if (!recorded) {
-      return { received: true, duplicate: true, ignored: false, message: serializeMessage(message) };
+      return {
+        received: true,
+        duplicate: true,
+        ignored: false,
+        message: serializeMessage(message),
+      };
     }
 
     const updated = await this.prisma.message.update({

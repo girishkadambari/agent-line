@@ -1232,8 +1232,13 @@ Implemented:
   provider IDs, contact, phone number, and timestamps.
 - Enriched call webhook payloads with call ID, direction, phone numbers, status,
   outcome, summary, duration, provider IDs, contact, phone number, and timing.
+- Added first-class `agent.call.failed` emission for failed call lifecycle
+  states and provider-create failures after a local call record exists.
 - Included `agent.call.status_updated` in agent summary webhook diagnostics.
 
 Verification:
 
-- Pending final targeted tests and typecheck in this working session.
+- `npm test -- webhooks.service.spec.ts calls.service.spec.ts messages.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- targeted `eslint` passed.

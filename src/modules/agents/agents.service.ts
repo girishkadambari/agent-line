@@ -112,6 +112,7 @@ export class AgentsService {
               'agent.call.started',
               'agent.call.completed',
               'agent.call.ended',
+              'agent.call.failed',
               'agent.call.status_updated',
               'agent.call.transferred',
               'agent.call.transcript_updated',

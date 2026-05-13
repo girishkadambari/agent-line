@@ -130,12 +130,25 @@ export class CallsService {
           resourceId: callId,
         });
       }
-      await this.prisma.call
+      const failedCall = await this.prisma.call
         .update({
           where: { id: callId },
           data: { status: 'failed', endedAt: new Date() },
         })
         .catch(() => undefined);
+      if (failedCall) {
+        const event = await this.events.create({
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          type: 'agent.call.failed',
+          resourceType: 'call',
+          resourceId: failedCall.id,
+          payload: this.buildCallEventPayload(failedCall, {
+            failureReason: error instanceof Error ? error.message : 'Call failed.',
+          }),
+        });
+        await this.webhooks.createDeliveriesForEvent(event);
+      }
       throw error;
     }
   }
@@ -582,6 +595,9 @@ export class CallsService {
   private callLifecycleEventType(status: string) {
     if (status === 'completed') {
       return 'agent.call.completed';
+    }
+    if (status === 'failed') {
+      return 'agent.call.failed';
     }
     if (this.terminalCallStatuses.has(status)) {
       return 'agent.call.ended';

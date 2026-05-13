@@ -4,6 +4,7 @@ import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { TelecomProvider } from '../../domain/provider';
 import type { UsageService } from '../usage/usage.service';
 import type { WebhooksService } from '../webhooks/webhooks.service';
 import { CallsService } from './calls.service';
@@ -59,7 +60,7 @@ function transcriptTurnFixture(overrides = {}) {
   };
 }
 
-function createService(prisma: PrismaService) {
+function createService(prisma: PrismaService, providerOverride?: TelecomProvider) {
   const contacts = {
     findOrCreateByPhoneNumber: jest.fn().mockResolvedValue({ id: 'ctc_123' }),
   } as unknown as ContactsService;
@@ -77,7 +78,7 @@ function createService(prisma: PrismaService) {
     finalizeVoiceCall: jest.fn().mockResolvedValue({ finalized: true, deltaCents: -24 }),
     voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 3 }),
   } as unknown as UsageService;
-  const provider = new MockProviderService();
+  const provider = providerOverride ?? new MockProviderService();
 
   return {
     service: new CallsService(prisma, contacts, conversations, events, provider, usage, webhooks),
@@ -192,6 +193,57 @@ describe('CallsService', () => {
     ).rejects.toThrow('insufficient balance');
     expect(prisma.call.create).not.toHaveBeenCalled();
     expect(prisma.transcriptTurn.createMany).not.toHaveBeenCalled();
+  });
+
+  it('emits a failed call event when provider creation fails after local call creation', async () => {
+    const provider = {
+      createCall: jest.fn().mockRejectedValue(new Error('provider failed')),
+    } as unknown as TelecomProvider;
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_123',
+          phoneNumber: '+14155551000',
+          provider: 'twilio',
+        }),
+      },
+      call: {
+        create: jest.fn().mockResolvedValue(callFixture({ status: 'queued', provider: 'twilio' })),
+        update: jest.fn().mockResolvedValue(callFixture({ status: 'failed', provider: 'twilio' })),
+      },
+      transcriptTurn: {
+        createMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage, webhooks } = createService(prisma, provider);
+
+    await expect(
+      service.createOutboundCall(context, {
+        agentId: 'agt_123',
+        to: '+14155550100',
+      }),
+    ).rejects.toThrow('provider failed');
+
+    expect(usage.voidUsageForFailedOperation).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      resourceType: 'call',
+      resourceId: expect.any(String),
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.failed',
+        resourceType: 'call',
+        payload: expect.objectContaining({
+          callId: 'call_123',
+          status: 'failed',
+          failureReason: 'provider failed',
+        }),
+      }),
+    );
+    expect(webhooks.createDeliveriesForEvent).toHaveBeenCalledWith({ id: 'evt_123' });
   });
 
   it('lists transcript turns for a scoped call', async () => {

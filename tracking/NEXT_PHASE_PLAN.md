@@ -109,23 +109,24 @@ Remaining:
 ## Following Phases
 
 0.5. **P5A Call lifecycle accuracy**
-   - Status: implemented.
-   - Implemented:
-     - Twilio `initiated`, `ringing`, `answered`, `in-progress`,
-       `completed`, `failed`, `busy`, `no-answer`, and `canceled` statuses now
-       normalize into AgentLine call states.
-     - `answered` moves calls to `in_progress`.
-     - Voice prompt callbacks can move a call to `in_progress` if the status
-       callback is delayed or missing.
-     - Terminal callbacks set `endedAt`, outcome, final duration, and billing
-       settlement.
-     - Late terminal callbacks can still settle final duration without emitting
-       duplicate lifecycle webhooks.
-     - Duplicate Twilio callbacks remain idempotent.
-     - `GET /v1/calls/:id` returns provider callback diagnostics.
-   - Remaining:
-     - store provider diagnostics on first-class records if raw-event lookups
-       become expensive.
+
+- Status: implemented.
+- Implemented:
+  - Twilio `initiated`, `ringing`, `answered`, `in-progress`,
+    `completed`, `failed`, `busy`, `no-answer`, and `canceled` statuses now
+    normalize into AgentLine call states.
+  - `answered` moves calls to `in_progress`.
+  - Voice prompt callbacks can move a call to `in_progress` if the status
+    callback is delayed or missing.
+  - Terminal callbacks set `endedAt`, outcome, final duration, and billing
+    settlement.
+  - Late terminal callbacks can still settle final duration without emitting
+    duplicate lifecycle webhooks.
+  - Duplicate Twilio callbacks remain idempotent.
+  - `GET /v1/calls/:id` returns provider callback diagnostics.
+- Remaining:
+  - store provider diagnostics on first-class records if raw-event lookups
+    become expensive.
 
 1. **P1 Auth/users/sessions/workspace switching**
    - Status: backend complete.
@@ -171,17 +172,18 @@ Remaining:
      - email delivery dashboard/API.
 
 2.5. **P2 Core dashboard summary**
-   - Status: backend complete.
-   - Implemented:
-     - `GET /v1/dashboard/summary`
-     - counts for agents, numbers, conversations, messages, calls, and webhooks
-     - recent calls
-     - recent conversations
-     - daily/monthly usage totals
-     - billing balance snapshot
-     - safe Twilio/Stripe/Brevo readiness flags
-   - Remaining:
-     - frontend overview integration.
+
+- Status: backend complete.
+- Implemented:
+  - `GET /v1/dashboard/summary`
+  - counts for agents, numbers, conversations, messages, calls, and webhooks
+  - recent calls
+  - recent conversations
+  - daily/monthly usage totals
+  - billing balance snapshot
+  - safe Twilio/Stripe/Brevo readiness flags
+- Remaining:
+  - frontend overview integration.
 
 3. **P3 Mock quarantine**
    - remove product-facing mock routes.
@@ -234,6 +236,7 @@ Remaining:
        `docs/WEBHOOK_EVENT_STANDARD.md`.
      - exact, prefix wildcard, and global wildcard event subscriptions.
      - richer call/message webhook payloads with primary resource data.
+     - first-class `agent.call.failed` webhook events for failed live calls.
    - Remaining:
      - background delivery worker.
      - automatic retry schedule.
