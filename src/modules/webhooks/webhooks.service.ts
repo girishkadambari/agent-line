@@ -28,6 +28,8 @@ export interface ListWebhookDeliveriesFilters {
 
 @Injectable()
 export class WebhooksService {
+  private readonly deliveryTimeoutMs = 5000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
@@ -143,8 +145,8 @@ export class WebhooksService {
     const payload = this.createPayload(input);
 
     const deliveries = await Promise.all(
-      endpoints.map((endpoint) =>
-        this.prisma.webhookDelivery.create({
+      endpoints.map(async (endpoint) => {
+        const delivery = await this.prisma.webhookDelivery.create({
           data: {
             id: createId('whdel'),
             workspaceId: input.workspaceId,
@@ -156,8 +158,10 @@ export class WebhooksService {
             status: 'pending',
             attemptCount: 0,
           },
-        }),
-      ),
+        });
+
+        return this.deliver(endpoint, delivery.id, payload);
+      }),
     );
 
     return deliveries.map(serializeWebhookDelivery);
@@ -224,6 +228,47 @@ export class WebhooksService {
 
   private nextRetryDate() {
     return new Date(Date.now() + 60 * 1000);
+  }
+
+  private async deliver(
+    endpoint: { id: string; url: string; secret: string },
+    deliveryId: string,
+    payload: Record<string, unknown>,
+  ) {
+    try {
+      const response = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...signWebhookPayload(endpoint.secret, payload),
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(this.deliveryTimeoutMs),
+      });
+
+      return this.prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: response.ok ? 'succeeded' : 'failed',
+          attemptCount: 1,
+          lastStatusCode: response.status,
+          lastError: response.ok ? null : `Webhook endpoint returned HTTP ${response.status}.`,
+          nextAttemptAt: response.ok ? null : this.nextRetryDate(),
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Webhook delivery failed.';
+      return this.prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: 'failed',
+          attemptCount: 1,
+          lastStatusCode: null,
+          lastError: message,
+          nextAttemptAt: this.nextRetryDate(),
+        },
+      });
+    }
   }
 
   private async findEndpointOrThrow(context: RequestContext, id: string) {

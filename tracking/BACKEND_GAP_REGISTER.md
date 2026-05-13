@@ -67,6 +67,8 @@ Status: partially closed
 
 Implemented:
 
+- Outbound Twilio calls register lifecycle callbacks for initiated, ringing,
+  answered, and completed status events.
 - Twilio call status callbacks are recorded in `ProviderRawEvent`.
 - Duplicate callback retries are suppressed before call updates, billing
   settlement, and customer webhook delivery.

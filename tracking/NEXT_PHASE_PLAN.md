@@ -153,6 +153,8 @@ Remaining:
      - inbound voice prompt/speech webhook handling.
      - transcript turn capture from Twilio speech callbacks.
      - transfer and manual end routes.
+     - outbound calls now send Twilio voice status callback events as repeated
+       form fields for `initiated`, `ringing`, `answered`, and `completed`.
      - idempotent Twilio voice status callbacks using `ProviderRawEvent`.
      - duplicate Twilio status callbacks are suppressed before usage settlement
        and customer webhook delivery.

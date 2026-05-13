@@ -63,6 +63,13 @@ function createService(prisma: PrismaService) {
 }
 
 describe('WebhooksService', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
   it('creates webhook endpoint and returns secret once', async () => {
     const prisma = {
       webhookEndpoint: {
@@ -114,13 +121,24 @@ describe('WebhooksService', () => {
     });
   });
 
-  it('creates pending deliveries for matching active endpoints only', async () => {
+  it('delivers matching active endpoint events immediately', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 204 });
+    global.fetch = fetchMock as unknown as typeof fetch;
     const prisma = {
       webhookEndpoint: {
         findMany: jest.fn().mockResolvedValue([endpointFixture()]),
       },
       webhookDelivery: {
         create: jest.fn().mockResolvedValue(deliveryFixture({ status: 'pending' })),
+        update: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            status: 'succeeded',
+            attemptCount: 1,
+            lastStatusCode: 204,
+            lastError: null,
+            nextAttemptAt: null,
+          }),
+        ),
       },
     } as unknown as PrismaService;
     const { service } = createService(prisma);
@@ -134,10 +152,73 @@ describe('WebhooksService', () => {
     });
 
     expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('succeeded');
     expect(prisma.webhookEndpoint.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
         status: 'active',
         events: { has: 'agent.message.sent' },
+      }),
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/webhooks',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'content-type': 'application/json',
+          'agentline-signature': expect.stringMatching(/^v1=/),
+          'agentline-timestamp': expect.any(String),
+        }),
+      }),
+    );
+    expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
+      where: { id: 'whdel_123' },
+      data: expect.objectContaining({
+        status: 'succeeded',
+        attemptCount: 1,
+        lastStatusCode: 204,
+        lastError: null,
+      }),
+    });
+  });
+
+  it('marks real webhook delivery failed when endpoint returns an error', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const prisma = {
+      webhookEndpoint: {
+        findMany: jest.fn().mockResolvedValue([endpointFixture()]),
+      },
+      webhookDelivery: {
+        create: jest.fn().mockResolvedValue(deliveryFixture({ status: 'pending' })),
+        update: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            status: 'failed',
+            attemptCount: 1,
+            lastStatusCode: 500,
+            lastError: 'Webhook endpoint returned HTTP 500.',
+          }),
+        ),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.createDeliveriesForEvent({
+      id: 'evt_123',
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type: 'agent.message.sent',
+      payload: { messageId: 'msg_123' },
+    });
+
+    expect(result[0].status).toBe('failed');
+    expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
+      where: { id: 'whdel_123' },
+      data: expect.objectContaining({
+        status: 'failed',
+        attemptCount: 1,
+        lastStatusCode: 500,
+        lastError: 'Webhook endpoint returned HTTP 500.',
+        nextAttemptAt: expect.any(Date),
       }),
     });
   });

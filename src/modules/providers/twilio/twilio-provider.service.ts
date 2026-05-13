@@ -54,6 +54,8 @@ interface TwilioCall {
   duration?: string;
 }
 
+type TwilioRequestBody = Record<string, string | string[]>;
+
 @Injectable()
 export class TwilioProviderService implements TelecomProvider {
   constructor(private readonly config: ConfigService) {}
@@ -210,7 +212,7 @@ export class TwilioProviderService implements TelecomProvider {
   }
 
   async createCall(input: CreateCallInput): Promise<CreateCallResult> {
-    const body: Record<string, string> = {
+    const body: TwilioRequestBody = {
       From: input.from,
       To: input.to,
       Url: this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL', 'https://example.com/agentline/twiml'),
@@ -219,7 +221,7 @@ export class TwilioProviderService implements TelecomProvider {
     if (statusCallbackUrl) {
       body.StatusCallback = statusCallbackUrl;
       body.StatusCallbackMethod = 'POST';
-      body.StatusCallbackEvent = 'initiated ringing answered completed';
+      body.StatusCallbackEvent = ['initiated', 'ringing', 'answered', 'completed'];
     }
 
     const response = await this.request<TwilioCall>('POST', '/Calls.json', body);
@@ -248,7 +250,7 @@ export class TwilioProviderService implements TelecomProvider {
     return { status: 'transferred' };
   }
 
-  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: Record<string, string>) {
+  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: TwilioRequestBody) {
     const { accountSid, authToken } = this.getCredentials();
 
     if (!accountSid || !authToken) {
@@ -261,7 +263,7 @@ export class TwilioProviderService implements TelecomProvider {
         Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: body ? new URLSearchParams(body) : undefined,
+      body: body ? this.toFormBody(body) : undefined,
     });
 
     if (response.status === 204) {
@@ -278,6 +280,18 @@ export class TwilioProviderService implements TelecomProvider {
     }
 
     return payload as T;
+  }
+
+  private toFormBody(body: TwilioRequestBody) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body)) {
+      if (Array.isArray(value)) {
+        value.forEach((item) => params.append(key, item));
+      } else {
+        params.append(key, value);
+      }
+    }
+    return params;
   }
 
   private getCredentials() {

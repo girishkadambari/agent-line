@@ -321,4 +321,37 @@ describe('TwilioProviderService', () => {
       }),
     );
   });
+
+  it('creates calls with repeated Twilio status callback events', async () => {
+    const service = createService({
+      TWILIO_MODE: 'live-dev',
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'secret',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
+      TWILIO_VOICE_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/status',
+    });
+    const fetchMock = mockFetch({ sid: 'CA123', status: 'queued', duration: '0' });
+
+    await expect(service.createCall({ from: '+19012316325', to: '+917799027234' })).resolves.toEqual({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'queued',
+      durationSeconds: 0,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.twilio.com/2010-04-01/Accounts/AC123/Calls.json',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const requestBody = fetchMock.mock.calls[0][1].body as URLSearchParams;
+    expect(requestBody.get('Url')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/inbound');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/status');
+    expect(requestBody.get('StatusCallbackMethod')).toBe('POST');
+    expect(requestBody.getAll('StatusCallbackEvent')).toEqual([
+      'initiated',
+      'ringing',
+      'answered',
+      'completed',
+    ]);
+  });
 });

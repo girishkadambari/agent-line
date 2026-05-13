@@ -407,11 +407,13 @@ Exit criteria:
 
 Current implementation status:
 
-- In progress:
-  - outbound call creation uses the configured provider adapter.
-  - Twilio voice prompt and speech callbacks can create transcript turns for a
-    live call.
-  - call transfer and manual end routes exist.
+  - In progress:
+    - outbound call creation uses the configured provider adapter.
+    - Twilio voice prompt and speech callbacks can create transcript turns for a
+      live call.
+    - outbound Twilio calls register lifecycle callbacks for initiated, ringing,
+      answered, and completed status events.
+    - call transfer and manual end routes exist.
   - Twilio voice status callbacks are idempotent through `ProviderRawEvent`.
   - duplicate status callbacks do not create duplicate lifecycle webhook events
     or duplicate billing settlement attempts.
