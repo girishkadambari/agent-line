@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Message } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -86,11 +86,7 @@ export class MessagesService {
         type: 'agent.message.sent',
         resourceType: 'message',
         resourceId: message.id,
-        payload: {
-          agentId: agent.id,
-          conversationId: conversation.id,
-          contactId: contact.id,
-        },
+        payload: this.buildMessageEventPayload(message),
       });
       await this.webhooks.createDeliveriesForEvent(event);
 
@@ -155,11 +151,7 @@ export class MessagesService {
       type: 'agent.message.received',
       resourceType: 'message',
       resourceId: message.id,
-      payload: {
-        agentId: agent.id,
-        conversationId: conversation.id,
-        contactId: contact.id,
-      },
+      payload: this.buildMessageEventPayload(message),
     });
     await this.webhooks.createDeliveriesForEvent(event);
 
@@ -252,11 +244,7 @@ export class MessagesService {
       type: 'agent.message.received',
       resourceType: 'message',
       resourceId: message.id,
-      payload: {
-        agentId: phoneNumber.agentId,
-        conversationId: conversation.id,
-        contactId: contact.id,
-      },
+      payload: this.buildMessageEventPayload(message),
     });
     await this.webhooks.createDeliveriesForEvent(event);
 
@@ -302,11 +290,7 @@ export class MessagesService {
       type: 'agent.message.delivery_updated',
       resourceType: 'message',
       resourceId: message.id,
-      payload: {
-        agentId: message.agentId,
-        conversationId: message.conversationId,
-        status: updated.status,
-      },
+      payload: this.buildMessageEventPayload(updated, { providerStatus: input.status }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
 
@@ -391,6 +375,41 @@ export class MessagesService {
       return 'failed';
     }
     return 'sent';
+  }
+
+  private buildMessageEventPayload(
+    message: Pick<
+      Message,
+      | 'id'
+      | 'agentId'
+      | 'conversationId'
+      | 'contactId'
+      | 'phoneNumberId'
+      | 'direction'
+      | 'body'
+      | 'status'
+      | 'provider'
+      | 'providerMessageId'
+      | 'createdAt'
+      | 'updatedAt'
+    >,
+    extra: Record<string, unknown> = {},
+  ) {
+    return {
+      agentId: message.agentId,
+      messageId: message.id,
+      conversationId: message.conversationId,
+      contactId: message.contactId,
+      phoneNumberId: message.phoneNumberId,
+      direction: message.direction,
+      body: message.body,
+      status: message.status,
+      provider: message.provider,
+      providerMessageId: message.providerMessageId,
+      createdAt: message.createdAt.toISOString(),
+      updatedAt: message.updatedAt.toISOString(),
+      ...extra,
+    };
   }
 
   private async recordProviderRawEvent(input: {

@@ -290,6 +290,39 @@ Current implementation status:
 - Remaining:
   - frontend overview integration.
 
+## Phase P3B: Agent Operating Console
+
+Goal:
+
+Make the agent the main operating object for the developer ICP. A developer
+should be able to open one agent and inspect its numbers, calls, conversations,
+messages, webhook delivery state, and usage without stitching multiple product
+areas together.
+
+Current implementation status:
+
+- First backend/frontend slice implemented:
+  - `GET /v1/agents/:id/summary`
+  - agent-scoped attached numbers
+  - recent conversations
+  - recent calls
+  - recent messages
+  - recent usage events and total sampled usage cost
+  - recent webhook deliveries filtered to agent event types
+  - lifecycle timeline from calls, messages, usage events, and webhook
+    deliveries
+  - provider issue normalization from Twilio raw callback events
+  - frontend agent detail now uses the summary API as its source of truth
+  - frontend agent detail now includes usage cost, webhook failures, activity
+    timeline, and a debug tab for recent usage/webhook diagnostics
+  - frontend agent detail now surfaces provider issue counts and issue details
+
+Remaining:
+
+- Pagination/cursors for large agent histories.
+- Persist normalized provider issue state directly on call/message records if
+  raw-event derived summaries become too expensive.
+
 ## Phase P4: Twilio Numbers And SMS
 
 Goal:
@@ -418,10 +451,17 @@ Current implementation status:
   - duplicate status callbacks do not create duplicate lifecycle webhook events
     or duplicate billing settlement attempts.
   - late callbacks cannot move a terminal call back to a non-terminal state.
+  - Twilio `answered` callbacks now move calls to `in_progress`.
+  - voice prompt callbacks can also move calls to `in_progress` when status
+    callbacks lag.
+  - late terminal callbacks can settle final duration and billing without
+    emitting duplicate lifecycle events.
+  - call detail responses include provider callback diagnostics and provider
+    failure reasons.
 - Remaining:
   - inbound call record creation from the Twilio inbound voice webhook.
   - recording callbacks and recording consent settings.
-  - provider-duration final settlement with adjustment ledger.
+  - provider-duration final settlement adjustment ledger hardening.
   - richer lifecycle timeline and provider failure reason storage.
 
 ## Phase P6: Stripe Test And Live Billing

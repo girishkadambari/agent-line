@@ -257,7 +257,16 @@ describe('CallsService', () => {
   it('records a live Twilio prompt transcript turn once', async () => {
     const prisma = {
       call: {
-        findFirst: jest.fn().mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            callFixture({ provider: 'twilio', providerCallId: 'CA123', status: 'ringing' }),
+          ),
+        update: jest
+          .fn()
+          .mockResolvedValue(
+            callFixture({ provider: 'twilio', providerCallId: 'CA123', status: 'in_progress' }),
+          ),
       },
       transcriptTurn: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -278,20 +287,30 @@ describe('CallsService', () => {
         startedAtMs: 0,
       }),
     });
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({ status: 'in_progress' }),
+    });
   });
 
   it('records live Twilio speech as a transcript turn and emits an update event', async () => {
     const prisma = {
       call: {
-        findFirst: jest.fn().mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
-        update: jest.fn().mockResolvedValue(callFixture({ summary: 'Caller said: Hello AgentLine' })),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
+        update: jest
+          .fn()
+          .mockResolvedValue(callFixture({ summary: 'Caller said: Hello AgentLine' })),
       },
       transcriptTurn: {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce(null)
           .mockResolvedValueOnce(transcriptTurnFixture({ endedAtMs: 5000 })),
-        create: jest.fn().mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello AgentLine' })),
+        create: jest
+          .fn()
+          .mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello AgentLine' })),
       },
     } as unknown as PrismaService;
     const { service, events } = createService(prisma);
@@ -324,7 +343,58 @@ describe('CallsService', () => {
     );
   });
 
-  it('records Twilio terminal status once and emits one ended event', async () => {
+  it('records Twilio answered status as in progress and emits a started event', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'ringing',
+            durationSeconds: 0,
+            endedAt: null,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'in_progress',
+            durationSeconds: 0,
+            endedAt: null,
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'answered',
+      rawPayload: { CallSid: 'CA123', CallStatus: 'answered' },
+    });
+
+    expect('status' in result ? result.status : undefined).toBe('in_progress');
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({
+        status: 'in_progress',
+        endedAt: null,
+      }),
+    });
+    expect(usage.finalizeVoiceCall).not.toHaveBeenCalled();
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.started',
+      }),
+    );
+  });
+
+  it('records Twilio terminal status once and emits one completed event', async () => {
     const prisma = {
       call: {
         findFirst: jest.fn().mockResolvedValue(
@@ -371,9 +441,51 @@ describe('CallsService', () => {
     });
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'agent.call.ended',
+        type: 'agent.call.completed',
       }),
     );
+  });
+
+  it('returns provider diagnostics on call detail', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'failed',
+          }),
+        ),
+      },
+      providerRawEvent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'prevt_123',
+            workspaceId: context.workspaceId,
+            projectId: context.projectId,
+            provider: 'twilio',
+            eventType: 'twilio.voice.status',
+            providerEventId: 'CA123:status:failed',
+            payload: {
+              CallSid: 'CA123',
+              CallStatus: 'failed',
+              ErrorCode: '13224',
+              ErrorMessage: 'Call could not be completed.',
+            },
+            createdAt: now,
+          },
+        ]),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.getCall(context, 'call_123');
+
+    expect(result.providerDiagnostics.issues[0]).toMatchObject({
+      status: 'failed',
+      code: '13224',
+      message: 'Call could not be completed.',
+    });
   });
 
   it('suppresses duplicate Twilio status callbacks before webhook emission', async () => {
@@ -440,6 +552,59 @@ describe('CallsService', () => {
     expect(result).toMatchObject({ duplicate: false, ignored: true });
     expect(prisma.call.update).not.toHaveBeenCalled();
     expect(usage.finalizeVoiceCall).not.toHaveBeenCalled();
+    expect(events.create).not.toHaveBeenCalled();
+  });
+
+  it('settles late Twilio terminal duration without duplicate lifecycle event', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+            durationSeconds: 0,
+            outcome: null,
+            endedAt: null,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+            durationSeconds: 37,
+            outcome: 'completed',
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'completed',
+      durationSeconds: 37,
+      rawPayload: { CallSid: 'CA123', CallStatus: 'completed', CallDuration: '37' },
+    });
+
+    expect(result).toMatchObject({ ignored: true });
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({
+        durationSeconds: 37,
+        outcome: 'completed',
+      }),
+    });
+    expect(usage.finalizeVoiceCall).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      callId: 'call_123',
+      durationSeconds: 37,
+    });
     expect(events.create).not.toHaveBeenCalled();
   });
 });

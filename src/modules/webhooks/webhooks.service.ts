@@ -132,6 +132,9 @@ export class WebhooksService {
     projectId: string;
     id: string;
     type: string;
+    resourceType?: string | null;
+    resourceId?: string | null;
+    createdAt?: string;
     payload: unknown;
   }) {
     const endpoints = await this.prisma.webhookEndpoint.findMany({
@@ -139,13 +142,15 @@ export class WebhooksService {
         workspaceId: input.workspaceId,
         projectId: input.projectId,
         status: 'active',
-        events: { has: input.type },
       },
     });
+    const matchingEndpoints = endpoints.filter((endpoint) =>
+      endpoint.events.some((pattern) => this.matchesEventPattern(pattern, input.type)),
+    );
     const payload = this.createPayload(input);
 
     const deliveries = await Promise.all(
-      endpoints.map(async (endpoint) => {
+      matchingEndpoints.map(async (endpoint) => {
         const delivery = await this.prisma.webhookDelivery.create({
           data: {
             id: createId('whdel'),
@@ -214,16 +219,36 @@ export class WebhooksService {
     type: string;
     workspaceId: string;
     projectId: string;
+    resourceType?: string | null;
+    resourceId?: string | null;
+    createdAt?: string;
     payload: Record<string, unknown> | unknown;
   }) {
     return {
       id: event.id,
       type: event.type,
+      apiVersion: '2026-05-13',
       workspaceId: event.workspaceId,
       projectId: event.projectId,
-      createdAt: new Date().toISOString(),
+      createdAt: event.createdAt ?? new Date().toISOString(),
+      resource: {
+        type: event.resourceType ?? null,
+        id: event.resourceId ?? null,
+      },
       data: event.payload,
     };
+  }
+
+  private matchesEventPattern(pattern: string, eventType: string) {
+    if (pattern === '*' || pattern === eventType) {
+      return true;
+    }
+
+    if (!pattern.endsWith('.*')) {
+      return false;
+    }
+
+    return eventType.startsWith(pattern.slice(0, -1));
   }
 
   private nextRetryDate() {

@@ -12,7 +12,7 @@ import { AgentsService } from './agents.service';
 @UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('agents')
 export class AgentsController {
-  constructor(private readonly agents: AgentsService) { }
+  constructor(private readonly agents: AgentsService) {}
 
   @Get()
   listAgents(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
@@ -30,6 +30,11 @@ export class AgentsController {
   @Get('voices')
   listVoices() {
     return list(this.agents.listVoices());
+  }
+
+  @Get(':id/summary')
+  async getAgentSummary(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.agents.getAgentSummary(context, id));
   }
 
   @Get(':id')

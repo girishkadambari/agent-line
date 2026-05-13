@@ -18,6 +18,7 @@ export function serializeCall(call: Call) {
     outcome: call.outcome,
     recordingId: call.recordingId,
     provider: call.provider,
+    providerCallId: call.providerCallId,
     startedAt: call.startedAt?.toISOString() ?? null,
     endedAt: call.endedAt?.toISOString() ?? null,
     createdAt: call.createdAt.toISOString(),

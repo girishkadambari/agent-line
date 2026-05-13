@@ -22,19 +22,52 @@ email, production configuration, provider readiness, security, and deployment.
   configuration errors.
 - No user-facing production flow should silently fall back to mock data.
 
-## Immediate Goals
+## ICP-First Implementation Priorities
 
-- Add strict environment/config validation.
-- Block mock telecom provider in local/staging/production.
-- Add Twilio mode support: `test`, `live-dev`, `live`.
-- Add provider runtime readiness without leaking secrets.
-- Plan and implement Google OAuth/session auth for dashboard users.
-- Keep API-key auth for developer API access.
-- Harden Stripe test/live separation.
-- Prepare Twilio number/SMS staging flow.
-- Prepare Brevo transactional email for invites and security/billing events.
-- Provide core dashboard summary APIs so frontend views use backend source of
-  truth.
+The core ICP is developers and AI builders who need agents to operate over real
+phone and SMS. Prioritize features that make this loop work end to end:
+
+1. Create an agent.
+2. Attach or import a real Twilio number.
+3. Send and receive SMS.
+4. Start and receive calls.
+5. Capture transcript, summary, and structured outcome.
+6. Deliver signed webhook events to the developer backend.
+7. Show usage, billing, and debug logs by agent.
+
+Do not prioritize generic SaaS polish ahead of this operating loop.
+
+## Current Implementation Phase: Agent Operating Console
+
+Status: in progress.
+
+Implemented in this slice:
+
+- `GET /v1/agents/:id/summary`
+- Agent-scoped numbers, conversations, calls, messages, usage, and webhook
+  delivery debug data.
+- Frontend agent detail uses the summary endpoint as the source of truth.
+- Agent lifecycle timeline across calls, messages, usage charges, and webhook
+  deliveries.
+- Agent detail overview shows usage cost, webhook failure count, and recent
+  timeline activity.
+- Agent detail debug tab shows recent usage and webhook delivery diagnostics.
+- Provider issue normalization from Twilio raw callback events for failed SMS
+  and voice statuses.
+- Agent summary now includes provider issue count, issue details, and
+  provider-issue timeline entries.
+
+Exit criteria:
+
+- Agent detail can answer: what numbers does this agent own, what happened
+  recently, what calls/messages occurred, what webhooks failed, and what did it
+  cost?
+
+Remaining:
+
+- Add cursor/limits for summary subsections once data volume grows.
+- Persist normalized provider issue state on first-class call/message records if
+  the derived raw-event view becomes too expensive.
 
 ## Next Implementation Phase: P2 Brevo Transactional Email
 
@@ -74,6 +107,25 @@ Remaining:
 - Dashboard view for email delivery logs.
 
 ## Following Phases
+
+0.5. **P5A Call lifecycle accuracy**
+   - Status: implemented.
+   - Implemented:
+     - Twilio `initiated`, `ringing`, `answered`, `in-progress`,
+       `completed`, `failed`, `busy`, `no-answer`, and `canceled` statuses now
+       normalize into AgentLine call states.
+     - `answered` moves calls to `in_progress`.
+     - Voice prompt callbacks can move a call to `in_progress` if the status
+       callback is delayed or missing.
+     - Terminal callbacks set `endedAt`, outcome, final duration, and billing
+       settlement.
+     - Late terminal callbacks can still settle final duration without emitting
+       duplicate lifecycle webhooks.
+     - Duplicate Twilio callbacks remain idempotent.
+     - `GET /v1/calls/:id` returns provider callback diagnostics.
+   - Remaining:
+     - store provider diagnostics on first-class records if raw-event lookups
+       become expensive.
 
 1. **P1 Auth/users/sessions/workspace switching**
    - Status: backend complete.

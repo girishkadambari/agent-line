@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { CallStatus, Prisma, type Call } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -117,12 +117,7 @@ export class CallsService {
         type: providerCall.status === 'completed' ? 'agent.call.completed' : 'agent.call.started',
         resourceType: 'call',
         resourceId: call.id,
-        payload: {
-          agentId: agent.id,
-          conversationId: conversation.id,
-          contactId: contact.id,
-          durationSeconds: call.durationSeconds,
-        },
+        payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
       });
       await this.webhooks.createDeliveriesForEvent(event);
 
@@ -170,7 +165,12 @@ export class CallsService {
   }
 
   async getCall(context: RequestContext, id: string) {
-    return serializeCall(await this.findCallOrThrow(context, id));
+    const call = await this.findCallOrThrow(context, id);
+
+    return {
+      ...serializeCall(call),
+      providerDiagnostics: await this.listProviderDiagnosticsForCall(call),
+    };
   }
 
   async endCall(context: RequestContext, id: string) {
@@ -198,7 +198,7 @@ export class CallsService {
       type: 'agent.call.ended',
       resourceType: 'call',
       resourceId: call.id,
-      payload: { agentId: call.agentId, conversationId: call.conversationId },
+      payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
 
@@ -238,16 +238,24 @@ export class CallsService {
     }
 
     if (this.terminalCallStatuses.has(existing.status)) {
-      return { received: true, duplicate: false, ignored: true, call: serializeCall(existing) };
+      const settled = await this.settleTerminalCallbackWithoutLifecycleEvent(existing, {
+        durationSeconds: input.durationSeconds,
+        status,
+      });
+      return { received: true, duplicate: false, ignored: true, call: serializeCall(settled) };
     }
+
+    const nextStatus = this.nextProviderCallStatus(existing.status, status);
+    const shouldUpdate =
+      nextStatus !== existing.status || isTerminal || input.durationSeconds !== undefined;
 
     const call = await this.prisma.call.update({
       where: { id: existing.id },
       data: {
-        status,
+        status: nextStatus,
         durationSeconds: input.durationSeconds ?? existing.durationSeconds,
-        outcome: isTerminal ? status : existing.outcome,
-        endedAt: isTerminal ? existing.endedAt ?? new Date() : existing.endedAt,
+        outcome: isTerminal ? nextStatus : existing.outcome,
+        endedAt: isTerminal ? (existing.endedAt ?? new Date()) : existing.endedAt,
       },
     });
 
@@ -261,16 +269,20 @@ export class CallsService {
       const event = await this.events.create({
         workspaceId: call.workspaceId,
         projectId: call.projectId,
-        type: 'agent.call.ended',
+        type: this.callLifecycleEventType(nextStatus),
         resourceType: 'call',
         resourceId: call.id,
-        payload: {
-          agentId: call.agentId,
-          conversationId: call.conversationId,
-          providerCallId: input.providerCallId,
-          providerStatus: input.status,
-          durationSeconds: call.durationSeconds,
-        },
+        payload: this.buildCallEventPayload(call, { providerStatus: input.status }),
+      });
+      await this.webhooks.createDeliveriesForEvent(event);
+    } else if (shouldUpdate && nextStatus !== existing.status) {
+      const event = await this.events.create({
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        type: this.callLifecycleEventType(nextStatus),
+        resourceType: 'call',
+        resourceId: call.id,
+        payload: this.buildCallEventPayload(call, { providerStatus: input.status }),
       });
       await this.webhooks.createDeliveriesForEvent(event);
     }
@@ -288,6 +300,22 @@ export class CallsService {
 
     if (!call) {
       return { received: true, ignored: true, reason: 'call_not_found' };
+    }
+
+    if (!this.terminalCallStatuses.has(call.status) && call.status !== 'in_progress') {
+      const updated = await this.prisma.call.update({
+        where: { id: call.id },
+        data: { status: 'in_progress', startedAt: call.startedAt ?? new Date() },
+      });
+      const event = await this.events.create({
+        workspaceId: updated.workspaceId,
+        projectId: updated.projectId,
+        type: 'agent.call.started',
+        resourceType: 'call',
+        resourceId: updated.id,
+        payload: this.buildCallEventPayload(updated, { providerStatus: 'in-progress' }),
+      });
+      await this.webhooks.createDeliveriesForEvent(event);
     }
 
     const existingPrompt = await this.prisma.transcriptTurn.findFirst({
@@ -366,7 +394,7 @@ export class CallsService {
     const startedAtMs = Math.max(lastTurn?.endedAtMs ?? 0, 5000);
     const endedAtMs = startedAtMs + Math.max(1000, Math.min(text.length * 80, 10000));
 
-    await this.prisma.transcriptTurn.create({
+    const turn = await this.prisma.transcriptTurn.create({
       data: {
         id: createId('trn'),
         workspaceId: call.workspaceId,
@@ -395,9 +423,15 @@ export class CallsService {
       resourceType: 'call',
       resourceId: call.id,
       payload: {
-        agentId: call.agentId,
-        conversationId: call.conversationId,
-        providerCallId: input.providerCallId,
+        ...this.buildCallEventPayload(updated),
+        transcriptTurn: {
+          id: turn.id,
+          speaker: turn.speaker,
+          text: turn.text,
+          startedAtMs: turn.startedAtMs,
+          endedAtMs: turn.endedAtMs,
+          confidence: turn.confidence?.toString() ?? null,
+        },
       },
     });
     await this.webhooks.createDeliveriesForEvent(event);
@@ -432,7 +466,7 @@ export class CallsService {
       type: 'agent.call.transferred',
       resourceType: 'call',
       resourceId: call.id,
-      payload: { agentId: call.agentId, conversationId: call.conversationId, to: input.to },
+      payload: this.buildCallEventPayload(call, { transferTo: input.to }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
 
@@ -493,20 +527,178 @@ export class CallsService {
     });
   }
 
-  private normalizeProviderCallStatus(status: string) {
+  private normalizeProviderCallStatus(status: string): CallStatus {
+    if (status === 'initiated') {
+      return 'queued';
+    }
+    if (status === 'answered') {
+      return 'in_progress';
+    }
     if (status === 'in-progress') {
       return 'in_progress';
     }
     if (status === 'no-answer') {
       return 'no_answer';
     }
-    if (status === 'queued' || status === 'ringing' || status === 'completed' || status === 'failed') {
+    if (
+      status === 'queued' ||
+      status === 'ringing' ||
+      status === 'completed' ||
+      status === 'failed'
+    ) {
       return status;
     }
     if (status === 'busy' || status === 'canceled') {
       return status;
     }
     return 'queued';
+  }
+
+  private nextProviderCallStatus(
+    currentStatus: CallStatus,
+    providerStatus: CallStatus,
+  ): CallStatus {
+    if (this.terminalCallStatuses.has(currentStatus)) {
+      return currentStatus;
+    }
+
+    const rank: Record<string, number> = {
+      queued: 1,
+      ringing: 2,
+      in_progress: 3,
+      completed: 4,
+      failed: 4,
+      busy: 4,
+      no_answer: 4,
+      canceled: 4,
+      transferred: 4,
+    };
+
+    return (rank[providerStatus] ?? 0) >= (rank[currentStatus] ?? 0)
+      ? providerStatus
+      : currentStatus;
+  }
+
+  private callLifecycleEventType(status: string) {
+    if (status === 'completed') {
+      return 'agent.call.completed';
+    }
+    if (this.terminalCallStatuses.has(status)) {
+      return 'agent.call.ended';
+    }
+    if (status === 'in_progress') {
+      return 'agent.call.started';
+    }
+    return 'agent.call.status_updated';
+  }
+
+  private buildCallEventPayload(
+    call: Pick<
+      Call,
+      | 'id'
+      | 'agentId'
+      | 'conversationId'
+      | 'contactId'
+      | 'phoneNumberId'
+      | 'direction'
+      | 'fromNumber'
+      | 'toNumber'
+      | 'status'
+      | 'outcome'
+      | 'summary'
+      | 'durationSeconds'
+      | 'provider'
+      | 'providerCallId'
+      | 'startedAt'
+      | 'endedAt'
+    >,
+    extra: Record<string, unknown> = {},
+  ) {
+    return {
+      agentId: call.agentId,
+      callId: call.id,
+      conversationId: call.conversationId,
+      contactId: call.contactId,
+      phoneNumberId: call.phoneNumberId,
+      direction: call.direction,
+      fromNumber: call.fromNumber,
+      toNumber: call.toNumber,
+      status: call.status,
+      outcome: call.outcome,
+      summary: call.summary,
+      durationSeconds: call.durationSeconds,
+      provider: call.provider,
+      providerCallId: call.providerCallId,
+      startedAt: call.startedAt?.toISOString() ?? null,
+      endedAt: call.endedAt?.toISOString() ?? null,
+      ...extra,
+    };
+  }
+
+  private async listProviderDiagnosticsForCall(call: {
+    workspaceId: string;
+    projectId: string;
+    providerCallId: string | null;
+  }) {
+    if (!call.providerCallId) {
+      return { events: [], issues: [] };
+    }
+
+    const events = await this.prisma.providerRawEvent.findMany({
+      where: {
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        providerEventId: { startsWith: call.providerCallId },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+
+    const serialized = events.map((event) => {
+      const status = this.getJsonString(event.payload, 'CallStatus');
+      const code = this.getJsonString(event.payload, 'ErrorCode');
+      const message =
+        this.getJsonString(event.payload, 'ErrorMessage') ??
+        this.getJsonString(event.payload, 'ErrorMessageText');
+
+      return {
+        id: event.id,
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+        eventType: event.eventType,
+        status,
+        code,
+        message,
+        createdAt: event.createdAt.toISOString(),
+      };
+    });
+
+    return {
+      events: serialized,
+      issues: serialized.filter(
+        (event) => this.isProviderIssueStatus(event.status) || event.code || event.message,
+      ),
+    };
+  }
+
+  private getJsonString(payload: Prisma.JsonValue, key: string) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return null;
+    }
+
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return String(value);
+    }
+
+    return null;
+  }
+
+  private isProviderIssueStatus(status: string | null) {
+    return ['failed', 'busy', 'no-answer', 'no_answer', 'canceled'].includes(status ?? '');
   }
 
   private async recordProviderRawEvent(input: {
@@ -536,6 +728,39 @@ export class CallsService {
       }
       throw error;
     }
+  }
+
+  private async settleTerminalCallbackWithoutLifecycleEvent(
+    existing: Call,
+    input: { durationSeconds?: number; status: CallStatus },
+  ) {
+    const shouldSettleDuration =
+      input.durationSeconds !== undefined && input.durationSeconds > existing.durationSeconds;
+    const shouldSetOutcome = !existing.outcome && this.terminalCallStatuses.has(input.status);
+    const shouldSetEndedAt = !existing.endedAt && this.terminalCallStatuses.has(input.status);
+
+    if (!shouldSettleDuration && !shouldSetOutcome && !shouldSetEndedAt) {
+      return existing;
+    }
+
+    const call = await this.prisma.call.update({
+      where: { id: existing.id },
+      data: {
+        durationSeconds: shouldSettleDuration ? input.durationSeconds : existing.durationSeconds,
+        outcome: shouldSetOutcome ? input.status : existing.outcome,
+        endedAt: shouldSetEndedAt ? new Date() : existing.endedAt,
+      },
+    });
+
+    if (shouldSettleDuration) {
+      await this.usage.finalizeVoiceCall({
+        workspaceId: call.workspaceId,
+        callId: call.id,
+        durationSeconds: call.durationSeconds,
+      });
+    }
+
+    return call;
   }
 
   private async findAgentOrThrow(context: RequestContext, agentId: string) {
@@ -568,9 +793,14 @@ export class CallsService {
     });
 
     if (!phoneNumber) {
-      throw new ApiException('conflict', 'Agent does not have an active voice-capable number.', 409, {
-        agentId,
-      });
+      throw new ApiException(
+        'conflict',
+        'Agent does not have an active voice-capable number.',
+        409,
+        {
+          agentId,
+        },
+      );
     }
 
     return phoneNumber;

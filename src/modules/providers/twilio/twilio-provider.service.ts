@@ -118,7 +118,11 @@ export class TwilioProviderService implements TelecomProvider {
     const body: Record<string, string> = { PhoneNumber: phoneNumber };
     this.applyNumberWebhookSettings(body, input);
 
-    const response = await this.request<TwilioIncomingNumber>('POST', '/IncomingPhoneNumbers.json', body);
+    const response = await this.request<TwilioIncomingNumber>(
+      'POST',
+      '/IncomingPhoneNumbers.json',
+      body,
+    );
 
     return {
       provider: 'twilio',
@@ -138,9 +142,14 @@ export class TwilioProviderService implements TelecomProvider {
     const existing = response.incoming_phone_numbers[0];
 
     if (!existing) {
-      throw new ApiException('not_found', 'Twilio phone number was not found in this account.', 404, {
-        phoneNumber: input.phoneNumber,
-      });
+      throw new ApiException(
+        'not_found',
+        'Twilio phone number was not found in this account.',
+        404,
+        {
+          phoneNumber: input.phoneNumber,
+        },
+      );
     }
 
     const configured = await this.configureIncomingNumber(existing.sid, input);
@@ -159,7 +168,10 @@ export class TwilioProviderService implements TelecomProvider {
       return { released: true };
     }
 
-    await this.request<Record<string, never>>('DELETE', `/IncomingPhoneNumbers/${input.providerNumberId}.json`);
+    await this.request<Record<string, never>>(
+      'DELETE',
+      `/IncomingPhoneNumbers/${input.providerNumberId}.json`,
+    );
     return { released: true };
   }
 
@@ -167,16 +179,22 @@ export class TwilioProviderService implements TelecomProvider {
     const body: Record<string, string> = {};
     this.applyNumberWebhookSettings(body, input);
 
-    return this.request<TwilioIncomingNumber>('POST', `/IncomingPhoneNumbers/${providerNumberId}.json`, body);
+    return this.request<TwilioIncomingNumber>(
+      'POST',
+      `/IncomingPhoneNumbers/${providerNumberId}.json`,
+      body,
+    );
   }
 
   private applyNumberWebhookSettings(
     body: Record<string, string>,
     input: Pick<ProvisionNumberInput, 'inboundSmsUrl' | 'inboundSmsMethod' | 'statusCallbackUrl'>,
   ) {
-    const inboundSmsUrl = input.inboundSmsUrl ?? this.config.get<string>('TWILIO_INBOUND_SMS_WEBHOOK_URL');
+    const inboundSmsUrl =
+      input.inboundSmsUrl ?? this.config.get<string>('TWILIO_INBOUND_SMS_WEBHOOK_URL');
     const voiceUrl = this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL');
-    const statusCallbackUrl = input.statusCallbackUrl ?? this.config.get<string>('TWILIO_NUMBER_STATUS_CALLBACK_URL');
+    const statusCallbackUrl =
+      input.statusCallbackUrl ?? this.config.get<string>('TWILIO_NUMBER_STATUS_CALLBACK_URL');
 
     if (inboundSmsUrl) {
       body.SmsUrl = inboundSmsUrl;
@@ -197,7 +215,8 @@ export class TwilioProviderService implements TelecomProvider {
       To: input.to,
       Body: input.body,
     };
-    const statusCallbackUrl = input.statusCallbackUrl ?? this.config.get<string>('TWILIO_MESSAGE_STATUS_CALLBACK_URL');
+    const statusCallbackUrl =
+      input.statusCallbackUrl ?? this.config.get<string>('TWILIO_MESSAGE_STATUS_CALLBACK_URL');
     if (statusCallbackUrl) {
       body.StatusCallback = statusCallbackUrl;
     }
@@ -215,7 +234,10 @@ export class TwilioProviderService implements TelecomProvider {
     const body: TwilioRequestBody = {
       From: input.from,
       To: input.to,
-      Url: this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL', 'https://example.com/agentline/twiml'),
+      Url: this.config.get<string>(
+        'TWILIO_VOICE_WEBHOOK_URL',
+        'https://example.com/agentline/twiml',
+      ),
     };
     const statusCallbackUrl = this.config.get<string>('TWILIO_VOICE_STATUS_CALLBACK_URL');
     if (statusCallbackUrl) {
@@ -250,21 +272,28 @@ export class TwilioProviderService implements TelecomProvider {
     return { status: 'transferred' };
   }
 
-  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: TwilioRequestBody) {
+  private async request<T>(
+    method: 'GET' | 'POST' | 'DELETE',
+    path: string,
+    body?: TwilioRequestBody,
+  ) {
     const { accountSid, authToken } = this.getCredentials();
 
     if (!accountSid || !authToken) {
       throw new ApiException('provider_error', 'Twilio credentials are not configured.', 500);
     }
 
-    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`, {
-      method,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`,
+      {
+        method,
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body ? this.toFormBody(body) : undefined,
       },
-      body: body ? this.toFormBody(body) : undefined,
-    });
+    );
 
     if (response.status === 204) {
       return {} as T;
@@ -342,13 +371,13 @@ export class TwilioProviderService implements TelecomProvider {
   }
 
   private normalizeCallStatus(status: string): CreateCallResult['status'] {
-    if (status === 'queued') {
+    if (status === 'queued' || status === 'initiated') {
       return 'queued';
     }
     if (status === 'ringing') {
       return 'ringing';
     }
-    if (status === 'in-progress') {
+    if (status === 'in-progress' || status === 'answered') {
       return 'in_progress';
     }
     if (status === 'completed') {
