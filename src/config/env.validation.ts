@@ -22,6 +22,9 @@ const rawEnvSchema = z
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
     DASHBOARD_URL: z.string().optional(),
+    BREVO_API_KEY: z.string().optional(),
+    BREVO_FROM_EMAIL: z.string().optional(),
+    BREVO_FROM_NAME: z.string().optional(),
   })
   .passthrough();
 
@@ -34,6 +37,7 @@ export function validateEnv(rawConfig: Record<string, unknown>) {
   validateMockPolicy({ appEnv, telecomProvider });
   validateTwilioConfig({ appEnv, telecomProvider, twilioMode, parsed });
   validateGoogleConfig({ appEnv, parsed });
+  validateBrevoConfig({ appEnv, parsed });
 
   return {
     ...rawConfig,
@@ -41,6 +45,15 @@ export function validateEnv(rawConfig: Record<string, unknown>) {
     TELECOM_PROVIDER: telecomProvider,
     TWILIO_MODE: twilioMode,
   };
+}
+
+function validateBrevoConfig(input: { appEnv: AppEnv; parsed: z.infer<typeof rawEnvSchema> }) {
+  if (input.appEnv !== 'production') {
+    return;
+  }
+
+  requireEnv(input.parsed.BREVO_API_KEY, 'BREVO_API_KEY');
+  requireEnv(input.parsed.BREVO_FROM_EMAIL, 'BREVO_FROM_EMAIL');
 }
 
 function validateGoogleConfig(input: { appEnv: AppEnv; parsed: z.infer<typeof rawEnvSchema> }) {

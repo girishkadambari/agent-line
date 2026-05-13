@@ -12,6 +12,7 @@ import type {
   UpdateWorkspaceInput,
 } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createInviteToken, hashInviteToken } from './invite-token.utils';
 import { serializeInvite, serializeMember, serializeWorkspace } from './workspaces.serializer';
@@ -21,6 +22,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {}
 
   async getCurrentWorkspace(context: RequestContext) {
@@ -236,10 +238,19 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
+      actorUserId: context.userId,
       action: 'invite.created',
       resourceType: 'workspace_invite',
       resourceId: invite.id,
       metadata: { email: invite.email, role: invite.role },
+    });
+
+    await this.email.sendWorkspaceInviteEmail({
+      workspaceId: context.workspaceId,
+      inviteId: invite.id,
+      email: invite.email,
+      role: invite.role,
+      rawToken,
     });
 
     return serializeInvite(invite, rawToken);
@@ -279,6 +290,24 @@ export class WorkspacesService {
         tokenHash: hashInviteToken(rawToken),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
+    });
+
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorApiKeyId: context.apiKeyId,
+      actorUserId: context.userId,
+      action: 'invite.resent',
+      resourceType: 'workspace_invite',
+      resourceId: invite.id,
+      metadata: { email: updated.email, role: updated.role },
+    });
+
+    await this.email.sendWorkspaceInviteEmail({
+      workspaceId: context.workspaceId,
+      inviteId: updated.id,
+      email: updated.email,
+      role: updated.role,
+      rawToken,
     });
 
     return serializeInvite(updated, rawToken);

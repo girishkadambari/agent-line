@@ -216,6 +216,25 @@ Exit criteria:
 - Billing/security events can notify users.
 - Failed email deliveries are logged without blocking critical state changes.
 
+Current implementation status:
+
+- First backend slice implemented:
+  - Brevo transactional email provider adapter.
+  - workspace invite email template.
+  - `EmailDelivery` table and status enum.
+  - invite create/resend delivery logging.
+  - idempotent delivery key per invite/token.
+  - authenticated `GET /v1/email/deliveries` delivery log API.
+  - fail-soft delivery behavior for invites.
+  - production startup validation for Brevo API key and sender email.
+  - provider health now reports Brevo API-key and sender readiness without
+    returning secret values.
+- Remaining:
+  - invite accepted/revoked emails.
+  - billing and low-balance notifications.
+  - security notifications.
+  - dashboard screen for email delivery logs.
+
 ## Phase P3: Mock Quarantine And Provider Boundary Cleanup
 
 Goal:

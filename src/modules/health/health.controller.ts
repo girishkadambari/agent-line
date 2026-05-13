@@ -58,7 +58,9 @@ export class HealthController {
         webhookConfigured: this.hasConfig('STRIPE_WEBHOOK_SECRET'),
       },
       brevo: {
-        configured: this.hasConfig('BREVO_API_KEY'),
+        configured: this.hasConfig('BREVO_API_KEY') && this.hasConfig('BREVO_FROM_EMAIL'),
+        apiKeyConfigured: this.hasConfig('BREVO_API_KEY'),
+        fromEmailConfigured: this.hasConfig('BREVO_FROM_EMAIL'),
       },
     });
   }

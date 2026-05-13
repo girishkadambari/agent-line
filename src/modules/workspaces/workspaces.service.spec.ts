@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import type { EmailService } from '../email/email.service';
 import { WorkspacesService } from './workspaces.service';
 
 const context = {
@@ -43,6 +44,9 @@ describe('WorkspacesService', () => {
   const audit = {
     record: jest.fn().mockResolvedValue({}),
   } as unknown as AuditService;
+  const email = {
+    sendWorkspaceInviteEmail: jest.fn().mockResolvedValue({}),
+  } as unknown as EmailService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,7 +59,7 @@ describe('WorkspacesService', () => {
         count: jest.fn().mockResolvedValue(0),
       },
     } as unknown as PrismaService;
-    const service = new WorkspacesService(prisma, audit);
+    const service = new WorkspacesService(prisma, audit, email);
 
     await expect(service.removeMember(context, 'mem_123')).rejects.toMatchObject({
       code: 'conflict',
@@ -69,7 +73,7 @@ describe('WorkspacesService', () => {
         update: jest.fn().mockResolvedValue(memberWithUserFixture({ role: 'admin' })),
       },
     } as unknown as PrismaService;
-    const service = new WorkspacesService(prisma, audit);
+    const service = new WorkspacesService(prisma, audit, email);
 
     const result = await service.updateMember(context, 'mem_123', { role: 'admin' });
 
@@ -100,7 +104,7 @@ describe('WorkspacesService', () => {
         ),
       },
     } as unknown as PrismaService;
-    const service = new WorkspacesService(prisma, audit);
+    const service = new WorkspacesService(prisma, audit, email);
 
     const result = await service.createInvite(context, {
       email: 'new@example.com',
@@ -115,6 +119,15 @@ describe('WorkspacesService', () => {
         tokenHash: expect.not.stringMatching(/^inv_/),
       }),
     });
+    expect(email.sendWorkspaceInviteEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: context.workspaceId,
+        inviteId: result.id,
+        email: 'new@example.com',
+        role: 'developer',
+        rawToken: result.rawToken,
+      }),
+    );
   });
 
   it('creates a user-owned workspace with default project and billing balance', async () => {
@@ -145,7 +158,7 @@ describe('WorkspacesService', () => {
         }),
       ),
     } as unknown as PrismaService;
-    const service = new WorkspacesService(prisma, audit);
+    const service = new WorkspacesService(prisma, audit, email);
 
     const result = await service.createWorkspaceForUser('usr_123', { name: 'New workspace' });
 
@@ -196,7 +209,7 @@ describe('WorkspacesService', () => {
         }),
       ),
     } as unknown as PrismaService;
-    const service = new WorkspacesService(prisma, audit);
+    const service = new WorkspacesService(prisma, audit, email);
 
     const result = await service.acceptInvite('usr_123', 'new@example.com', { token: 'inv_raw_token_123456' });
 

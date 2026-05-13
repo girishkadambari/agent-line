@@ -34,30 +34,42 @@ email, production configuration, provider readiness, security, and deployment.
 - Prepare Twilio number/SMS staging flow.
 - Prepare Brevo transactional email for invites and security/billing events.
 
-## Next Implementation Phase: P0 Production Configuration Baseline
+## Next Implementation Phase: P2 Brevo Transactional Email
 
-Build:
+Status: first backend slice implemented.
 
-- Typed config service for app, database, Google OAuth, Twilio, Stripe, Brevo,
-  provider mode, Twilio mode, dashboard URL, and public API URL.
-- Environment-specific required variable validation.
-- `.env.example`, `.env.test.example`, `.env.staging.example`, and
-  `.env.production.example`.
-- Production guard:
-  - `NODE_ENV=production` cannot run with `TELECOM_PROVIDER=mock`.
-  - staging cannot run mock.
-  - local cannot run mock.
-  - unsafe missing provider config should fail closed.
-- Provider readiness endpoint that reports configured/not configured/readiness
-  without exposing secrets.
+Implemented:
+
+- `EmailDelivery` Prisma model and `EmailDeliveryStatus` enum.
+- Brevo provider adapter using the transactional SMTP API.
+- Workspace invite email template.
+- Invite create/resend email delivery path.
+- Idempotent invite email delivery key per invite/token.
+- Delivery ledger statuses:
+  - `queued`
+  - `sent`
+  - `failed`
+  - `skipped`
+- Missing Brevo local config logs a skipped delivery instead of pretending an
+  email was sent.
+- `GET /v1/email/deliveries` for authenticated delivery log inspection.
+- Production env validation now requires `BREVO_API_KEY` and
+  `BREVO_FROM_EMAIL`.
+- Provider readiness exposes Brevo API key/from-email configured state without
+  exposing secret values.
 
 Exit criteria:
 
-- Local Twilio test mode works with Twilio test credentials.
-- Mock mode still works for automated tests and contract tests.
-- Production mode refuses unsafe mock provider configuration.
-- Provider readiness can power dashboard Service Health.
-- No secret values are returned through APIs or logs.
+- Workspace invite flow can send real Brevo email when configured.
+- Missing/broken email provider config is visible in the delivery ledger.
+- Failed email delivery does not roll back the actual invite state.
+
+Remaining:
+
+- Invite accepted/revoked notification emails.
+- Billing top-up and low balance notification emails.
+- Security emails for login/API key events.
+- Dashboard view for email delivery logs.
 
 ## Following Phases
 
@@ -93,9 +105,16 @@ Exit criteria:
      - DB-backed OAuth/session e2e tests with mocked Google responses.
 
 2. **P2 Brevo transactional email**
-   - invite emails.
-   - billing/security notifications.
-   - email delivery logs.
+   - Status: in progress.
+   - Implemented:
+     - Brevo adapter.
+     - invite emails.
+     - email delivery logs.
+     - authenticated delivery log API.
+     - idempotent invite send keys.
+   - Remaining:
+     - billing/security notifications.
+     - email delivery dashboard/API.
 
 3. **P3 Mock quarantine**
    - remove product-facing mock routes.

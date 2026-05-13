@@ -32,10 +32,14 @@ Implemented:
 - `POST /v1/workspaces/current/invites`
 - `DELETE /v1/workspaces/current/invites/:inviteId`
 - `POST /v1/workspaces/current/invites/:inviteId/resend`
+- Brevo-backed invite email send path.
+- `EmailDelivery` ledger for sent, failed, and skipped invite emails.
+- `GET /v1/email/deliveries`
+- Idempotent invite email send keys.
 
 Remaining:
 
-- Invite email delivery.
+- Invite accepted/revoked notification emails.
 - Full role-based authorization enforcement.
 
 ## Open Gaps

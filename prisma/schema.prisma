@@ -34,6 +34,7 @@ model Workspace {
   auditEvents     AuditEvent[]
   internalEvents  InternalEvent[]
   activeSessions  UserSession[]
+  emailDeliveries EmailDelivery[]
 }
 
 model Project {
@@ -514,6 +515,31 @@ model AuditEvent {
   @@index([createdAt])
 }
 
+model EmailDelivery {
+  id                String              @id
+  workspaceId       String
+  recipientEmail    String
+  template          String
+  subject           String
+  status            EmailDeliveryStatus @default(queued)
+  provider          String?
+  providerMessageId String?
+  idempotencyKey    String              @unique
+  metadata          Json                @default("{}")
+  errorCode         String?
+  errorMessage      String?
+  sentAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId])
+  @@index([recipientEmail])
+  @@index([template])
+  @@index([status])
+}
+
 enum WorkspaceRole {
   owner
   admin
@@ -628,4 +654,11 @@ enum WebhookDeliveryStatus {
   failed
   retrying
   exhausted
+}
+
+enum EmailDeliveryStatus {
+  queued
+  sent
+  failed
+  skipped
 }
