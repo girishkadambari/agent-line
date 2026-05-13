@@ -9,6 +9,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmailModule } from './modules/email/email.module';
 import { HealthModule } from './modules/health/health.module';
 import { MessagesModule } from './modules/messages/messages.module';
@@ -36,6 +37,7 @@ import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks
     BillingModule,
     ContactsModule,
     ConversationsModule,
+    DashboardModule,
     MessagesModule,
     CallsModule,
     WebhooksModule,

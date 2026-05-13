@@ -268,6 +268,28 @@ Exit criteria:
 - Mock is still available for automated tests and contract tests.
 - Tests can still use mock deterministically.
 
+## Phase P3A: Core Dashboard Summary
+
+Goal:
+
+Give the frontend one backend-owned overview response for the core product
+surface instead of forcing the dashboard to stitch many APIs or drift into mock
+summary data.
+
+Current implementation status:
+
+- Backend complete:
+  - `GET /v1/dashboard/summary`
+  - core counts for agents, numbers, conversations, messages, calls, and
+    webhooks
+  - recent calls
+  - recent conversations
+  - daily/monthly usage event and cost totals
+  - billing balance snapshot
+  - safe provider readiness flags for Twilio, Stripe, and Brevo
+- Remaining:
+  - frontend overview integration.
+
 ## Phase P4: Twilio Numbers And SMS
 
 Goal:
@@ -382,6 +404,23 @@ Exit criteria:
 - Real inbound and outbound calls create accurate AgentLine records.
 - Call status and billing settle from Twilio callbacks.
 - Customer webhooks receive clean call lifecycle events.
+
+Current implementation status:
+
+- In progress:
+  - outbound call creation uses the configured provider adapter.
+  - Twilio voice prompt and speech callbacks can create transcript turns for a
+    live call.
+  - call transfer and manual end routes exist.
+  - Twilio voice status callbacks are idempotent through `ProviderRawEvent`.
+  - duplicate status callbacks do not create duplicate lifecycle webhook events
+    or duplicate billing settlement attempts.
+  - late callbacks cannot move a terminal call back to a non-terminal state.
+- Remaining:
+  - inbound call record creation from the Twilio inbound voice webhook.
+  - recording callbacks and recording consent settings.
+  - provider-duration final settlement with adjustment ledger.
+  - richer lifecycle timeline and provider failure reason storage.
 
 ## Phase P6: Stripe Test And Live Billing
 

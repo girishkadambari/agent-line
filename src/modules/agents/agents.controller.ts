@@ -12,7 +12,7 @@ import { AgentsService } from './agents.service';
 @UseGuards(AuthContextGuard, CsrfGuard)
 @Controller('agents')
 export class AgentsController {
-  constructor(private readonly agents: AgentsService) {}
+  constructor(private readonly agents: AgentsService) { }
 
   @Get()
   listAgents(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {

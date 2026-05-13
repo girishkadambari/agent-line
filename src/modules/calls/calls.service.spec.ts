@@ -1,4 +1,5 @@
 import type { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
@@ -321,5 +322,124 @@ describe('CallsService', () => {
         type: 'agent.call.transcript_updated',
       }),
     );
+  });
+
+  it('records Twilio terminal status once and emits one ended event', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'in_progress',
+            durationSeconds: 0,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+            durationSeconds: 42,
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'completed',
+      durationSeconds: 42,
+      rawPayload: { CallSid: 'CA123', CallStatus: 'completed' },
+    });
+
+    expect(prisma.providerRawEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        providerEventId: 'CA123:status:completed',
+        eventType: 'twilio.voice.status',
+      }),
+    });
+    expect(usage.finalizeVoiceCall).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      callId: 'call_123',
+      durationSeconds: 42,
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.ended',
+      }),
+    );
+  });
+
+  it('suppresses duplicate Twilio status callbacks before webhook emission', async () => {
+    const duplicateError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: '5.22.0',
+    });
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+          }),
+        ),
+        update: jest.fn(),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockRejectedValue(duplicateError),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'completed',
+      durationSeconds: 42,
+      rawPayload: { CallSid: 'CA123', CallStatus: 'completed' },
+    });
+
+    expect(result).toMatchObject({ duplicate: true, ignored: false });
+    expect(prisma.call.update).not.toHaveBeenCalled();
+    expect(usage.finalizeVoiceCall).not.toHaveBeenCalled();
+    expect(events.create).not.toHaveBeenCalled();
+  });
+
+  it('does not regress an already terminal call from a late provider callback', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+          }),
+        ),
+        update: jest.fn(),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'ringing',
+      rawPayload: { CallSid: 'CA123', CallStatus: 'ringing' },
+    });
+
+    expect(result).toMatchObject({ duplicate: false, ignored: true });
+    expect(prisma.call.update).not.toHaveBeenCalled();
+    expect(usage.finalizeVoiceCall).not.toHaveBeenCalled();
+    expect(events.create).not.toHaveBeenCalled();
   });
 });

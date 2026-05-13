@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -35,7 +36,7 @@ export class CallsService {
     @Inject(TELECOM_PROVIDER) private readonly telecomProvider: TelecomProvider,
     private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
-  ) { }
+  ) {}
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
     const agent = await this.findAgentOrThrow(context, input.agentId);
@@ -224,6 +225,22 @@ export class CallsService {
     }
 
     const isTerminal = this.terminalCallStatuses.has(status);
+    const recorded = await this.recordProviderRawEvent({
+      workspaceId: existing.workspaceId,
+      projectId: existing.projectId,
+      provider: input.provider,
+      providerEventId: `${input.providerCallId}:status:${input.status}`,
+      eventType: 'twilio.voice.status',
+      payload: input.rawPayload,
+    });
+    if (!recorded) {
+      return { received: true, duplicate: true, ignored: false, call: serializeCall(existing) };
+    }
+
+    if (this.terminalCallStatuses.has(existing.status)) {
+      return { received: true, duplicate: false, ignored: true, call: serializeCall(existing) };
+    }
+
     const call = await this.prisma.call.update({
       where: { id: existing.id },
       data: {
@@ -490,6 +507,35 @@ export class CallsService {
       return status;
     }
     return 'queued';
+  }
+
+  private async recordProviderRawEvent(input: {
+    workspaceId: string;
+    projectId: string;
+    provider: 'twilio';
+    providerEventId: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+  }) {
+    try {
+      await this.prisma.providerRawEvent.create({
+        data: {
+          id: createId('prevt'),
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          provider: input.provider,
+          providerEventId: input.providerEventId,
+          eventType: input.eventType,
+          payload: input.payload as Prisma.InputJsonValue,
+        },
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return false;
+      }
+      throw error;
+    }
   }
 
   private async findAgentOrThrow(context: RequestContext, agentId: string) {

@@ -42,6 +42,43 @@ Remaining:
 - Invite accepted/revoked notification emails.
 - Full role-based authorization enforcement.
 
+### Dashboard Summary Endpoint
+
+Status: closed
+
+Implemented:
+
+- `GET /v1/dashboard/summary`
+- Workspace/project counts for agents, active agents, numbers, active numbers,
+  conversations, messages, calls, and webhook endpoints.
+- Recent calls and recent conversations.
+- Daily and monthly usage event/cost totals.
+- Billing balance snapshot.
+- Safe provider readiness flags for Twilio, Stripe, and Brevo.
+
+Remaining:
+
+- Frontend overview page should switch to this endpoint instead of stitching
+  many separate calls.
+
+### Twilio Voice Status Callbacks
+
+Status: partially closed
+
+Implemented:
+
+- Twilio call status callbacks are recorded in `ProviderRawEvent`.
+- Duplicate callback retries are suppressed before call updates, billing
+  settlement, and customer webhook delivery.
+- Calls already in a terminal state cannot be regressed by late provider
+  callbacks.
+
+Remaining:
+
+- Inbound call creation from Twilio voice webhooks.
+- Recording callbacks and recording consent controls.
+- Final billing settlement with explicit adjustment ledger.
+
 ## Open Gaps
 
 ### Real Auth, Google SSO, And User Profile
@@ -63,15 +100,6 @@ Reason:
   automation can continue using API keys. DB-backed OAuth/session e2e tests now
   cover the callback, session cookies, CSRF writes, workspace switching, a
   shared-auth product route, logout, and invalid state rejection.
-
-### Dashboard Summary Endpoint
-
-Priority: P2
-
-Needed:
-
-- One API response for overview totals, recent calls, recent conversations,
-  usage, balance, and health state.
 
 ### Provider Runtime Status
 

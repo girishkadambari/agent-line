@@ -33,6 +33,8 @@ email, production configuration, provider readiness, security, and deployment.
 - Harden Stripe test/live separation.
 - Prepare Twilio number/SMS staging flow.
 - Prepare Brevo transactional email for invites and security/billing events.
+- Provide core dashboard summary APIs so frontend views use backend source of
+  truth.
 
 ## Next Implementation Phase: P2 Brevo Transactional Email
 
@@ -116,6 +118,19 @@ Remaining:
      - billing/security notifications.
      - email delivery dashboard/API.
 
+2.5. **P2 Core dashboard summary**
+   - Status: backend complete.
+   - Implemented:
+     - `GET /v1/dashboard/summary`
+     - counts for agents, numbers, conversations, messages, calls, and webhooks
+     - recent calls
+     - recent conversations
+     - daily/monthly usage totals
+     - billing balance snapshot
+     - safe Twilio/Stripe/Brevo readiness flags
+   - Remaining:
+     - frontend overview integration.
+
 3. **P3 Mock quarantine**
    - remove product-facing mock routes.
    - no production fallback to mock.
@@ -132,11 +147,22 @@ Remaining:
    - billing authorization before provider write.
 
 5. **P5 Twilio voice**
-   - inbound/outbound calls.
-   - status callbacks.
-   - recordings.
-   - transfer.
-   - final billing settlement.
+   - Status: in progress.
+   - Implemented:
+     - outbound call creation through the provider adapter.
+     - inbound voice prompt/speech webhook handling.
+     - transcript turn capture from Twilio speech callbacks.
+     - transfer and manual end routes.
+     - idempotent Twilio voice status callbacks using `ProviderRawEvent`.
+     - duplicate Twilio status callbacks are suppressed before usage settlement
+       and customer webhook delivery.
+     - late provider callbacks cannot regress already terminal call records.
+   - Remaining:
+     - inbound call record creation from Twilio webhook.
+     - recording callbacks and consent controls.
+     - final billing settlement from provider duration/cost with adjustment
+       ledger.
+     - richer call lifecycle timeline and failure reasons.
 
 6. **P6 Stripe test/live billing**
    - checkout top-ups.
