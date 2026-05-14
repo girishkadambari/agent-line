@@ -249,6 +249,41 @@ Stripe sandbox setup:
 - Growth recurring product: `prod_UW69dGEI04cpjg`
 - Growth monthly price: `price_1TX3x7AbZABakwnSKh2k67lS`
 
+## 2026-05-15: Stripe Billing Dashboard Integration
+
+**Status:** implemented
+
+Implemented:
+
+- Dashboard billing API client now supports:
+  - `GET /v1/billing/plans`
+  - `GET /v1/billing/subscription`
+  - `POST /v1/billing/subscription-checkout-sessions`
+- Billing page now renders real backend billing state:
+  - current plan
+  - subscription status
+  - Stripe customer id
+  - trial/included allowance grants
+  - allowance consumed/remaining progress
+  - prepaid balance
+  - MTD usage spend
+  - Stripe readiness/metering status
+  - billing transactions
+- Billing page supports:
+  - $25 prepaid top-up checkout
+  - Starter/Growth subscription Checkout
+  - Stripe Customer Portal session
+- Added backend coverage for:
+  - subscription Checkout session creation
+  - trial allowance settlement before prepaid balance
+
+Verification:
+
+- Backend `npm run typecheck` passed.
+- Backend `npm test` passed: 30 suites, 130 tests.
+- Backend `npm run build` passed.
+- Frontend `npm run build` passed.
+
 ## 2026-05-07: Backend Gap Register
 
 **Status:** done

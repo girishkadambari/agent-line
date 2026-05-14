@@ -148,8 +148,8 @@ export class BillingService {
   }
 
   async getSubscription(context: RequestContext) {
-    const [account, subscription, allowanceGrants] = await Promise.all([
-      this.findOrCreateStripeBillingAccount(context.workspaceId),
+    const account = await this.createSignupBillingState(context.workspaceId);
+    const [subscription, allowanceGrants] = await Promise.all([
       this.prisma.billingSubscription.findFirst({
         where: { workspaceId: context.workspaceId },
         orderBy: { createdAt: 'desc' },

@@ -29,6 +29,12 @@ describe('BillingService', () => {
         url: 'https://checkout.stripe.com/c/pay/cs_123',
         customer: 'cus_123',
       }),
+      createSubscriptionCheckoutSession: jest.fn().mockResolvedValue({
+        id: 'cs_sub_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_sub_123',
+        customer: 'cus_123',
+        subscription: 'sub_123',
+      }),
       createPortalSession: jest.fn().mockResolvedValue({
         id: 'bps_123',
         url: 'https://billing.stripe.com/session/bps_123',
@@ -158,6 +164,59 @@ describe('BillingService', () => {
     });
   });
 
+  it('settles usage against active trial allowance before prepaid balance', async () => {
+    const prisma = {
+      billingAllowanceGrant: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'balg_trial',
+            workspaceId: 'ws_123',
+            subscriptionId: null,
+            source: 'trial',
+            amountCents: 500,
+            consumedCents: 125,
+            currency: 'USD',
+            periodStart: now,
+            periodEnd: new Date('2026-05-21T00:00:00.000Z'),
+            expiresAt: new Date('2026-05-21T00:00:00.000Z'),
+            metadata: {},
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      billingSubscription: {
+        findFirst: jest.fn(),
+      },
+      billingBalance: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.settleUsageCharge({
+      workspaceId: 'ws_123',
+      cents: 50,
+      occurredAt: now,
+    });
+
+    expect(result).toMatchObject({
+      settlementMode: UsageSettlementMode.trial_allowance,
+      settlementStatus: 'internal_debited',
+      allowanceGrantId: 'balg_trial',
+    });
+    expect(prisma.billingAllowanceGrant.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'balg_trial',
+        consumedCents: { lte: 450 },
+      },
+      data: { consumedCents: { increment: 50 } },
+    });
+    expect(prisma.billingBalance.updateMany).not.toHaveBeenCalled();
+  });
+
   it('creates Stripe checkout session and pending transaction', async () => {
     const prisma = {
       billingAccount: {
@@ -215,6 +274,119 @@ describe('BillingService', () => {
       }),
     );
     expect(result.mode).toBe('test');
+  });
+
+  it('creates Stripe subscription checkout session for configured paid plan', async () => {
+    const prisma = {
+      billingAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'bacc_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+          status: 'active',
+          defaultCurrency: 'USD',
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+      billingTransaction: {
+        create: jest.fn().mockResolvedValue({
+          id: 'btxn_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerEventId: null,
+          type: 'subscription_checkout_session.created',
+          amountCents: 2900,
+          currency: 'USD',
+          status: 'pending',
+          metadata: { checkoutSessionId: 'cs_sub_123' },
+          createdAt: now,
+        }),
+      },
+    } as unknown as PrismaService;
+    const { service, stripe } = createService(prisma);
+    const previous = process.env.STRIPE_STARTER_PRICE_ID;
+    process.env.STRIPE_STARTER_PRICE_ID = 'price_starter';
+
+    try {
+      const result = await service.createSubscriptionCheckoutSession(
+        { workspaceId: 'ws_123', projectId: 'proj_123', apiKeyId: 'key_123' },
+        {
+          planKey: 'starter',
+          successUrl: 'https://app.agentline.dev/billing?subscription=success',
+          cancelUrl: 'https://app.agentline.dev/billing?subscription=cancelled',
+        },
+      );
+
+      expect(result.url).toBe('https://checkout.stripe.com/c/pay/cs_sub_123');
+      expect(stripe.createSubscriptionCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws_123',
+          customerId: 'cus_123',
+          planKey: 'starter',
+          priceId: 'price_starter',
+          trialDays: 14,
+        }),
+      );
+      expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'subscription_checkout_session.created',
+          amountCents: 2900,
+        }),
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.STRIPE_STARTER_PRICE_ID;
+      } else {
+        process.env.STRIPE_STARTER_PRICE_ID = previous;
+      }
+    }
+  });
+
+  it('backfills signup billing state when subscription summary is loaded', async () => {
+    const prisma = {
+      billingAccount: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: 'bacc_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+          status: 'active',
+          defaultCurrency: 'USD',
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+      workspace: {
+        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+      },
+      billingAllowanceGrant: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      billingSubscription: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.getSubscription({
+      workspaceId: 'ws_123',
+      projectId: 'proj_123',
+      apiKeyId: 'key_123',
+    });
+
+    expect(result.billingAccount.providerCustomerId).toBe('cus_123');
+    expect(prisma.billingAllowanceGrant.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: 'ws_123',
+        source: 'trial',
+        amountCents: 500,
+      }),
+    });
   });
 
   it('returns Stripe configuration status without exposing secrets', () => {
