@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Contact } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import type { UpdateContactInput } from '../../domain/schemas';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeContact } from './contacts.serializer';
 
 @Injectable()
 export class ContactsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsService,
+    private readonly webhooks: WebhooksService,
+  ) {}
 
   async listContacts(context: RequestContext, limit: number) {
     const contacts = await this.prisma.contact.findMany({
@@ -59,6 +65,8 @@ export class ContactsService {
       },
     });
 
+    await this.emitContactEvent(context, 'agent.contact.updated', contact);
+
     return serializeContact(contact);
   }
 
@@ -75,7 +83,7 @@ export class ContactsService {
       return existing;
     }
 
-    return this.prisma.contact.create({
+    const contact = await this.prisma.contact.create({
       data: {
         id: createId('ctc'),
         workspaceId: context.workspaceId,
@@ -83,9 +91,30 @@ export class ContactsService {
         phoneNumber,
       },
     });
+    await this.emitContactEvent(context, 'agent.contact.created', contact);
+
+    return contact;
   }
 
   serialize = serializeContact;
+
+  private async emitContactEvent(context: RequestContext, type: string, contact: Contact) {
+    const event = await this.events.create({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type,
+      resourceType: 'contact',
+      resourceId: contact.id,
+      payload: {
+        contactId: contact.id,
+        phoneNumber: contact.phoneNumber,
+        displayName: contact.displayName,
+        createdAt: contact.createdAt.toISOString(),
+        updatedAt: contact.updatedAt.toISOString(),
+      },
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
+  }
 
   private async findContactOrThrow(context: RequestContext, id: string) {
     const contact = await this.prisma.contact.findFirst({

@@ -8,6 +8,14 @@ const context = {
 };
 
 describe('ContactsService', () => {
+  function createService(prisma: PrismaService) {
+    return new ContactsService(
+      prisma,
+      { create: jest.fn().mockResolvedValue({ id: 'evt_123' }) } as never,
+      { createDeliveriesForEvent: jest.fn().mockResolvedValue([]) } as never,
+    );
+  }
+
   it('lists contacts with activity counts', async () => {
     const prisma = {
       contact: {
@@ -26,7 +34,7 @@ describe('ContactsService', () => {
         ]),
       },
     } as unknown as PrismaService;
-    const service = new ContactsService(prisma);
+    const service = createService(prisma);
 
     await expect(service.listContacts(context, 50)).resolves.toMatchObject({
       data: [
@@ -55,7 +63,7 @@ describe('ContactsService', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new ContactsService(prisma);
+    const service = createService(prisma);
 
     await expect(
       service.updateContact(context, 'ctc_123', { displayName: 'Ada Lovelace' }),
@@ -77,21 +85,32 @@ describe('ContactsService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'ctc_123', phoneNumber: '+14155550100' }),
       },
     } as unknown as PrismaService;
-    const service = new ContactsService(prisma);
+    const service = createService(prisma);
 
-    await expect(service.findOrCreateByPhoneNumber(context, '+14155550100')).resolves.toMatchObject({
-      id: 'ctc_123',
-    });
+    await expect(service.findOrCreateByPhoneNumber(context, '+14155550100')).resolves.toMatchObject(
+      {
+        id: 'ctc_123',
+      },
+    );
   });
 
   it('creates contact when missing', async () => {
     const prisma = {
       contact: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 'ctc_new', phoneNumber: '+14155550100' }),
+        create: jest.fn().mockResolvedValue({
+          id: 'ctc_new',
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          phoneNumber: '+14155550100',
+          displayName: null,
+          metadata: {},
+          createdAt: new Date('2026-05-07T00:00:00.000Z'),
+          updatedAt: new Date('2026-05-07T00:00:00.000Z'),
+        }),
       },
     } as unknown as PrismaService;
-    const service = new ContactsService(prisma);
+    const service = createService(prisma);
 
     const contact = await service.findOrCreateByPhoneNumber(context, '+14155550100');
 

@@ -128,7 +128,7 @@ async function main() {
       projectId,
       url: 'https://example.com/webhooks/agentline',
       secret: 'whsec_local',
-      events: ['agent.message.received', 'agent.call.ended', 'webhook.test'],
+      events: ['agent.message.*', 'agent.call.*', 'agent.number.*', 'webhook.test'],
     },
   });
 

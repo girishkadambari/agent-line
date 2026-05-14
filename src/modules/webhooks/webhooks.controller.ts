@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -25,6 +35,11 @@ export class WebhooksController {
     return this.webhooks.listEndpoints(context, parseLimit(limit));
   }
 
+  @Get('events')
+  listEventCatalog() {
+    return success(this.webhooks.listEventCatalog());
+  }
+
   @Post()
   async createEndpoint(
     @CurrentContext() context: RequestContext,
@@ -39,7 +54,9 @@ export class WebhooksController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateWebhookSchema)) body: unknown,
   ) {
-    return success(await this.webhooks.updateEndpoint(context, id, updateWebhookSchema.parse(body)));
+    return success(
+      await this.webhooks.updateEndpoint(context, id, updateWebhookSchema.parse(body)),
+    );
   }
 
   @Delete(':id')

@@ -1242,3 +1242,36 @@ Verification:
 - `npm run typecheck` passed.
 - `npm run build` passed.
 - targeted `eslint` passed.
+
+## 2026-05-13: P7 Webhook Event Catalog And Core Resource Events
+
+**Status:** implemented
+
+Implemented:
+
+- Added a backend webhook event catalog endpoint: `GET /v1/webhooks/events`.
+- Added production-useful webhook families:
+  - `agent.created`, `agent.updated`, `agent.disabled`
+  - `agent.number.provisioned`, `agent.number.imported`,
+    `agent.number.attached`, `agent.number.detached`,
+    `agent.number.released`, `agent.number.failed`
+  - `agent.conversation.created`, `agent.conversation.updated`
+  - `agent.contact.created`, `agent.contact.updated`
+- Added wildcard catalog entries for:
+  - `*`
+  - `agent.*`
+  - `agent.call.*`
+  - `agent.message.*`
+  - `agent.number.*`
+  - `agent.conversation.*`
+  - `agent.contact.*`
+- Updated the local seed webhook subscription to use wildcard families.
+- Updated `WEBHOOK_EVENT_STANDARD.md` with the expanded event taxonomy and
+  payload expectations.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm test -- agents.service.spec.ts numbers.service.spec.ts contacts.service.spec.ts conversations.service.spec.ts webhooks.service.spec.ts messages.service.spec.ts calls.service.spec.ts` passed.
+- `npm run build` passed.
+- targeted backend `eslint` passed.

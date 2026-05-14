@@ -237,6 +237,8 @@ Remaining:
      - exact, prefix wildcard, and global wildcard event subscriptions.
      - richer call/message webhook payloads with primary resource data.
      - first-class `agent.call.failed` webhook events for failed live calls.
+     - `GET /v1/webhooks/events` event catalog.
+     - agent, number, conversation, and contact resource lifecycle events.
    - Remaining:
      - background delivery worker.
      - automatic retry schedule.

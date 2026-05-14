@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { PhoneNumber } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -6,9 +7,11 @@ import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import type { TelecomProvider } from '../../domain/provider';
 import type { CreateNumberInput, ImportNumberInput, UpdateNumberInput } from '../../domain/schemas';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeNumber } from './numbers.serializer';
 
 @Injectable()
@@ -17,6 +20,8 @@ export class NumbersService {
     private readonly prisma: PrismaService,
     @Inject(TELECOM_PROVIDER) private readonly telecomProvider: TelecomProvider,
     private readonly usage: UsageService,
+    private readonly events: EventsService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   async listNumbers(context: RequestContext, limit: number) {
@@ -83,17 +88,26 @@ export class NumbersService {
           providerNumberId: provisioned.providerNumberId,
         },
       });
+      await this.emitNumberEvent(context, 'agent.number.provisioned', number);
+      if (input.agentId) {
+        await this.emitNumberEvent(context, 'agent.number.attached', number);
+      }
       return serializeNumber(number);
     } catch (error) {
       if (providerNumberId) {
         await this.telecomProvider.releaseNumber({ providerNumberId }).catch(() => undefined);
       }
-      await this.prisma.phoneNumber
+      const failedNumber = await this.prisma.phoneNumber
         .update({
           where: { id: numberId },
           data: { status: 'failed' },
         })
         .catch(() => undefined);
+      if (failedNumber) {
+        await this.emitNumberEvent(context, 'agent.number.failed', failedNumber, {
+          failureReason: error instanceof Error ? error.message : 'Number provisioning failed.',
+        });
+      }
       await this.usage.voidUsageForFailedOperation({
         workspaceId: context.workspaceId,
         resourceType: 'phone_number',
@@ -139,6 +153,10 @@ export class NumbersService {
           providerNumberId: imported.providerNumberId,
         },
       });
+      await this.emitNumberEvent(context, 'agent.number.imported', updated);
+      if (input.agentId) {
+        await this.emitNumberEvent(context, 'agent.number.attached', updated);
+      }
       return serializeNumber(updated);
     }
 
@@ -158,6 +176,11 @@ export class NumbersService {
       },
     });
 
+    await this.emitNumberEvent(context, 'agent.number.imported', number);
+    if (input.agentId) {
+      await this.emitNumberEvent(context, 'agent.number.attached', number);
+    }
+
     return serializeNumber(number);
   }
 
@@ -167,7 +190,7 @@ export class NumbersService {
   }
 
   async updateNumber(context: RequestContext, id: string, input: UpdateNumberInput) {
-    await this.findNumberOrThrow(context, id);
+    const existing = await this.findNumberOrThrow(context, id);
 
     if (input.agentId) {
       await this.assertAgentExists(context, input.agentId);
@@ -179,6 +202,15 @@ export class NumbersService {
         agentId: input.agentId,
       },
     });
+
+    if (existing.agentId !== number.agentId) {
+      await this.emitNumberEvent(
+        context,
+        number.agentId ? 'agent.number.attached' : 'agent.number.detached',
+        number,
+        { previousAgentId: existing.agentId },
+      );
+    }
 
     return serializeNumber(number);
   }
@@ -207,6 +239,10 @@ export class NumbersService {
       data: { agentId: null },
     });
 
+    await this.emitNumberEvent(context, 'agent.number.detached', updated, {
+      previousAgentId: agentId,
+    });
+
     return serializeNumber(updated);
   }
 
@@ -229,7 +265,40 @@ export class NumbersService {
       },
     });
 
+    await this.emitNumberEvent(context, 'agent.number.released', released, {
+      previousAgentId: number.agentId,
+    });
+
     return serializeNumber(released);
+  }
+
+  private async emitNumberEvent(
+    context: RequestContext,
+    type: string,
+    number: PhoneNumber,
+    extra: Record<string, unknown> = {},
+  ) {
+    const event = await this.events.create({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type,
+      resourceType: 'phone_number',
+      resourceId: number.id,
+      payload: {
+        numberId: number.id,
+        agentId: number.agentId,
+        phoneNumber: number.phoneNumber,
+        country: number.country,
+        areaCode: number.areaCode,
+        capabilities: number.capabilities,
+        status: number.status,
+        provider: number.provider,
+        createdAt: number.createdAt.toISOString(),
+        updatedAt: number.updatedAt.toISOString(),
+        ...extra,
+      },
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
   }
 
   private async findNumberOrThrow(context: RequestContext, id: string) {

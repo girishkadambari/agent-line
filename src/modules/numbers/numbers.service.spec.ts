@@ -16,10 +16,24 @@ function createService(prisma: PrismaService) {
     recordNumberProvisioned: jest.fn().mockResolvedValue({ id: 'use_123' }),
     voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 100 }),
   } as unknown as UsageService;
+  const events = {
+    create: jest.fn().mockResolvedValue({ id: 'evt_123' }),
+  };
+  const webhooks = {
+    createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
+  };
 
   return {
-    service: new NumbersService(prisma, new MockProviderService(), usage),
+    service: new NumbersService(
+      prisma,
+      new MockProviderService(),
+      usage,
+      events as never,
+      webhooks as never,
+    ),
     usage,
+    events,
+    webhooks,
   };
 }
 
@@ -53,7 +67,7 @@ describe('NumbersService', () => {
         update: jest.fn().mockResolvedValue(numberFixture()),
       },
     } as unknown as PrismaService;
-    const { service, usage } = createService(prisma);
+    const { service, usage, events } = createService(prisma);
 
     const result = await service.provisionNumber(context, {
       agentId: 'agt_123',
@@ -79,6 +93,12 @@ describe('NumbersService', () => {
       agentId: 'agt_123',
       numberId: createdNumberId,
     });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.number.attached',
+        resourceType: 'phone_number',
+      }),
+    );
   });
 
   it('does not create number when usage debit fails', async () => {
@@ -93,7 +113,13 @@ describe('NumbersService', () => {
     const usage = {
       recordNumberProvisioned: jest.fn().mockRejectedValue(new Error('insufficient balance')),
     } as unknown as UsageService;
-    const service = new NumbersService(prisma, new MockProviderService(), usage);
+    const service = new NumbersService(
+      prisma,
+      new MockProviderService(),
+      usage,
+      {} as never,
+      {} as never,
+    );
 
     await expect(
       service.provisionNumber(context, {
@@ -136,7 +162,13 @@ describe('NumbersService', () => {
       recordNumberProvisioned: jest.fn(),
       voidUsageForFailedOperation: jest.fn(),
     } as unknown as UsageService;
-    const service = new NumbersService(prisma, provider, usage);
+    const service = new NumbersService(
+      prisma,
+      provider,
+      usage,
+      { create: jest.fn().mockResolvedValue({ id: 'evt_123' }) } as never,
+      { createDeliveriesForEvent: jest.fn().mockResolvedValue([]) } as never,
+    );
 
     const result = await service.importNumber(context, {
       agentId: 'agt_123',

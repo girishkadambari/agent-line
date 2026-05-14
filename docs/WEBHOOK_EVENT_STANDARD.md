@@ -42,6 +42,59 @@ Webhook endpoint `events` support:
 
 ## Event Families
 
+### Wildcards
+
+- `*`
+- `agent.*`
+- `agent.call.*`
+- `agent.message.*`
+- `agent.number.*`
+- `agent.conversation.*`
+- `agent.contact.*`
+
+Wildcard subscriptions are recommended during development. Production
+integrations should narrow to the exact families they process.
+
+### Agents
+
+- `agent.created`
+- `agent.updated`
+- `agent.disabled`
+
+Agent payloads include:
+
+- `agentId`
+- `name`
+- `description`
+- `mode`
+- `status`
+- `voice`
+- `webhookUrl`
+- `createdAt`
+- `updatedAt`
+
+### Numbers
+
+- `agent.number.provisioned`
+- `agent.number.imported`
+- `agent.number.attached`
+- `agent.number.detached`
+- `agent.number.released`
+- `agent.number.failed`
+
+Number payloads include:
+
+- `numberId`
+- `agentId`
+- `phoneNumber`
+- `country`
+- `areaCode`
+- `capabilities`
+- `status`
+- `provider`
+- `createdAt`
+- `updatedAt`
+
 ### Messages
 
 - `agent.message.sent`
@@ -93,6 +146,35 @@ Call payloads include:
 - `endedAt`
 
 Transcript update payloads also include `transcriptTurn`.
+
+### Conversations
+
+- `agent.conversation.created`
+- `agent.conversation.updated`
+
+Conversation payloads include:
+
+- `conversationId`
+- `agentId`
+- `contactId`
+- `channel`
+- `status`
+- `lastActivityAt`
+- `createdAt`
+- `updatedAt`
+
+### Contacts
+
+- `agent.contact.created`
+- `agent.contact.updated`
+
+Contact payloads include:
+
+- `contactId`
+- `phoneNumber`
+- `displayName`
+- `createdAt`
+- `updatedAt`
 
 ## Delivery Rules
 

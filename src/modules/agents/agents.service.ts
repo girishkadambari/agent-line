@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { AgentStatus, Prisma, type Agent } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { list } from '../../common/api/api-response';
@@ -11,14 +11,20 @@ import { serializeCall } from '../calls/calls.serializer';
 import { serializeConversation } from '../conversations/conversations.serializer';
 import { serializeMessage } from '../messages/messages.serializer';
 import { serializeNumber } from '../numbers/numbers.serializer';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { serializeUsageEvent } from '../usage/usage.serializer';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeWebhookDelivery } from '../webhooks/webhooks.serializer';
 import { serializeAgent } from './agents.serializer';
 
 @Injectable()
 export class AgentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsService,
+    private readonly webhooks: WebhooksService,
+  ) {}
 
   async listAgents(context: RequestContext, limit: number) {
     const agents = await this.prisma.agent.findMany({
@@ -51,6 +57,8 @@ export class AgentsService {
         metadata: input.metadata as Prisma.InputJsonValue,
       },
     });
+
+    await this.emitAgentEvent(context, 'agent.created', agent);
 
     return serializeAgent(agent);
   }
@@ -202,6 +210,8 @@ export class AgentsService {
       },
     });
 
+    await this.emitAgentEvent(context, 'agent.updated', agent);
+
     return serializeAgent(agent);
   }
 
@@ -212,6 +222,8 @@ export class AgentsService {
       where: { id },
       data: { status: 'disabled' },
     });
+
+    await this.emitAgentEvent(context, 'agent.disabled', agent);
 
     return serializeAgent(agent);
   }
@@ -238,6 +250,45 @@ export class AgentsService {
       { id: 'verse', name: 'Verse', mode: 'hosted' },
       { id: 'aria', name: 'Aria', mode: 'hosted' },
     ];
+  }
+
+  private async emitAgentEvent(context: RequestContext, type: string, agent: Agent) {
+    const event = await this.events.create({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type,
+      resourceType: 'agent',
+      resourceId: agent.id,
+      payload: this.buildAgentEventPayload(agent),
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
+  }
+
+  private buildAgentEventPayload(
+    agent: Pick<
+      Agent,
+      | 'id'
+      | 'name'
+      | 'description'
+      | 'mode'
+      | 'status'
+      | 'voice'
+      | 'webhookUrl'
+      | 'createdAt'
+      | 'updatedAt'
+    >,
+  ) {
+    return {
+      agentId: agent.id,
+      name: agent.name,
+      description: agent.description,
+      mode: agent.mode,
+      status: agent.status as AgentStatus,
+      voice: agent.voice,
+      webhookUrl: agent.webhookUrl,
+      createdAt: agent.createdAt.toISOString(),
+      updatedAt: agent.updatedAt.toISOString(),
+    };
   }
 
   private resolveLastActivityAt(

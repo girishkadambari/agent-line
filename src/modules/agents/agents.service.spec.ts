@@ -175,13 +175,28 @@ function providerRawEventFixture(overrides = {}) {
 }
 
 describe('AgentsService', () => {
+  function createService(prisma: PrismaService) {
+    const events = {
+      create: jest.fn().mockResolvedValue({ id: 'evt_123' }),
+    };
+    const webhooks = {
+      createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
+    };
+
+    return {
+      service: new AgentsService(prisma, events as never, webhooks as never),
+      events,
+      webhooks,
+    };
+  }
+
   it('creates an agent scoped to the request context', async () => {
     const prisma = {
       agent: {
         create: jest.fn().mockResolvedValue(agentFixture()),
       },
     } as unknown as PrismaService;
-    const service = new AgentsService(prisma);
+    const { service, events } = createService(prisma);
 
     const result = await service.createAgent(context, {
       name: 'Support Agent',
@@ -198,6 +213,12 @@ describe('AgentsService', () => {
       }),
     });
     expect(result.id).toBe('agt_123');
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.created',
+        resourceType: 'agent',
+      }),
+    );
   });
 
   it('lists agents with documented pagination shape', async () => {
@@ -206,7 +227,7 @@ describe('AgentsService', () => {
         findMany: jest.fn().mockResolvedValue([agentFixture()]),
       },
     } as unknown as PrismaService;
-    const service = new AgentsService(prisma);
+    const { service } = createService(prisma);
 
     await expect(service.listAgents(context, 10)).resolves.toMatchObject({
       data: [{ id: 'agt_123' }],
@@ -221,7 +242,7 @@ describe('AgentsService', () => {
         update: jest.fn().mockResolvedValue(agentFixture({ status: 'disabled' })),
       },
     } as unknown as PrismaService;
-    const service = new AgentsService(prisma);
+    const { service } = createService(prisma);
 
     const result = await service.disableAgent(context, 'agt_123');
 
@@ -269,7 +290,7 @@ describe('AgentsService', () => {
         findMany: jest.fn().mockResolvedValue([providerRawEventFixture()]),
       },
     } as unknown as PrismaService;
-    const service = new AgentsService(prisma);
+    const { service } = createService(prisma);
 
     const result = await service.getAgentSummary(context, 'agt_123');
 

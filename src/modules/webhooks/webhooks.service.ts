@@ -26,6 +26,93 @@ export interface ListWebhookDeliveriesFilters {
   status?: 'pending' | 'succeeded' | 'failed' | 'retrying' | 'exhausted';
 }
 
+export const WEBHOOK_EVENT_CATALOG = [
+  {
+    group: 'Wildcard',
+    events: [
+      { name: '*', description: 'Receive every AgentLine event.' },
+      { name: 'agent.*', description: 'Receive every agent-scoped event.' },
+      { name: 'agent.call.*', description: 'Receive all call lifecycle and transcript events.' },
+      { name: 'agent.message.*', description: 'Receive all SMS/message events.' },
+      { name: 'agent.number.*', description: 'Receive all phone number lifecycle events.' },
+      { name: 'agent.conversation.*', description: 'Receive all conversation lifecycle events.' },
+      { name: 'agent.contact.*', description: 'Receive all contact lifecycle events.' },
+    ],
+  },
+  {
+    group: 'Agents',
+    events: [
+      { name: 'agent.created', description: 'An agent was created.' },
+      { name: 'agent.updated', description: 'An agent configuration changed.' },
+      { name: 'agent.disabled', description: 'An agent was disabled.' },
+    ],
+  },
+  {
+    group: 'Numbers',
+    events: [
+      { name: 'agent.number.provisioned', description: 'A provider-backed number became active.' },
+      { name: 'agent.number.imported', description: 'An existing provider number was imported.' },
+      { name: 'agent.number.attached', description: 'A number was attached to an agent.' },
+      { name: 'agent.number.detached', description: 'A number was detached from an agent.' },
+      { name: 'agent.number.released', description: 'A number was released.' },
+      { name: 'agent.number.failed', description: 'A number provisioning attempt failed.' },
+    ],
+  },
+  {
+    group: 'Messages',
+    events: [
+      { name: 'agent.message.sent', description: 'An outbound SMS was accepted by the provider.' },
+      { name: 'agent.message.received', description: 'An inbound SMS was received.' },
+      {
+        name: 'agent.message.delivery_updated',
+        description: 'A provider delivery status changed.',
+      },
+    ],
+  },
+  {
+    group: 'Calls',
+    events: [
+      { name: 'agent.call.started', description: 'A call entered active handling.' },
+      {
+        name: 'agent.call.status_updated',
+        description: 'A non-terminal provider call status changed.',
+      },
+      {
+        name: 'agent.call.transcript_updated',
+        description: 'A call transcript turn was captured.',
+      },
+      { name: 'agent.call.completed', description: 'A call completed successfully.' },
+      { name: 'agent.call.failed', description: 'A call failed.' },
+      { name: 'agent.call.ended', description: 'A call reached a terminal non-completed state.' },
+      { name: 'agent.call.transferred', description: 'A call was transferred.' },
+    ],
+  },
+  {
+    group: 'Conversations',
+    events: [
+      {
+        name: 'agent.conversation.created',
+        description: 'A new SMS or voice conversation started.',
+      },
+      {
+        name: 'agent.conversation.updated',
+        description: 'A conversation status or metadata changed.',
+      },
+    ],
+  },
+  {
+    group: 'Contacts',
+    events: [
+      { name: 'agent.contact.created', description: 'A contact was created from a phone number.' },
+      { name: 'agent.contact.updated', description: 'A contact profile changed.' },
+    ],
+  },
+  {
+    group: 'Testing',
+    events: [{ name: 'webhook.test', description: 'A signed test delivery.' }],
+  },
+];
+
 @Injectable()
 export class WebhooksService {
   private readonly deliveryTimeoutMs = 5000;
@@ -46,6 +133,10 @@ export class WebhooksService {
     });
 
     return list(endpoints.map(serializeWebhookEndpoint), { limit, nextCursor: null });
+  }
+
+  listEventCatalog() {
+    return WEBHOOK_EVENT_CATALOG;
   }
 
   async createEndpoint(context: RequestContext, input: CreateWebhookInput) {

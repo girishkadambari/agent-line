@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Conversation } from '@prisma/client';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import type { UpdateConversationInput } from '../../domain/schemas';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeConversation } from './conversations.serializer';
 
 @Injectable()
 export class ConversationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsService,
+    private readonly webhooks: WebhooksService,
+  ) {}
 
   async findOrCreateSmsConversation(context: RequestContext, agentId: string, contactId: string) {
     return this.findOrCreateConversation(context, agentId, contactId, 'sms');
@@ -44,7 +50,7 @@ export class ConversationsService {
       });
     }
 
-    return this.prisma.conversation.create({
+    const conversation = await this.prisma.conversation.create({
       data: {
         id: createId('conv'),
         workspaceId: context.workspaceId,
@@ -54,6 +60,9 @@ export class ConversationsService {
         channel,
       },
     });
+    await this.emitConversationEvent(context, 'agent.conversation.created', conversation);
+
+    return conversation;
   }
 
   async listConversations(context: RequestContext, limit: number) {
@@ -85,7 +94,34 @@ export class ConversationsService {
       },
     });
 
+    await this.emitConversationEvent(context, 'agent.conversation.updated', conversation);
+
     return serializeConversation(conversation);
+  }
+
+  private async emitConversationEvent(
+    context: RequestContext,
+    type: string,
+    conversation: Conversation,
+  ) {
+    const event = await this.events.create({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type,
+      resourceType: 'conversation',
+      resourceId: conversation.id,
+      payload: {
+        conversationId: conversation.id,
+        agentId: conversation.agentId,
+        contactId: conversation.contactId,
+        channel: conversation.channel,
+        status: conversation.status,
+        lastActivityAt: conversation.lastActivityAt.toISOString(),
+        createdAt: conversation.createdAt.toISOString(),
+        updatedAt: conversation.updatedAt.toISOString(),
+      },
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
   }
 
   async findConversationOrThrow(context: RequestContext, id: string) {

@@ -27,6 +27,14 @@ function conversationFixture(overrides = {}) {
 }
 
 describe('ConversationsService', () => {
+  function createService(prisma: PrismaService) {
+    return new ConversationsService(
+      prisma,
+      { create: jest.fn().mockResolvedValue({ id: 'evt_123' }) } as never,
+      { createDeliveriesForEvent: jest.fn().mockResolvedValue([]) } as never,
+    );
+  }
+
   it('reuses existing SMS conversation and updates last activity', async () => {
     const prisma = {
       conversation: {
@@ -34,7 +42,7 @@ describe('ConversationsService', () => {
         update: jest.fn().mockResolvedValue(conversationFixture()),
       },
     } as unknown as PrismaService;
-    const service = new ConversationsService(prisma);
+    const service = createService(prisma);
 
     await service.findOrCreateSmsConversation(context, 'agt_123', 'ctc_123');
 
@@ -51,7 +59,7 @@ describe('ConversationsService', () => {
         create: jest.fn().mockResolvedValue(conversationFixture()),
       },
     } as unknown as PrismaService;
-    const service = new ConversationsService(prisma);
+    const service = createService(prisma);
 
     await service.findOrCreateSmsConversation(context, 'agt_123', 'ctc_123');
 
@@ -73,7 +81,7 @@ describe('ConversationsService', () => {
         create: jest.fn().mockResolvedValue(conversationFixture({ channel: 'voice' })),
       },
     } as unknown as PrismaService;
-    const service = new ConversationsService(prisma);
+    const service = createService(prisma);
 
     await service.findOrCreateVoiceConversation(context, 'agt_123', 'ctc_123');
 
