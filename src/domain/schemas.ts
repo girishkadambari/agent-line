@@ -160,6 +160,12 @@ export const createCheckoutSessionSchema = z.object({
   cancelUrl: z.string().url(),
 });
 
+export const createSubscriptionCheckoutSessionSchema = z.object({
+  planKey: z.enum(['starter', 'growth']),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+});
+
 export const createPortalSessionSchema = z.object({
   returnUrl: z.string().url(),
 });
@@ -225,6 +231,9 @@ export type UsageQueryInput = z.infer<typeof usageQuerySchema>;
 export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
 export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>;
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionSchema>;
+export type CreateSubscriptionCheckoutSessionInput = z.infer<
+  typeof createSubscriptionCheckoutSessionSchema
+>;
 export type CreatePortalSessionInput = z.infer<typeof createPortalSessionSchema>;
 export type UpdateBillingControlsInput = z.infer<typeof updateBillingControlsSchema>;
 export type BillingCostQueryInput = z.infer<typeof billingCostQuerySchema>;

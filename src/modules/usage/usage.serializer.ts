@@ -27,6 +27,8 @@ export function serializeUsageEvent(event: UsageEvent) {
     calculation: eventWithExpansionFields.calculation ?? {},
     evidence: eventWithExpansionFields.evidence ?? {},
     settlementStatus: eventWithExpansionFields.settlementStatus ?? 'internal_debited',
+    settlementMode: (event as UsageEvent & { settlementMode?: string }).settlementMode ?? 'prepaid_balance',
+    allowanceGrantId: (event as UsageEvent & { allowanceGrantId?: string | null }).allowanceGrantId ?? null,
     stripeMeterEventId: eventWithExpansionFields.stripeMeterEventId ?? null,
     occurredAt: event.occurredAt.toISOString(),
     createdAt: event.createdAt.toISOString(),

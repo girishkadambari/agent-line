@@ -279,11 +279,36 @@ Remaining:
        ledger.
      - richer call lifecycle timeline and failure reasons.
 
-6. **P6 Stripe test/live billing**
-   - checkout top-ups.
-   - test/live mode separation.
-   - idempotent webhooks.
-   - atomic balance credits.
+6. **P6 Stripe billing, trials, credits, and usage settlement**
+   - Status: in progress.
+   - Implemented:
+     - checkout top-ups.
+     - test/live mode separation.
+     - idempotent webhooks.
+     - atomic balance credits.
+     - signup/workspace creation creates a Stripe Customer billing identity.
+     - first signup billing state grants a 14-day free trial usage allowance.
+     - `GET /v1/billing/plans` exposes the backend plan catalog.
+     - `GET /v1/billing/subscription` exposes customer, subscription, and
+       allowance state.
+     - `POST /v1/billing/subscription-checkout-sessions` starts Stripe
+       subscription Checkout with plan metadata and trial days.
+     - `customer.subscription.*` webhooks upsert `BillingSubscription`.
+     - `invoice.paid` grants included usage allowance for the billing period.
+     - usage settlement order is now trial/included allowance, Stripe meter for
+       active subscribed workspaces when configured, then prepaid balance.
+     - usage rows store `settlementMode` and `allowanceGrantId` for finance
+       evidence.
+   - Remaining:
+     - set local env `STRIPE_STARTER_PRICE_ID` and `STRIPE_GROWTH_PRICE_ID`
+       from the created sandbox recurring Price ids.
+     - repeat product/price setup in live Stripe before production launch.
+     - create Stripe Billing meter and set `STRIPE_USAGE_METER_EVENT_NAME` if
+       usage-based overage invoicing is enabled.
+     - frontend plan selection, subscription status, allowance usage, invoices,
+       and portal flows.
+     - end-to-end Stripe CLI test for subscription checkout, invoice paid, and
+       allowance grant creation.
 
 7. **P7 Webhook worker reliability**
    - Status: in progress.

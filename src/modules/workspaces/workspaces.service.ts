@@ -13,6 +13,7 @@ import type {
   UpdateWorkspaceInput,
 } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
+import { BillingService } from '../billing/billing.service';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createInviteToken, hashInviteToken } from './invite-token.utils';
@@ -23,6 +24,7 @@ export class WorkspacesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly billing: BillingService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
   ) {}
@@ -207,6 +209,7 @@ export class WorkspacesService {
       resourceId: result.id,
       metadata: { name: result.name },
     });
+    await this.billing.ensureStripeCustomerForWorkspace(result.id);
 
     return {
       ...serializeWorkspace(result),

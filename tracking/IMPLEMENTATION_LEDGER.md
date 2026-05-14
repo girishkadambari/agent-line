@@ -198,6 +198,57 @@ Verification:
 - `npm test -- billing.service.spec.ts stripe-client.service.spec.ts` passed.
 - `npm run build` passed.
 
+## 2026-05-14: Stripe Subscription Trial And Credit Settlement
+
+**Status:** implemented
+
+Implemented:
+
+- Stripe-backed signup billing state now creates or reuses a Stripe Customer for
+  each workspace.
+- New workspaces and first Google sessions ensure billing state exists.
+- A one-time 14-day free trial usage allowance is granted per workspace.
+- Added subscription plan catalog:
+  - `free`
+  - `starter`
+  - `growth`
+- Added subscription and allowance persistence:
+  - `BillingSubscription`
+  - `BillingAllowanceGrant`
+  - `UsageSettlementMode`
+- Added billing APIs:
+  - `GET /v1/billing/plans`
+  - `GET /v1/billing/subscription`
+  - `POST /v1/billing/subscription-checkout-sessions`
+- Stripe subscription Checkout creates trial subscriptions with plan metadata.
+- Stripe webhooks now process:
+  - `checkout.session.completed`
+  - `customer.subscription.*`
+  - `invoice.paid`
+  - `invoice.payment_failed`
+- Paid invoices grant included usage allowance for the billing period.
+- Usage settlement now tries:
+  1. trial/included allowance
+  2. Stripe meter for active subscribed workspaces when configured
+  3. prepaid balance
+- Usage events now store settlement mode and allowance grant id so finance and
+  support can explain exactly how each charge was settled.
+- Stripe billing docs and `.env.example` now include recurring Price ids and
+  subscription setup flow.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm test` passed: 30 suites, 127 tests.
+- `npm run build` passed.
+
+Stripe sandbox setup:
+
+- Starter recurring product: `prod_UW68e3WkIpy5bG`
+- Starter monthly price: `price_1TX3x2AbZABakwnS6QYENmgi`
+- Growth recurring product: `prod_UW69dGEI04cpjg`
+- Growth monthly price: `price_1TX3x7AbZABakwnSKh2k67lS`
+
 ## 2026-05-07: Backend Gap Register
 
 **Status:** done
@@ -1388,5 +1439,6 @@ Implemented:
 Verification:
 
 - `npm test -- usage.service.spec.ts billing.service.spec.ts stripe-client.service.spec.ts webhooks.service.spec.ts` passed.
+- `npm test` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.

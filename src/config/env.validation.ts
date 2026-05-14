@@ -28,6 +28,8 @@ const rawEnvSchema = z
     STRIPE_MODE: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_STARTER_PRICE_ID: z.string().optional(),
+    STRIPE_GROWTH_PRICE_ID: z.string().optional(),
     STRIPE_USAGE_METER_EVENT_NAME: z.string().optional(),
   })
   .passthrough();

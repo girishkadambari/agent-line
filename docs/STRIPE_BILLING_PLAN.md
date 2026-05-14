@@ -12,10 +12,14 @@ Use Stripe in this order:
 2. **Stripe Customer Portal** for payment method management, invoices, cancellation, and plan changes.
 3. **Stripe webhooks** as the only trusted source for payment lifecycle updates.
 4. **AgentLine usage ledger** as the product usage source of truth.
-5. **AgentLine billing balance** as the internal prepaid credit ledger until mature usage-based invoicing is needed.
-6. **Stripe Billing meter events** as an optional settlement/export layer for finalized usage.
+5. **AgentLine trial and included-usage allowance grants** for free trial credits and plan credits.
+6. **AgentLine billing balance** as the prepaid credit ledger for top-ups and non-subscription accounts.
+7. **Stripe Billing meter events** as the usage-based subscription settlement layer for overages.
 
-This keeps early implementation fast and avoids overbuilding metered Stripe subscriptions before pricing is stable.
+This keeps early implementation fast while still supporting the production path:
+signup creates a Stripe Customer and trial allowance, paid upgrade starts a Stripe
+subscription, invoices grant included usage, and overage usage can be reported to
+Stripe Billing meters.
 
 ## Phase 1 Billing Strategy
 
@@ -43,8 +47,16 @@ Add Stripe without changing product usage semantics.
 
 ## Current Implementation Contract
 
-AgentLine supports Stripe as a prepaid-credit top-up provider.
+AgentLine supports Stripe as the billing provider for signup billing identity,
+subscription checkout, prepaid credit top-ups, customer portal, webhooks, usage
+allowances, and optional Stripe meter reporting.
 
+- Google signup/login creates or reuses a Stripe Customer for the active workspace.
+- First workspace billing state creates a 14-day `free` trial allowance grant.
+- `POST /v1/billing/subscription-checkout-sessions` starts a Stripe subscription Checkout flow.
+- `customer.subscription.*` webhooks create/update `BillingSubscription`.
+- `invoice.paid` grants the plan's included usage allowance for that billing period.
+- Usage settlement order is: trial/included allowance, Stripe metering for active subscriptions, then prepaid balance.
 - Checkout sessions collect one-time payments for balance credits.
 - Checkout `successUrl` and `cancelUrl` are only browser navigation URLs.
 - AgentLine credits balance only from verified Stripe webhooks.
@@ -52,6 +64,7 @@ AgentLine supports Stripe as a prepaid-credit top-up provider.
 - Voice call usage is preauthorized internally and exported to Stripe only after final duration settlement.
 - SMS and number usage are exported immediately after the provider-backed action is accepted.
 - `checkout.session.completed` is the first required production event.
+- `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed` are required for subscription plans.
 - All Stripe event ids are stored for idempotency before balance is credited.
 - Duplicate Stripe webhook deliveries return success without crediting twice.
 - Stripe meter event identifiers use the AgentLine `UsageEvent.id` for idempotency and traceability.
@@ -68,8 +81,35 @@ STRIPE_MODE="test"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
+STRIPE_STARTER_PRICE_ID="price_..."
+STRIPE_GROWTH_PRICE_ID="price_..."
 STRIPE_USAGE_METER_EVENT_NAME="agentline_usage"
 ```
+
+### Current Plan Catalog
+
+AgentLine currently exposes this backend plan catalog from `GET /v1/billing/pricing`
+and `GET /v1/billing/plans`:
+
+- `free`: 14-day trial, $0/month, $5.00 included usage allowance.
+- `starter`: 14-day trial, $29/month, $20.00 included usage allowance.
+- `growth`: 14-day trial, $99/month, $100.00 included usage allowance.
+
+`starter` and `growth` require recurring Stripe Price ids in
+`STRIPE_STARTER_PRICE_ID` and `STRIPE_GROWTH_PRICE_ID`.
+
+### Signup, Trial, Upgrade Flow
+
+1. User signs in with Google.
+2. Backend creates or reuses `User`, `Workspace`, `Project`, and session.
+3. Backend creates or reuses a Stripe Customer for the workspace.
+4. Backend creates a one-time trial `BillingAllowanceGrant` if the workspace has never received one.
+5. Usage during trial consumes trial allowance before prepaid balance.
+6. User chooses a paid plan and backend creates a subscription Checkout Session.
+7. Stripe Checkout collects payment method and creates the subscription with trial days.
+8. Stripe webhooks update `BillingSubscription`.
+9. Every paid invoice grants plan included usage for the invoice period.
+10. Customer Portal handles payment method changes, invoices, cancellation, and plan management.
 
 Use `GET /v1/billing/stripe/status` to verify backend configuration from the API without exposing secrets:
 
@@ -104,6 +144,9 @@ Required fields:
   and detection timestamp.
 - `settlementStatus`: `internal_debited`, `stripe_reported`, `stripe_failed`, or
   `voided`.
+- `settlementMode`: `trial_allowance`, `included_allowance`, `prepaid_balance`,
+  `stripe_meter`, `blocked`, or `voided`.
+- `allowanceGrantId`: allowance grant consumed for this event, when applicable.
 - `stripeMeterEventId`: Stripe meter identifier when exported.
 
 Voided usage remains in the database for audit history but is excluded from
@@ -206,7 +249,10 @@ Add provider-neutral fields first:
 Add:
 
 ```http
+GET  /v1/billing/plans
+GET  /v1/billing/subscription
 POST /v1/billing/checkout-sessions
+POST /v1/billing/subscription-checkout-sessions
 POST /v1/billing/portal-sessions
 POST /v1/billing/stripe/webhook
 GET  /v1/billing/transactions

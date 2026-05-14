@@ -9,6 +9,7 @@ export interface StripeCheckoutSession {
   id: string;
   url: string | null;
   customer: string | null;
+  subscription?: string | null;
 }
 
 export interface StripePortalSession {
@@ -106,6 +107,43 @@ export class StripeClientService {
               ),
             },
           },
+        },
+      ],
+    });
+  }
+
+  async createSubscriptionCheckoutSession(input: {
+    workspaceId: string;
+    customerId: string;
+    planKey: string;
+    priceId: string;
+    trialDays: number;
+    successUrl: string;
+    cancelUrl: string;
+  }) {
+    return this.request<StripeCheckoutSession>('POST', '/v1/checkout/sessions', {
+      mode: 'subscription',
+      customer: input.customerId,
+      client_reference_id: input.workspaceId,
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      subscription_data: {
+        trial_period_days: input.trialDays,
+        metadata: {
+          workspaceId: input.workspaceId,
+          planKey: input.planKey,
+          billingMode: 'subscription_usage',
+        },
+      },
+      metadata: {
+        workspaceId: input.workspaceId,
+        planKey: input.planKey,
+        purpose: 'subscription',
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price: input.priceId,
         },
       ],
     });

@@ -31,6 +31,8 @@ function usageFixture(overrides = {}) {
     pricingVersion: '2026-05-14',
     calculation: {},
     evidence: {},
+    settlementMode: 'prepaid_balance',
+    allowanceGrantId: null,
     settlementStatus: 'internal_debited',
     stripeMeterEventId: null,
     occurredAt: now,
@@ -43,6 +45,17 @@ function createService(prisma: PrismaService) {
   const billing = {
     debitWorkspace: jest.fn().mockResolvedValue({ id: 'bal_123' }),
     creditWorkspace: jest.fn().mockResolvedValue({ id: 'bal_123' }),
+    settleUsageCharge: jest.fn().mockResolvedValue({
+      settlementMode: 'prepaid_balance',
+      settlementStatus: 'internal_debited',
+      allowanceGrantId: null,
+      evidence: { settlementReason: 'prepaid_balance' },
+    }),
+    adjustSettledUsageCharge: jest.fn().mockResolvedValue({
+      settlementMode: 'prepaid_balance',
+      allowanceGrantId: null,
+      evidence: { settlementReason: 'prepaid_balance' },
+    }),
     reportUsageEventToStripe: jest.fn().mockResolvedValue({ status: 'internal_debited' }),
   } as unknown as BillingService;
   const events = {
@@ -86,7 +99,11 @@ describe('UsageService', () => {
       direction: 'outbound',
     });
 
-    expect(billing.debitWorkspace).toHaveBeenCalledWith(context.workspaceId, 1);
+    expect(billing.settleUsageCharge).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      cents: 1,
+      occurredAt: undefined,
+    });
     expect(prisma.usageEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         channel: 'sms.outbound',
@@ -105,9 +122,7 @@ describe('UsageService', () => {
         }),
       }),
     });
-    expect(billing.reportUsageEventToStripe).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'use_123' }),
-    );
+    expect(billing.reportUsageEventToStripe).not.toHaveBeenCalled();
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'agent.usage.recorded',
@@ -172,7 +187,10 @@ describe('UsageService', () => {
     });
 
     expect(result).toEqual({ finalized: true, deltaCents: -24 });
-    expect(billing.creditWorkspace).toHaveBeenCalledWith(context.workspaceId, 24);
+    expect(billing.adjustSettledUsageCharge).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'use_123' }),
+      -24,
+    );
     expect(prisma.usageEvent.update).toHaveBeenCalledWith({
       where: { id: 'use_123' },
       data: expect.objectContaining({
@@ -185,7 +203,7 @@ describe('UsageService', () => {
         }),
       }),
     });
-    expect(billing.reportUsageEventToStripe).toHaveBeenCalled();
+    expect(billing.reportUsageEventToStripe).not.toHaveBeenCalled();
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'agent.usage.finalized' }),
     );

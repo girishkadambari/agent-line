@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, forwardRef, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import { AuditService } from '../audit/audit.service';
+import { BillingService } from '../billing/billing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildCsrfCookie,
@@ -32,6 +33,8 @@ export class SessionAuthService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billing: BillingService,
   ) {}
 
   async createSessionForGoogleUser(profile: GoogleProfileInput, response: Response) {
@@ -82,6 +85,7 @@ export class SessionAuthService {
       resourceId: session.id,
       metadata: { provider: 'google' },
     });
+    await this.billing.ensureStripeCustomerForWorkspace(membership.workspaceId);
 
     return session;
   }
@@ -127,12 +131,19 @@ export class SessionAuthService {
     return serializeCurrentUser({ user, session, memberships });
   }
 
-  async switchWorkspace(userId: string, sessionId: string, workspaceId: string, projectId?: string) {
+  async switchWorkspace(
+    userId: string,
+    sessionId: string,
+    workspaceId: string,
+    projectId?: string,
+  ) {
     const membership = await this.prisma.workspaceMember.findFirst({
       where: { userId, workspaceId, status: 'active' },
     });
     if (!membership) {
-      throw new ApiException('forbidden', 'You are not a member of this workspace.', 403, { workspaceId });
+      throw new ApiException('forbidden', 'You are not a member of this workspace.', 403, {
+        workspaceId,
+      });
     }
 
     const project = projectId
@@ -140,7 +151,10 @@ export class SessionAuthService {
       : await this.findDefaultProject(workspaceId);
 
     if (!project) {
-      throw new ApiException('not_found', 'Project not found for workspace.', 404, { workspaceId, projectId });
+      throw new ApiException('not_found', 'Project not found for workspace.', 404, {
+        workspaceId,
+        projectId,
+      });
     }
 
     const session = await this.prisma.userSession.update({
@@ -222,6 +236,9 @@ export class SessionAuthService {
   }
 
   private shouldUseSecureCookies() {
-    return this.config.get<string>('APP_ENV') !== 'local' && this.config.get<string>('NODE_ENV') !== 'test';
+    return (
+      this.config.get<string>('APP_ENV') !== 'local' &&
+      this.config.get<string>('NODE_ENV') !== 'test'
+    );
   }
 }

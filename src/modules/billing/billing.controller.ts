@@ -8,6 +8,7 @@ import {
   billingCostQuerySchema,
   createCheckoutSessionSchema,
   createPortalSessionSchema,
+  createSubscriptionCheckoutSessionSchema,
   updateBillingControlsSchema,
 } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
@@ -28,6 +29,18 @@ export class BillingController {
   @Get('pricing')
   getPricing() {
     return success(this.billing.getPricing());
+  }
+
+  @UseGuards(AuthContextGuard)
+  @Get('plans')
+  getPlans() {
+    return success(this.billing.getPlans());
+  }
+
+  @UseGuards(AuthContextGuard)
+  @Get('subscription')
+  async getSubscription(@CurrentContext() context: RequestContext) {
+    return success(await this.billing.getSubscription(context));
   }
 
   @UseGuards(AuthContextGuard)
@@ -67,6 +80,20 @@ export class BillingController {
   ) {
     return success(
       await this.billing.createCheckoutSession(context, createCheckoutSessionSchema.parse(body)),
+    );
+  }
+
+  @UseGuards(AuthContextGuard, CsrfGuard)
+  @Post('subscription-checkout-sessions')
+  async createSubscriptionCheckoutSession(
+    @CurrentContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createSubscriptionCheckoutSessionSchema)) body: unknown,
+  ) {
+    return success(
+      await this.billing.createSubscriptionCheckoutSession(
+        context,
+        createSubscriptionCheckoutSessionSchema.parse(body),
+      ),
     );
   }
 

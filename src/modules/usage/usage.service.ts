@@ -45,8 +45,13 @@ export class UsageService {
 
   async recordUsage(input: RecordUsageInput) {
     const totalCents = Math.ceil(input.quantity * input.unitCostCents);
-
-    await this.billing.debitWorkspace(input.workspaceId, totalCents);
+    const settlement = await this.billing.settleUsageCharge({
+      workspaceId: input.workspaceId,
+      cents: totalCents,
+      occurredAt: input.occurredAt,
+    });
+    const shouldReportToStripe =
+      input.reportToStripe !== false && settlement.settlementMode === 'stripe_meter';
 
     const usageEvent = await this.prisma.usageEvent.create({
       data: {
@@ -63,6 +68,9 @@ export class UsageService {
         unitCost: new Decimal(centsToUsdDecimal(input.unitCostCents)),
         totalCost: new Decimal(centsToUsdDecimal(totalCents)),
         pricingVersion: USAGE_PRICING_VERSION,
+        settlementMode: settlement.settlementMode,
+        settlementStatus: settlement.settlementStatus,
+        allowanceGrantId: settlement.allowanceGrantId,
         calculation: {
           pricingVersion: USAGE_PRICING_VERSION,
           formula: 'ceil(quantity * unitCostCents)',
@@ -71,6 +79,7 @@ export class UsageService {
           unit: input.unit,
           unitCostCents: input.unitCostCents,
           totalCents,
+          settlementMode: settlement.settlementMode,
           ...input.calculation,
         } as Prisma.InputJsonValue,
         evidence: {
@@ -78,19 +87,21 @@ export class UsageService {
           resourceType: input.resourceType,
           resourceId: input.resourceId,
           channel: input.channel,
+          settlement: settlement.evidence,
           ...input.evidence,
         } as Prisma.InputJsonValue,
         occurredAt: input.occurredAt ?? new Date(),
       },
     });
 
-    if (input.reportToStripe === false) {
+    if (!shouldReportToStripe) {
+      await this.emitUsageEvent('agent.usage.recorded', usageEvent);
       return usageEvent;
     }
 
-    const settlement = await this.billing.reportUsageEventToStripe(usageEvent);
+    const stripeSettlement = await this.billing.reportUsageEventToStripe(usageEvent);
 
-    if (settlement.status === 'internal_debited') {
+    if (stripeSettlement.status === 'internal_debited') {
       await this.emitUsageEvent('agent.usage.recorded', usageEvent);
       return usageEvent;
     }
@@ -98,8 +109,8 @@ export class UsageService {
     const settledEvent = await this.prisma.usageEvent.update({
       where: { id: usageEvent.id },
       data: {
-        settlementStatus: settlement.status,
-        stripeMeterEventId: settlement.stripeMeterEventId,
+        settlementStatus: stripeSettlement.status,
+        stripeMeterEventId: stripeSettlement.stripeMeterEventId,
       },
     });
 
@@ -125,9 +136,10 @@ export class UsageService {
       return { voided: false, refundedCents: 0 };
     }
 
-    const refundedCents = events.reduce((sum, event) => {
-      return sum + Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
-    }, 0);
+    const refundedCents = events.reduce(
+      (sum, event) => sum + Math.ceil(new Decimal(event.totalCost).mul(100).toNumber()),
+      0,
+    );
 
     await this.prisma.usageEvent.updateMany({
       where: {
@@ -137,7 +149,11 @@ export class UsageService {
       },
       data: { settlementStatus: 'voided' },
     });
-    await this.billing.creditWorkspace(input.workspaceId, refundedCents);
+    await Promise.all(
+      events.map((event) =>
+        this.billing.adjustSettledUsageCharge(event, -this.usageEventCents(event)),
+      ),
+    );
 
     await Promise.all(
       events.map((event) =>
@@ -169,12 +185,7 @@ export class UsageService {
     const totalCents = quantity * USAGE_PRICING_CENTS.voiceMinute;
     const currentCents = Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
     const deltaCents = totalCents - currentCents;
-
-    if (deltaCents > 0) {
-      await this.billing.debitWorkspace(input.workspaceId, deltaCents);
-    } else if (deltaCents < 0) {
-      await this.billing.creditWorkspace(input.workspaceId, Math.abs(deltaCents));
-    }
+    const settlement = await this.billing.adjustSettledUsageCharge(event, deltaCents);
 
     const updated = await this.prisma.usageEvent.update({
       where: { id: event.id },
@@ -182,6 +193,8 @@ export class UsageService {
         quantity: new Decimal(quantity),
         billableQuantity: new Decimal(quantity),
         totalCost: new Decimal(centsToUsdDecimal(totalCents)),
+        settlementMode: settlement.settlementMode,
+        allowanceGrantId: settlement.allowanceGrantId,
         calculation: {
           pricingVersion: USAGE_PRICING_VERSION,
           formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
@@ -192,18 +205,26 @@ export class UsageService {
           totalCents,
           previousTotalCents: currentCents,
           settlementDeltaCents: deltaCents,
+          settlementMode: settlement.settlementMode,
         },
+        evidence: {
+          ...(typeof event.evidence === 'object' && event.evidence !== null ? event.evidence : {}),
+          finalSettlement: settlement.evidence,
+        } as Prisma.InputJsonValue,
       },
     });
 
-    const settlement = await this.billing.reportUsageEventToStripe(updated);
+    const stripeSettlement =
+      updated.settlementMode === 'stripe_meter'
+        ? await this.billing.reportUsageEventToStripe(updated)
+        : { status: 'internal_debited' as const };
     let finalizedEvent = updated;
-    if (settlement.status !== 'internal_debited') {
+    if (stripeSettlement.status !== 'internal_debited') {
       finalizedEvent = await this.prisma.usageEvent.update({
         where: { id: event.id },
         data: {
-          settlementStatus: settlement.status,
-          stripeMeterEventId: settlement.stripeMeterEventId,
+          settlementStatus: stripeSettlement.status,
+          stripeMeterEventId: stripeSettlement.stripeMeterEventId,
         },
       });
     }
@@ -369,6 +390,10 @@ export class UsageService {
         totalCost: value.totalCost.toString(),
       }),
     );
+  }
+
+  private usageEventCents(event: UsageEvent) {
+    return Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
   }
 
   private async emitUsageEvent(type: string, event: UsageEvent) {

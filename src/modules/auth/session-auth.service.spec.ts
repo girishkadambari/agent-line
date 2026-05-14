@@ -2,6 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 
 import type { AuditService } from '../audit/audit.service';
+import type { BillingService } from '../billing/billing.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { SessionAuthService } from './session-auth.service';
 
@@ -20,8 +21,11 @@ function createService(prisma: PrismaService) {
   const config = {
     get: jest.fn((key: string) => (key === 'APP_ENV' ? 'local' : undefined)),
   } as unknown as ConfigService;
+  const billing = {
+    ensureStripeCustomerForWorkspace: jest.fn().mockResolvedValue({ id: 'bacc_123' }),
+  } as unknown as BillingService;
 
-  return { service: new SessionAuthService(prisma, audit, config), audit };
+  return { service: new SessionAuthService(prisma, audit, config, billing), audit, billing };
 }
 
 describe('SessionAuthService', () => {

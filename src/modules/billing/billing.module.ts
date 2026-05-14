@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -7,7 +7,7 @@ import { BillingService } from './billing.service';
 import { StripeClientService } from './stripe-client.service';
 
 @Module({
-  imports: [AuthModule, AuditModule],
+  imports: [forwardRef(() => AuthModule), AuditModule],
   controllers: [BillingController],
   providers: [BillingService, StripeClientService],
   exports: [BillingService],

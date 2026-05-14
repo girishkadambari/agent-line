@@ -1,6 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
-import { UsageSettlementStatus, type UsageEvent } from '@prisma/client';
+import { UsageSettlementMode, UsageSettlementStatus, type UsageEvent } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { BillingService } from './billing.service';
 import type { StripeClientService } from './stripe-client.service';
@@ -79,6 +79,8 @@ describe('BillingService', () => {
       pricingVersion: '2026-05-14',
       calculation: {},
       evidence: {},
+      settlementMode: UsageSettlementMode.prepaid_balance,
+      allowanceGrantId: null,
       settlementStatus: UsageSettlementStatus.internal_debited,
       stripeMeterEventId: null,
       occurredAt: now,
