@@ -13,6 +13,7 @@ Use Stripe in this order:
 3. **Stripe webhooks** as the only trusted source for payment lifecycle updates.
 4. **AgentLine usage ledger** as the product usage source of truth.
 5. **AgentLine billing balance** as the internal prepaid credit ledger until mature usage-based invoicing is needed.
+6. **Stripe Billing meter events** as an optional settlement/export layer for finalized usage.
 
 This keeps early implementation fast and avoids overbuilding metered Stripe subscriptions before pricing is stable.
 
@@ -34,6 +35,7 @@ Initial backend endpoints are implemented:
 - `POST /v1/billing/portal-sessions`
 - `POST /v1/billing/stripe/webhook`
 - `GET /v1/billing/transactions`
+- Optional usage reporting to Stripe Billing meter events when `STRIPE_USAGE_METER_EVENT_NAME` is configured.
 
 The implementation uses Stripe HTTP APIs through a local provider wrapper. The Stripe SDK can be adopted later if richer types or automatic webhook helpers become useful.
 
@@ -46,9 +48,13 @@ AgentLine supports Stripe as a prepaid-credit top-up provider.
 - Checkout sessions collect one-time payments for balance credits.
 - Checkout `successUrl` and `cancelUrl` are only browser navigation URLs.
 - AgentLine credits balance only from verified Stripe webhooks.
+- AgentLine records usage first with calculation evidence, then optionally reports finalized usage to Stripe meter events.
+- Voice call usage is preauthorized internally and exported to Stripe only after final duration settlement.
+- SMS and number usage are exported immediately after the provider-backed action is accepted.
 - `checkout.session.completed` is the first required production event.
 - All Stripe event ids are stored for idempotency before balance is credited.
 - Duplicate Stripe webhook deliveries return success without crediting twice.
+- Stripe meter event identifiers use the AgentLine `UsageEvent.id` for idempotency and traceability.
 - Test mode and live mode are explicit through `STRIPE_MODE`.
 - Test mode requires an `sk_test_...` secret key or `rk_test_...` restricted key.
 - Live mode requires an `sk_live_...` secret key or `rk_live_...` restricted key.
@@ -62,6 +68,7 @@ STRIPE_MODE="test"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
+STRIPE_USAGE_METER_EVENT_NAME="agentline_usage"
 ```
 
 Use `GET /v1/billing/stripe/status` to verify backend configuration from the API without exposing secrets:
@@ -73,10 +80,45 @@ Use `GET /v1/billing/stripe/status` to verify backend configuration from the API
     "secretKeyConfigured": true,
     "secretKeyMatchesMode": true,
     "webhookSecretConfigured": true,
-    "webhookToleranceSeconds": 300
+    "webhookToleranceSeconds": 300,
+    "usageMeterEventNameConfigured": true
   }
 }
 ```
+
+## Usage Evidence And Settlement Contract
+
+Every billable action writes a `UsageEvent`. This row is the settlement trace
+used by cost summaries, spend-limit checks, customer support, and optional
+Stripe usage export.
+
+Required fields:
+
+- `quantity`: observed amount, such as seconds-derived minutes or message count.
+- `billableQuantity`: charged amount after rounding and minimums.
+- `unitCost`: rate used for the unit at the time of charge.
+- `totalCost`: final USD cost for the event.
+- `pricingVersion`: rate-card version used for calculation.
+- `calculation`: JSON formula evidence, including input quantities and cents.
+- `evidence`: JSON detection evidence, including source, resource ids, direction,
+  and detection timestamp.
+- `settlementStatus`: `internal_debited`, `stripe_reported`, `stripe_failed`, or
+  `voided`.
+- `stripeMeterEventId`: Stripe meter identifier when exported.
+
+Voided usage remains in the database for audit history but is excluded from
+normal usage totals, spend-limit checks, and cost summaries. Cost summaries also
+return a settlement-status breakdown so support can explain what was charged,
+exported, failed, or voided.
+
+Customer webhooks are emitted for:
+
+- `agent.usage.recorded`
+- `agent.usage.finalized`
+- `agent.usage.voided`
+
+These events include the serialized `usageEvent` payload so customer systems can
+reconcile AgentLine charges with downstream workflow outcomes.
 
 ## Local Test Flow
 
@@ -219,6 +261,10 @@ Avoid Stripe metered billing until:
 - provider costs are stable.
 - usage categories are final.
 - customers want invoice-based postpaid plans.
+
+When postpaid billing is introduced, keep AgentLine usage rows as the source of
+truth and use Stripe meter events as the settlement sink. Do not let Stripe be
+the only place where product usage evidence exists.
 
 ## Official Stripe References
 

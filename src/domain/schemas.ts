@@ -164,6 +164,15 @@ export const createPortalSessionSchema = z.object({
   returnUrl: z.string().url(),
 });
 
+export const updateBillingControlsSchema = z.object({
+  spendLimitCents: z.number().int().min(0).nullable().optional(),
+});
+
+export const billingCostQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+});
+
 export const workspaceRoleSchema = z.enum([
   'owner',
   'admin',
@@ -217,6 +226,8 @@ export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
 export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>;
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionSchema>;
 export type CreatePortalSessionInput = z.infer<typeof createPortalSessionSchema>;
+export type UpdateBillingControlsInput = z.infer<typeof updateBillingControlsSchema>;
+export type BillingCostQueryInput = z.infer<typeof billingCostQuerySchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -23,6 +24,7 @@ export class WorkspacesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   async getCurrentWorkspace(context: RequestContext) {
@@ -35,6 +37,90 @@ export class WorkspacesService {
     }
 
     return serializeWorkspace(workspace);
+  }
+
+  async getCurrentWorkspaceSettings(context: RequestContext) {
+    const [
+      workspace,
+      membership,
+      projects,
+      members,
+      pendingInvites,
+      billingBalance,
+      agents,
+      activeNumbers,
+      activeWebhooks,
+    ] = await Promise.all([
+      this.prisma.workspace.findUnique({ where: { id: context.workspaceId } }),
+      context.userId
+        ? this.prisma.workspaceMember.findUnique({
+            where: {
+              workspaceId_userId: {
+                workspaceId: context.workspaceId,
+                userId: context.userId,
+              },
+            },
+          })
+        : Promise.resolve(null),
+      this.prisma.project.findMany({
+        where: { workspaceId: context.workspaceId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.workspaceMember.count({
+        where: { workspaceId: context.workspaceId, status: 'active' },
+      }),
+      this.prisma.workspaceInvite.count({
+        where: { workspaceId: context.workspaceId, status: 'pending' },
+      }),
+      this.prisma.billingBalance.findUnique({ where: { workspaceId: context.workspaceId } }),
+      this.prisma.agent.count({
+        where: { workspaceId: context.workspaceId, projectId: context.projectId },
+      }),
+      this.prisma.phoneNumber.count({
+        where: { workspaceId: context.workspaceId, projectId: context.projectId, status: 'active' },
+      }),
+      this.prisma.webhookEndpoint.count({
+        where: { workspaceId: context.workspaceId, projectId: context.projectId, status: 'active' },
+      }),
+    ]);
+
+    if (!workspace) {
+      throw new ApiException('not_found', 'Workspace not found.', 404);
+    }
+
+    return {
+      workspace: serializeWorkspace(workspace),
+      currentUserRole: membership?.role ?? null,
+      currentProjectId: context.projectId,
+      projects: projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        environment: project.environment,
+        createdAt: project.createdAt.toISOString(),
+        updatedAt: project.updatedAt.toISOString(),
+      })),
+      counts: {
+        activeMembers: members,
+        pendingInvites,
+        agents,
+        activeNumbers,
+        activeWebhooks,
+      },
+      billing: {
+        currency: billingBalance?.currency ?? 'USD',
+        balanceCents: billingBalance?.balanceCents ?? 0,
+        spendLimitCents: billingBalance?.spendLimitCents ?? null,
+        prepaidRequired: true,
+        lowBalance: (billingBalance?.balanceCents ?? 0) <= 500,
+      },
+      providers: this.getProviderReadiness(),
+      controls: {
+        canManageWorkspace: ['owner', 'admin'].includes(membership?.role ?? ''),
+        canManageBilling: ['owner', 'admin', 'billing'].includes(membership?.role ?? ''),
+        canInviteMembers: ['owner', 'admin'].includes(membership?.role ?? ''),
+        canManageApiKeys: ['owner', 'admin', 'developer'].includes(membership?.role ?? ''),
+      },
+    };
   }
 
   async listUserWorkspaces(userId: string, limit: number) {
@@ -219,7 +305,10 @@ export class WorkspacesService {
       take: limit,
     });
 
-    return list(invites.map((invite) => serializeInvite(invite)), { limit, nextCursor: null });
+    return list(
+      invites.map((invite) => serializeInvite(invite)),
+      { limit, nextCursor: null },
+    );
   }
 
   async createInvite(context: RequestContext, input: CreateInviteInput) {
@@ -422,5 +511,49 @@ export class WorkspacesService {
         memberId,
       });
     }
+  }
+
+  private getProviderReadiness() {
+    const twilioMode = this.config.get<string>('TWILIO_MODE', 'test');
+    const twilioLiveReady =
+      this.hasConfig('TWILIO_ACCOUNT_SID') && this.hasConfig('TWILIO_AUTH_TOKEN');
+    const twilioTestReady =
+      this.hasConfig('TWILIO_TEST_ACCOUNT_SID') && this.hasConfig('TWILIO_TEST_AUTH_TOKEN');
+    const twilioCallbackReady =
+      this.hasConfig('TWILIO_INBOUND_SMS_WEBHOOK_URL') &&
+      this.hasConfig('TWILIO_MESSAGE_STATUS_CALLBACK_URL') &&
+      this.hasConfig('TWILIO_VOICE_WEBHOOK_URL');
+
+    return {
+      telecom: {
+        provider: this.config.get<string>('TELECOM_PROVIDER', 'twilio'),
+        mode: twilioMode,
+        credentialsReady: twilioMode === 'live' ? twilioLiveReady : twilioTestReady,
+        liveCredentialsReady: twilioLiveReady,
+        testCredentialsReady: twilioTestReady,
+        callbackUrlsReady: twilioCallbackReady,
+      },
+      stripe: {
+        mode: this.config.get<string>('STRIPE_MODE', 'test'),
+        secretKeyConfigured: this.hasConfig('STRIPE_SECRET_KEY'),
+        webhookSecretConfigured: this.hasConfig('STRIPE_WEBHOOK_SECRET'),
+        usageMeterEventNameConfigured: this.hasConfig('STRIPE_USAGE_METER_EVENT_NAME'),
+      },
+      brevo: {
+        apiKeyConfigured: this.hasConfig('BREVO_API_KEY'),
+        fromEmailConfigured: this.hasConfig('BREVO_FROM_EMAIL'),
+      },
+      auth: {
+        googleConfigured:
+          this.hasConfig('GOOGLE_CLIENT_ID') &&
+          this.hasConfig('GOOGLE_CLIENT_SECRET') &&
+          this.hasConfig('GOOGLE_REDIRECT_URI'),
+      },
+    };
+  }
+
+  private hasConfig(key: string) {
+    const value = this.config.get<string>(key);
+    return Boolean(value && value.trim().length > 0);
   }
 }

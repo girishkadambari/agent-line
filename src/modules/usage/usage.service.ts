@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type UsageEvent } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { list } from '../../common/api/api-response';
@@ -7,8 +7,15 @@ import type { RequestContext } from '../../common/context/request-context';
 import { createId } from '../../common/ids';
 import type { UsageQueryInput } from '../../domain/schemas';
 import { BillingService } from '../billing/billing.service';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { centsToUsdDecimal, secondsToBillableMinutes, USAGE_PRICING_CENTS } from './usage-pricing';
+import { WebhooksService } from '../webhooks/webhooks.service';
+import {
+  centsToUsdDecimal,
+  secondsToBillableMinutes,
+  USAGE_PRICING_CENTS,
+  USAGE_PRICING_VERSION,
+} from './usage-pricing';
 import { serializeUsageEvent, serializeUsageRollup } from './usage.serializer';
 
 export interface RecordUsageInput {
@@ -22,6 +29,9 @@ export interface RecordUsageInput {
   unit: string;
   unitCostCents: number;
   occurredAt?: Date;
+  evidence?: Record<string, unknown>;
+  calculation?: Record<string, unknown>;
+  reportToStripe?: boolean;
 }
 
 @Injectable()
@@ -29,14 +39,16 @@ export class UsageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
-  ) { }
+    private readonly events: EventsService,
+    private readonly webhooks: WebhooksService,
+  ) {}
 
   async recordUsage(input: RecordUsageInput) {
     const totalCents = Math.ceil(input.quantity * input.unitCostCents);
 
     await this.billing.debitWorkspace(input.workspaceId, totalCents);
 
-    return this.prisma.usageEvent.create({
+    const usageEvent = await this.prisma.usageEvent.create({
       data: {
         id: createId('use'),
         workspaceId: input.workspaceId,
@@ -46,12 +58,54 @@ export class UsageService {
         resourceId: input.resourceId,
         channel: input.channel,
         quantity: new Decimal(input.quantity),
+        billableQuantity: new Decimal(input.quantity),
         unit: input.unit,
         unitCost: new Decimal(centsToUsdDecimal(input.unitCostCents)),
         totalCost: new Decimal(centsToUsdDecimal(totalCents)),
+        pricingVersion: USAGE_PRICING_VERSION,
+        calculation: {
+          pricingVersion: USAGE_PRICING_VERSION,
+          formula: 'ceil(quantity * unitCostCents)',
+          quantity: input.quantity,
+          billableQuantity: input.quantity,
+          unit: input.unit,
+          unitCostCents: input.unitCostCents,
+          totalCents,
+          ...input.calculation,
+        } as Prisma.InputJsonValue,
+        evidence: {
+          detectedAt: (input.occurredAt ?? new Date()).toISOString(),
+          resourceType: input.resourceType,
+          resourceId: input.resourceId,
+          channel: input.channel,
+          ...input.evidence,
+        } as Prisma.InputJsonValue,
         occurredAt: input.occurredAt ?? new Date(),
       },
     });
+
+    if (input.reportToStripe === false) {
+      return usageEvent;
+    }
+
+    const settlement = await this.billing.reportUsageEventToStripe(usageEvent);
+
+    if (settlement.status === 'internal_debited') {
+      await this.emitUsageEvent('agent.usage.recorded', usageEvent);
+      return usageEvent;
+    }
+
+    const settledEvent = await this.prisma.usageEvent.update({
+      where: { id: usageEvent.id },
+      data: {
+        settlementStatus: settlement.status,
+        stripeMeterEventId: settlement.stripeMeterEventId,
+      },
+    });
+
+    await this.emitUsageEvent('agent.usage.recorded', settledEvent);
+
+    return settledEvent;
   }
 
   async voidUsageForFailedOperation(input: {
@@ -75,23 +129,29 @@ export class UsageService {
       return sum + Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
     }, 0);
 
-    await this.prisma.usageEvent.deleteMany({
+    await this.prisma.usageEvent.updateMany({
       where: {
         workspaceId: input.workspaceId,
         resourceType: input.resourceType,
         resourceId: input.resourceId,
       },
+      data: { settlementStatus: 'voided' },
     });
     await this.billing.creditWorkspace(input.workspaceId, refundedCents);
+
+    await Promise.all(
+      events.map((event) =>
+        this.emitUsageEvent('agent.usage.voided', {
+          ...event,
+          settlementStatus: 'voided',
+        }),
+      ),
+    );
 
     return { voided: true, refundedCents };
   }
 
-  async finalizeVoiceCall(input: {
-    workspaceId: string;
-    callId: string;
-    durationSeconds: number;
-  }) {
+  async finalizeVoiceCall(input: { workspaceId: string; callId: string; durationSeconds: number }) {
     const event = await this.prisma.usageEvent.findFirst({
       where: {
         workspaceId: input.workspaceId,
@@ -116,13 +176,39 @@ export class UsageService {
       await this.billing.creditWorkspace(input.workspaceId, Math.abs(deltaCents));
     }
 
-    await this.prisma.usageEvent.update({
+    const updated = await this.prisma.usageEvent.update({
       where: { id: event.id },
       data: {
         quantity: new Decimal(quantity),
+        billableQuantity: new Decimal(quantity),
         totalCost: new Decimal(centsToUsdDecimal(totalCents)),
+        calculation: {
+          pricingVersion: USAGE_PRICING_VERSION,
+          formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
+          durationSeconds: input.durationSeconds,
+          billableQuantity: quantity,
+          unit: 'minute',
+          unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
+          totalCents,
+          previousTotalCents: currentCents,
+          settlementDeltaCents: deltaCents,
+        },
       },
     });
+
+    const settlement = await this.billing.reportUsageEventToStripe(updated);
+    let finalizedEvent = updated;
+    if (settlement.status !== 'internal_debited') {
+      finalizedEvent = await this.prisma.usageEvent.update({
+        where: { id: event.id },
+        data: {
+          settlementStatus: settlement.status,
+          stripeMeterEventId: settlement.stripeMeterEventId,
+        },
+      });
+    }
+
+    await this.emitUsageEvent('agent.usage.finalized', finalizedEvent);
 
     return { finalized: true, deltaCents };
   }
@@ -143,6 +229,10 @@ export class UsageService {
       quantity: 1,
       unit: 'number',
       unitCostCents: USAGE_PRICING_CENTS.phoneNumberProvision,
+      evidence: {
+        source: 'number.provisioned',
+        numberId: input.numberId,
+      },
     });
   }
 
@@ -166,6 +256,11 @@ export class UsageService {
         input.direction === 'outbound'
           ? USAGE_PRICING_CENTS.outboundSms
           : USAGE_PRICING_CENTS.inboundSms,
+      evidence: {
+        source: input.direction === 'outbound' ? 'sms.outbound' : 'sms.inbound',
+        messageId: input.messageId,
+        direction: input.direction,
+      },
     });
   }
 
@@ -188,6 +283,17 @@ export class UsageService {
       quantity: minutes,
       unit: 'minute',
       unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
+      calculation: {
+        formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
+        durationSeconds: input.durationSeconds,
+        billableQuantity: minutes,
+      },
+      evidence: {
+        source: 'voice.call.preauthorization',
+        callId: input.callId,
+        preauthorizedDurationSeconds: input.durationSeconds,
+      },
+      reportToStripe: false,
     });
   }
 
@@ -218,12 +324,16 @@ export class UsageService {
     });
   }
 
-  private createUsageWhere(context: RequestContext, input: UsageQueryInput): Prisma.UsageEventWhereInput {
+  private createUsageWhere(
+    context: RequestContext,
+    input: UsageQueryInput,
+  ): Prisma.UsageEventWhereInput {
     return {
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       agentId: input.agentId,
       channel: input.channel,
+      settlementStatus: { not: 'voided' },
       occurredAt: {
         gte: input.from ? new Date(input.from) : undefined,
         lte: input.to ? new Date(input.to) : undefined,
@@ -231,7 +341,10 @@ export class UsageService {
     };
   }
 
-  private rollup(events: Awaited<ReturnType<typeof this.findUsageForRollup>>, period: 'day' | 'month') {
+  private rollup(
+    events: Awaited<ReturnType<typeof this.findUsageForRollup>>,
+    period: 'day' | 'month',
+  ) {
     const buckets = new Map<string, { quantity: Decimal; totalCost: Decimal }>();
 
     for (const event of events) {
@@ -256,5 +369,20 @@ export class UsageService {
         totalCost: value.totalCost.toString(),
       }),
     );
+  }
+
+  private async emitUsageEvent(type: string, event: UsageEvent) {
+    const internalEvent = await this.events.create({
+      workspaceId: event.workspaceId,
+      projectId: event.projectId,
+      type,
+      resourceType: 'usage_event',
+      resourceId: event.id,
+      payload: {
+        usageEvent: serializeUsageEvent(event),
+      },
+    });
+
+    await this.webhooks.createDeliveriesForEvent(internalEvent);
   }
 }

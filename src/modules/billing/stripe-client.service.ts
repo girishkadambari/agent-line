@@ -21,6 +21,12 @@ export interface StripeCustomer {
   id: string;
 }
 
+export interface StripeMeterEvent {
+  identifier: string;
+  event_name: string;
+  created?: number;
+}
+
 export interface StripeWebhookEvent {
   id: string;
   type: string;
@@ -34,7 +40,7 @@ export type StripeMode = 'test' | 'live';
 
 @Injectable()
 export class StripeClientService {
-  constructor(private readonly config: ConfigService) { }
+  constructor(private readonly config: ConfigService) {}
 
   getMode(): StripeMode {
     return this.config.get<string>('STRIPE_MODE', 'test') === 'live' ? 'live' : 'test';
@@ -51,7 +57,13 @@ export class StripeClientService {
       secretKeyMatchesMode: this.secretKeyMatchesMode(secretKey, mode),
       webhookSecretConfigured: webhookSecret.length > 0,
       webhookToleranceSeconds: this.config.get<number>('STRIPE_WEBHOOK_TOLERANCE_SECONDS', 300),
+      usageMeterEventNameConfigured: this.isUsageMeteringConfigured(),
     };
+  }
+
+  isUsageMeteringConfigured() {
+    const eventName = this.config.get<string>('STRIPE_USAGE_METER_EVENT_NAME') ?? '';
+    return eventName.trim().length > 0;
   }
 
   async createCustomer(input: { workspaceId: string; name: string }) {
@@ -88,7 +100,10 @@ export class StripeClientService {
             currency: 'usd',
             unit_amount: input.amountCents,
             product_data: {
-              name: this.config.get<string>('STRIPE_CREDIT_PRODUCT_NAME', 'AgentLine prepaid credits'),
+              name: this.config.get<string>(
+                'STRIPE_CREDIT_PRODUCT_NAME',
+                'AgentLine prepaid credits',
+              ),
             },
           },
         },
@@ -100,6 +115,44 @@ export class StripeClientService {
     return this.request<StripePortalSession>('POST', '/v1/billing_portal/sessions', {
       customer: input.customerId,
       return_url: input.returnUrl,
+    });
+  }
+
+  async createUsageMeterEvent(input: {
+    identifier: string;
+    customerId: string;
+    value: number;
+    usageEventId: string;
+    workspaceId: string;
+    projectId: string;
+    resourceType: string;
+    resourceId: string;
+    channel: string;
+    timestamp: Date;
+  }) {
+    const eventName = this.config.get<string>('STRIPE_USAGE_METER_EVENT_NAME');
+    if (!eventName) {
+      throw new ApiException(
+        'provider_error',
+        'Stripe usage meter event name is not configured.',
+        500,
+      );
+    }
+
+    return this.request<StripeMeterEvent>('POST', '/v1/billing/meter_events', {
+      event_name: eventName,
+      identifier: input.identifier,
+      timestamp: Math.floor(input.timestamp.getTime() / 1000),
+      payload: {
+        stripe_customer_id: input.customerId,
+        value: input.value,
+        usage_event_id: input.usageEventId,
+        workspace_id: input.workspaceId,
+        project_id: input.projectId,
+        resource_type: input.resourceType,
+        resource_id: input.resourceId,
+        channel: input.channel,
+      },
     });
   }
 
@@ -125,8 +178,15 @@ export class StripeClientService {
     const toleranceSeconds = this.config.get<number>('STRIPE_WEBHOOK_TOLERANCE_SECONDS', 300);
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
-    if (Number.isNaN(parsedTimestamp) || Math.abs(currentTimestamp - parsedTimestamp) > toleranceSeconds) {
-      throw new ApiException('unauthorized', 'Stripe signature timestamp is outside tolerance.', 401);
+    if (
+      Number.isNaN(parsedTimestamp) ||
+      Math.abs(currentTimestamp - parsedTimestamp) > toleranceSeconds
+    ) {
+      throw new ApiException(
+        'unauthorized',
+        'Stripe signature timestamp is outside tolerance.',
+        401,
+      );
     }
 
     const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
@@ -147,7 +207,11 @@ export class StripeClientService {
     return event;
   }
 
-  private async request<T>(method: 'POST', path: string, body: Record<string, unknown>): Promise<T> {
+  private async request<T>(
+    method: 'POST',
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
     const secretKey = this.config.get<string>('STRIPE_SECRET_KEY');
 
     if (!secretKey) {

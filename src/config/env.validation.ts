@@ -25,6 +25,10 @@ const rawEnvSchema = z
     BREVO_API_KEY: z.string().optional(),
     BREVO_FROM_EMAIL: z.string().optional(),
     BREVO_FROM_NAME: z.string().optional(),
+    STRIPE_MODE: z.string().optional(),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_USAGE_METER_EVENT_NAME: z.string().optional(),
   })
   .passthrough();
 

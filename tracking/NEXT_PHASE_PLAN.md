@@ -69,7 +69,66 @@ Remaining:
 - Persist normalized provider issue state on first-class call/message records if
   the derived raw-event view becomes too expensive.
 
-## Next Implementation Phase: P2 Brevo Transactional Email
+## Next Implementation Phase: P6B Usage Evidence, Settlement, And Stripe Metering
+
+Status: implemented.
+
+Implemented:
+
+- `GET /v1/billing/pricing` for the canonical AgentLine rate card.
+- `GET /v1/billing/cost-summary` for workspace/project cost calculation
+  by channel, resource type, and agent.
+- Cost summary returns:
+  - total usage events
+  - total quantity
+  - total cost in USD decimal and cents
+  - current prepaid balance
+  - spend limit and remaining spend limit
+  - recent usage events
+  - billing rules used for calculation
+- `PATCH /v1/billing/controls` for workspace spend-limit updates.
+- `GET /v1/workspaces/current/settings` for settings-page source of truth:
+  - workspace
+  - current user role
+  - projects
+  - member/invite/product counts
+  - billing snapshot
+  - provider readiness
+  - permission controls
+
+Exit criteria:
+
+- Frontend Settings and Billing pages can render from real backend data without
+  placeholder "pending" cards.
+- Users can inspect exactly why a cost was charged and set a workspace spend
+  limit.
+- Workspace switchers can show real workspaces/projects and active role
+  context.
+- Developers can receive signed usage/cost webhooks and reconcile AgentLine
+  usage rows with Stripe meter events.
+
+Implemented in this trust slice:
+
+- Usage events now store billable quantity, pricing version, calculation
+  evidence, detection evidence, settlement status, and Stripe meter event id.
+- Voided usage is preserved for audit but excluded from normal usage totals and
+  spend-limit checks.
+- Cost summary includes settlement-status breakdowns for finance/support
+  investigation.
+- Finalized usage can be reported to Stripe Billing meter events when
+  `STRIPE_USAGE_METER_EVENT_NAME` is configured.
+- Usage webhooks were added:
+  - `agent.usage.recorded`
+  - `agent.usage.finalized`
+  - `agent.usage.voided`
+
+Remaining:
+
+- Low-balance and spend-limit notification emails.
+- Provider-specific cost reconciliation against Twilio invoice data.
+- Billing dashboard frontend integration.
+
+## Following Implementation Phase: P2 Brevo Transactional Email
 
 Status: first backend slice implemented.
 
@@ -227,7 +286,7 @@ Remaining:
    - atomic balance credits.
 
 7. **P7 Webhook worker reliability**
-   - Status: first real dispatch slice implemented.
+   - Status: in progress.
    - Implemented:
      - matching active webhook endpoints are delivered immediately over HTTP.
      - delivery payloads are signed with AgentLine webhook headers.
@@ -239,11 +298,16 @@ Remaining:
      - first-class `agent.call.failed` webhook events for failed live calls.
      - `GET /v1/webhooks/events` event catalog.
      - agent, number, conversation, and contact resource lifecycle events.
+     - real manual retry backed by HTTP re-delivery.
+     - manual replay endpoint for stored delivery payloads.
+     - due-delivery processor endpoint for retry workers.
+     - bounded retry backoff and final `exhausted` state.
+     - delivery attempt claiming to reduce duplicate concurrent sends.
    - Remaining:
-     - background delivery worker.
-     - automatic retry schedule.
-     - replay endpoint backed by real delivery, not simulation.
-     - final failed/exhausted state.
+     - run the due-delivery processor from a dedicated background worker or
+       scheduled job.
+     - persist per-attempt history if customers need full delivery audit trails
+       beyond the latest status/error.
 
 8. **P8 Security/compliance/abuse**
    - rate limits.

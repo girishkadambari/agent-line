@@ -90,6 +90,16 @@ export class WebhooksController {
     });
   }
 
+  @Post('deliveries/process-due')
+  processDueDeliveries(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
+    return this.webhooks.processDueDeliveries(context, parseLimit(limit, 25, 50));
+  }
+
+  @Post('deliveries/:id/replay')
+  async replayDelivery(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.webhooks.replayDelivery(context, id));
+  }
+
   @Post('deliveries/:id/retry')
   async retryDelivery(
     @CurrentContext() context: RequestContext,

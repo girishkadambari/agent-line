@@ -51,6 +51,7 @@ Webhook endpoint `events` support:
 - `agent.number.*`
 - `agent.conversation.*`
 - `agent.contact.*`
+- `agent.usage.*`
 
 Wildcard subscriptions are recommended during development. Production
 integrations should narrow to the exact families they process.
@@ -176,9 +177,43 @@ Contact payloads include:
 - `createdAt`
 - `updatedAt`
 
+### Usage And Billing
+
+- `agent.usage.recorded`
+- `agent.usage.finalized`
+- `agent.usage.voided`
+
+Usage payloads include a `usageEvent` object with:
+
+- `id`
+- `agentId`
+- `resourceType`
+- `resourceId`
+- `channel`
+- `quantity`
+- `billableQuantity`
+- `unit`
+- `unitCost`
+- `totalCost`
+- `pricingVersion`
+- `calculation`
+- `evidence`
+- `settlementStatus`
+- `stripeMeterEventId`
+- `occurredAt`
+- `createdAt`
+
 ## Delivery Rules
 
 - Webhooks are signed with AgentLine headers.
 - Failed deliveries keep `lastStatusCode`, `lastError`, and `nextAttemptAt`.
+- Delivery attempts are claimed before dispatch so concurrent retry workers do
+  not send the same attempt twice.
+- Automatic retries use bounded backoff: 1 minute, 5 minutes, 15 minutes,
+  1 hour, then 3 hours.
+- A delivery is marked `exhausted` after 5 failed attempts.
+- Manual retry re-sends the stored signed payload to the endpoint.
+- Manual replay can re-send a stored delivery payload for debugging or
+  downstream recovery.
 - Provider callback duplicates are ignored before customer webhook emission.
 - Customer endpoints should treat `id` as the idempotency key.

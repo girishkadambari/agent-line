@@ -101,7 +101,17 @@ describe('WebhooksService', () => {
         findFirst: jest.fn().mockResolvedValue(endpointFixture()),
       },
       webhookDelivery: {
-        create: jest.fn().mockResolvedValue(deliveryFixture()),
+        create: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'pending', attemptCount: 0 })),
+        update: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            status: 'failed',
+            attemptCount: 1,
+            lastStatusCode: 500,
+            lastError: 'Simulated webhook delivery failure.',
+          }),
+        ),
       },
     } as unknown as PrismaService;
     const { service } = createService(prisma);
@@ -114,9 +124,18 @@ describe('WebhooksService', () => {
     expect(result.headers['agentline-signature']).toMatch(/^v1=/);
     expect(prisma.webhookDelivery.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        status: 'pending',
+        attemptCount: 0,
+      }),
+    });
+    expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
+      where: { id: 'whdel_123' },
+      data: expect.objectContaining({
         status: 'failed',
         attemptCount: 1,
         lastStatusCode: 500,
+        lastError: 'Simulated webhook delivery failure.',
+        nextAttemptAt: expect.any(Date),
       }),
     });
   });
@@ -129,7 +148,16 @@ describe('WebhooksService', () => {
         findMany: jest.fn().mockResolvedValue([endpointFixture()]),
       },
       webhookDelivery: {
-        create: jest.fn().mockResolvedValue(deliveryFixture({ status: 'pending' })),
+        create: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'pending', attemptCount: 0 })),
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(deliveryFixture({ status: 'pending', attemptCount: 0 })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'retrying', attemptCount: 1 })),
         update: jest.fn().mockResolvedValue(
           deliveryFixture({
             status: 'succeeded',
@@ -209,8 +237,41 @@ describe('WebhooksService', () => {
       webhookDelivery: {
         create: jest
           .fn()
-          .mockResolvedValueOnce(deliveryFixture({ id: 'whdel_prefix', endpointId: 'wh_prefix' }))
-          .mockResolvedValueOnce(deliveryFixture({ id: 'whdel_global', endpointId: 'wh_global' })),
+          .mockResolvedValueOnce(
+            deliveryFixture({
+              id: 'whdel_prefix',
+              endpointId: 'wh_prefix',
+              status: 'pending',
+              attemptCount: 0,
+            }),
+          )
+          .mockResolvedValueOnce(
+            deliveryFixture({
+              id: 'whdel_global',
+              endpointId: 'wh_global',
+              status: 'pending',
+              attemptCount: 0,
+            }),
+          ),
+        findUnique: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(
+            deliveryFixture({
+              id: where.id,
+              status: 'pending',
+              attemptCount: 0,
+            }),
+          ),
+        ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(
+            deliveryFixture({
+              id: where.id,
+              status: 'retrying',
+              attemptCount: 1,
+            }),
+          ),
+        ),
         update: jest.fn().mockImplementation(({ where }) =>
           Promise.resolve(
             deliveryFixture({
@@ -252,7 +313,16 @@ describe('WebhooksService', () => {
         findMany: jest.fn().mockResolvedValue([endpointFixture()]),
       },
       webhookDelivery: {
-        create: jest.fn().mockResolvedValue(deliveryFixture({ status: 'pending' })),
+        create: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'pending', attemptCount: 0 })),
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(deliveryFixture({ status: 'pending', attemptCount: 0 })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'retrying', attemptCount: 1 })),
         update: jest.fn().mockResolvedValue(
           deliveryFixture({
             status: 'failed',
@@ -287,9 +357,22 @@ describe('WebhooksService', () => {
   });
 
   it('retries failed delivery and marks it succeeded', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = fetchMock as unknown as typeof fetch;
     const prisma = {
       webhookDelivery: {
-        findFirst: jest.fn().mockResolvedValue(deliveryFixture()),
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(deliveryFixture())
+          .mockResolvedValueOnce({
+            ...deliveryFixture(),
+            endpoint: endpointFixture(),
+          }),
+        findUnique: jest.fn().mockResolvedValue(deliveryFixture()),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest
+          .fn()
+          .mockResolvedValue(deliveryFixture({ status: 'retrying', attemptCount: 2 })),
         update: jest.fn().mockResolvedValue(
           deliveryFixture({
             status: 'succeeded',
@@ -309,6 +392,19 @@ describe('WebhooksService', () => {
     });
 
     expect(result.status).toBe('succeeded');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(prisma.webhookDelivery.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'whdel_123',
+        status: { in: ['pending', 'failed', 'retrying'] },
+        attemptCount: 1,
+      },
+      data: {
+        status: 'retrying',
+        attemptCount: { increment: 1 },
+        nextAttemptAt: null,
+      },
+    });
     expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
       where: { id: 'whdel_123' },
       data: expect.objectContaining({

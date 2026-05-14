@@ -1275,3 +1275,118 @@ Verification:
 - `npm test -- agents.service.spec.ts numbers.service.spec.ts contacts.service.spec.ts conversations.service.spec.ts webhooks.service.spec.ts messages.service.spec.ts calls.service.spec.ts` passed.
 - `npm run build` passed.
 - targeted backend `eslint` passed.
+
+## 2026-05-14: P7 Webhook Delivery Reliability
+
+**Status:** implemented
+
+Implemented:
+
+- Replaced simulated webhook retry success/failure with real HTTP
+  re-delivery.
+- Added manual delivery replay with `POST /v1/webhooks/deliveries/:id/replay`.
+- Added a due-delivery processor endpoint:
+  `POST /v1/webhooks/deliveries/process-due`.
+- Added delivery attempt claiming before dispatch to reduce duplicate sends from
+  concurrent retry paths.
+- Added bounded retry backoff:
+  - 1 minute
+  - 5 minutes
+  - 15 minutes
+  - 1 hour
+  - 3 hours
+- Added final `exhausted` behavior after 5 failed attempts.
+- Changed test webhook delivery to perform a real signed dispatch unless the
+  request explicitly asks for simulated failure.
+- Updated `docs/WEBHOOK_EVENT_STANDARD.md` with retry, replay, and exhaustion
+  rules.
+
+Verification:
+
+- `npm test -- webhooks.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- targeted backend `eslint` passed.
+- `npm run build` passed.
+
+## 2026-05-14: P6A Billing, Workspace Settings, And Controls
+
+**Status:** implemented
+
+Implemented:
+
+- Added `GET /v1/billing/pricing` as the canonical backend rate card for:
+  - phone number provision/import ownership
+  - inbound SMS
+  - outbound SMS
+  - voice minutes
+- Added `GET /v1/billing/cost-summary` with backend-calculated totals and
+  breakdowns:
+  - total cost in USD and cents
+  - usage event count
+  - quantity
+  - channel breakdown
+  - resource type breakdown
+  - agent breakdown with agent names
+  - recent usage events
+  - spend-limit remaining amount
+  - pricing rules used for the calculation
+- Added `PATCH /v1/billing/controls` for workspace spend-limit updates.
+- Added audit logging for billing control updates.
+- Added `GET /v1/workspaces/current/settings` as the source of truth for the
+  Settings screen:
+  - workspace identity
+  - current role
+  - projects
+  - member/invite/product counts
+  - billing snapshot
+  - provider readiness for Twilio, Stripe, and Brevo
+  - permission controls for workspace, billing, invites, and API keys
+- Added focused tests for billing pricing, controls, and cost summaries.
+
+Verification:
+
+- `npm test -- billing.service.spec.ts workspaces.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- targeted backend `eslint` passed.
+- `npm run build` passed.
+
+## 2026-05-14: P6B Usage Evidence, Settlement, And Stripe Metering
+
+**Status:** implemented
+
+Implemented:
+
+- Expanded `UsageEvent` into a settlement-grade usage ledger:
+  - observed quantity
+  - billable quantity
+  - unit cost
+  - total cost
+  - pricing version
+  - calculation evidence
+  - detection evidence
+  - settlement status
+  - Stripe meter event id
+- Added `UsageSettlementStatus` states:
+  - `internal_debited`
+  - `stripe_reported`
+  - `stripe_failed`
+  - `voided`
+- Preserved voided usage rows for audit instead of deleting settlement evidence.
+- Excluded voided usage from spend-limit checks, usage lists, rollups, and normal
+  cost totals.
+- Added settlement-status breakdowns to `GET /v1/billing/cost-summary`.
+- Added optional Stripe Billing meter event reporting through
+  `STRIPE_USAGE_METER_EVENT_NAME`.
+- Made Stripe usage reporting idempotent for already reported usage rows.
+- Added usage webhook events:
+  - `agent.usage.recorded`
+  - `agent.usage.finalized`
+  - `agent.usage.voided`
+- Updated Stripe billing and webhook documentation for evidence-based
+  reconciliation.
+
+Verification:
+
+- `npm test -- usage.service.spec.ts billing.service.spec.ts stripe-client.service.spec.ts webhooks.service.spec.ts` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.

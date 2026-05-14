@@ -11,7 +11,11 @@ function signatureFor(payload: string, secret: string, timestamp: number) {
 }
 
 describe('StripeClientService', () => {
-  function createService(nowSeconds: number, toleranceSeconds = 300, overrides: Record<string, unknown> = {}) {
+  function createService(
+    nowSeconds: number,
+    toleranceSeconds = 300,
+    overrides: Record<string, unknown> = {},
+  ) {
     jest.spyOn(Date, 'now').mockReturnValue(nowSeconds * 1000);
     const config = {
       get: jest.fn((key: string, fallback?: unknown) => {
@@ -126,6 +130,66 @@ describe('StripeClientService', () => {
       secretKeyMatchesMode: true,
       webhookSecretConfigured: true,
       webhookToleranceSeconds: 300,
+      usageMeterEventNameConfigured: false,
+    });
+  });
+
+  it('creates a Stripe billing meter event with usage trace payload', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        identifier: 'use_123',
+        event_name: 'agentline_usage',
+      }),
+    });
+    global.fetch = fetchMock;
+    const service = createService(1_777_777_777, 300, {
+      STRIPE_SECRET_KEY: 'sk_test_123',
+      STRIPE_MODE: 'test',
+      STRIPE_USAGE_METER_EVENT_NAME: 'agentline_usage',
+    });
+
+    const result = await service.createUsageMeterEvent({
+      identifier: 'use_123',
+      customerId: 'cus_123',
+      value: 6,
+      usageEventId: 'use_123',
+      workspaceId: 'ws_123',
+      projectId: 'proj_123',
+      resourceType: 'call',
+      resourceId: 'call_123',
+      channel: 'voice',
+      timestamp: new Date('2026-05-07T00:00:00.000Z'),
+    });
+
+    expect(result.identifier).toBe('use_123');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.stripe.com/v1/billing/meter_events',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer sk_test_123',
+        }),
+      }),
+    );
+    const body = fetchMock.mock.calls[0][1].body as URLSearchParams;
+    expect(body.get('event_name')).toBe('agentline_usage');
+    expect(body.get('identifier')).toBe('use_123');
+    expect(body.get('payload[stripe_customer_id]')).toBe('cus_123');
+    expect(body.get('payload[value]')).toBe('6');
+    expect(body.get('payload[usage_event_id]')).toBe('use_123');
+    expect(body.get('payload[resource_id]')).toBe('call_123');
+  });
+
+  it('reports usage meter configuration status', () => {
+    const service = createService(1_777_777_777, 300, {
+      STRIPE_SECRET_KEY: 'sk_test_123',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test',
+      STRIPE_USAGE_METER_EVENT_NAME: 'agentline_usage',
+    });
+
+    expect(service.getConfigurationStatus()).toMatchObject({
+      usageMeterEventNameConfigured: true,
     });
   });
 

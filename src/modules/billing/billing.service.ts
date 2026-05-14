@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type UsageEvent } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import type { CreateCheckoutSessionInput, CreatePortalSessionInput } from '../../domain/schemas';
+import type {
+  BillingCostQueryInput,
+  CreateCheckoutSessionInput,
+  CreatePortalSessionInput,
+  UpdateBillingControlsInput,
+} from '../../domain/schemas';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { USAGE_PRICING_CENTS } from '../usage/usage-pricing';
+import { serializeUsageEvent } from '../usage/usage.serializer';
 import { serializeBillingBalance, serializeBillingTransaction } from './billing.serializer';
 import { StripeClientService, type StripeWebhookEvent } from './stripe-client.service';
 
@@ -15,11 +24,209 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripe: StripeClientService,
-  ) { }
+    private readonly audit: AuditService,
+  ) {}
 
   async getBalance(context: RequestContext) {
     const balance = await this.findOrCreateWorkspaceBalance(context.workspaceId);
     return serializeBillingBalance(balance);
+  }
+
+  getPricing() {
+    return {
+      currency: 'USD',
+      rates: [
+        {
+          key: 'phone_number_provision',
+          resourceType: 'phone_number',
+          channel: 'number',
+          unit: 'number',
+          unitCostCents: USAGE_PRICING_CENTS.phoneNumberProvision,
+          formula: 'quantity * phone_number_provision',
+        },
+        {
+          key: 'sms_outbound',
+          resourceType: 'message',
+          channel: 'sms.outbound',
+          unit: 'message',
+          unitCostCents: USAGE_PRICING_CENTS.outboundSms,
+          formula: 'outbound_messages * sms_outbound',
+        },
+        {
+          key: 'sms_inbound',
+          resourceType: 'message',
+          channel: 'sms.inbound',
+          unit: 'message',
+          unitCostCents: USAGE_PRICING_CENTS.inboundSms,
+          formula: 'inbound_messages * sms_inbound',
+        },
+        {
+          key: 'voice_minute',
+          resourceType: 'call',
+          channel: 'voice',
+          unit: 'minute',
+          unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
+          formula: 'ceil(duration_seconds / 60) * voice_minute',
+        },
+      ],
+      billingRules: {
+        currencyPrecision: 'Costs are stored as USD decimals and debited as whole cents.',
+        voiceMinimum: 'Voice calls have a 1 billable minute minimum.',
+        voiceRounding: 'Voice duration is rounded up to the next full minute.',
+        smsUnits: 'Each inbound or outbound SMS message is 1 billable message unit.',
+        numberUnits:
+          'Each provisioned/imported number records 1 number unit when AgentLine takes ownership.',
+        stripeUsageMetering:
+          'When STRIPE_USAGE_METER_EVENT_NAME is configured, finalized usage is also reported to Stripe Billing meter events.',
+      },
+    };
+  }
+
+  async updateControls(context: RequestContext, input: UpdateBillingControlsInput) {
+    const existing = await this.findOrCreateWorkspaceBalance(context.workspaceId);
+    const balance = await this.prisma.billingBalance.update({
+      where: { workspaceId: context.workspaceId },
+      data: {
+        spendLimitCents:
+          input.spendLimitCents === undefined ? existing.spendLimitCents : input.spendLimitCents,
+      },
+    });
+
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorApiKeyId: context.apiKeyId,
+      actorUserId: context.userId,
+      action: 'billing.controls_updated',
+      resourceType: 'billing_balance',
+      resourceId: balance.id,
+      metadata: {
+        previousSpendLimitCents: existing.spendLimitCents,
+        spendLimitCents: balance.spendLimitCents,
+      },
+    });
+
+    return {
+      balance: serializeBillingBalance(balance),
+      controls: this.serializeBillingControls(balance),
+    };
+  }
+
+  async getCostSummary(context: RequestContext, input: BillingCostQueryInput) {
+    const where = this.createCostWhere(context, input);
+    const [balance, total, byChannel, byResourceType, byAgent, bySettlementStatus, recentEvents] =
+      await Promise.all([
+        this.findOrCreateWorkspaceBalance(context.workspaceId),
+        this.prisma.usageEvent.aggregate({
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true, totalCost: true },
+        }),
+        this.prisma.usageEvent.groupBy({
+          by: ['channel', 'unit', 'unitCost'],
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true, totalCost: true },
+          orderBy: { _sum: { totalCost: 'desc' } },
+        }),
+        this.prisma.usageEvent.groupBy({
+          by: ['resourceType'],
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true, totalCost: true },
+          orderBy: { _sum: { totalCost: 'desc' } },
+        }),
+        this.prisma.usageEvent.groupBy({
+          by: ['agentId'],
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true, totalCost: true },
+          orderBy: { _sum: { totalCost: 'desc' } },
+        }),
+        this.prisma.usageEvent.groupBy({
+          by: ['settlementStatus'],
+          where: this.createCostWhere(context, input, { includeVoided: true }),
+          _count: { _all: true },
+          _sum: { quantity: true, totalCost: true },
+          orderBy: { settlementStatus: 'asc' },
+        }),
+        this.prisma.usageEvent.findMany({
+          where,
+          orderBy: { occurredAt: 'desc' },
+          take: 25,
+        }),
+      ]);
+    const agentIds = byAgent.map((row) => row.agentId).filter((id): id is string => Boolean(id));
+    const agents = agentIds.length
+      ? await this.prisma.agent.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            projectId: context.projectId,
+            id: { in: agentIds },
+          },
+          select: { id: true, name: true },
+        })
+      : [];
+    const agentNames = new Map(agents.map((agent) => [agent.id, agent.name]));
+    const spentCents = this.decimalUsdToCents(total._sum.totalCost);
+    const spendLimitRemainingCents =
+      balance.spendLimitCents === null ? null : Math.max(balance.spendLimitCents - spentCents, 0);
+
+    return {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      currency: balance.currency,
+      range: {
+        from: input.from ?? null,
+        to: input.to ?? null,
+      },
+      totals: {
+        events: total._count._all,
+        quantity: this.decimalToString(total._sum.quantity),
+        totalCost: this.decimalToString(total._sum.totalCost),
+        totalCostCents: spentCents,
+      },
+      balance: serializeBillingBalance(balance),
+      controls: {
+        ...this.serializeBillingControls(balance),
+        spendLimitRemainingCents,
+      },
+      breakdowns: {
+        byChannel: byChannel.map((row) => ({
+          channel: row.channel,
+          unit: row.unit,
+          unitCost: row.unitCost.toString(),
+          unitCostCents: this.decimalUsdToCents(row.unitCost),
+          events: row._count._all,
+          quantity: this.decimalToString(row._sum.quantity),
+          totalCost: this.decimalToString(row._sum.totalCost),
+          totalCostCents: this.decimalUsdToCents(row._sum.totalCost),
+        })),
+        byResourceType: byResourceType.map((row) => ({
+          resourceType: row.resourceType,
+          events: row._count._all,
+          quantity: this.decimalToString(row._sum.quantity),
+          totalCost: this.decimalToString(row._sum.totalCost),
+          totalCostCents: this.decimalUsdToCents(row._sum.totalCost),
+        })),
+        byAgent: byAgent.map((row) => ({
+          agentId: row.agentId,
+          agentName: row.agentId ? (agentNames.get(row.agentId) ?? null) : null,
+          events: row._count._all,
+          quantity: this.decimalToString(row._sum.quantity),
+          totalCost: this.decimalToString(row._sum.totalCost),
+          totalCostCents: this.decimalUsdToCents(row._sum.totalCost),
+        })),
+        bySettlementStatus: bySettlementStatus.map((row) => ({
+          settlementStatus: row.settlementStatus,
+          events: row._count._all,
+          quantity: this.decimalToString(row._sum.quantity),
+          totalCost: this.decimalToString(row._sum.totalCost),
+          totalCostCents: this.decimalUsdToCents(row._sum.totalCost),
+        })),
+      },
+      recentEvents: recentEvents.map(serializeUsageEvent),
+      pricing: this.getPricing(),
+    };
   }
 
   getStripeStatus() {
@@ -36,11 +243,16 @@ export class BillingService {
     if (balance.spendLimitCents !== null) {
       const spentCents = await this.getWorkspaceSpentCents(workspaceId);
       if (spentCents + cents > balance.spendLimitCents) {
-        throw new ApiException('insufficient_balance', 'Usage exceeds workspace spend limit.', 402, {
-          cents,
-          spentCents,
-          spendLimitCents: balance.spendLimitCents,
-        });
+        throw new ApiException(
+          'insufficient_balance',
+          'Usage exceeds workspace spend limit.',
+          402,
+          {
+            cents,
+            spentCents,
+            spendLimitCents: balance.spendLimitCents,
+          },
+        );
       }
     }
 
@@ -72,6 +284,54 @@ export class BillingService {
       where: { workspaceId },
       data: { balanceCents: { increment: cents } },
     });
+  }
+
+  async reportUsageEventToStripe(event: UsageEvent) {
+    if (event.settlementStatus === 'stripe_reported') {
+      return {
+        status: 'stripe_reported' as const,
+        stripeMeterEventId: event.stripeMeterEventId ?? undefined,
+      };
+    }
+
+    if (!this.stripe.isUsageMeteringConfigured()) {
+      return { status: 'internal_debited' as const };
+    }
+
+    const account = await this.prisma.billingAccount.findUnique({
+      where: {
+        workspaceId_provider: {
+          workspaceId: event.workspaceId,
+          provider: 'stripe',
+        },
+      },
+    });
+
+    if (!account) {
+      return { status: 'stripe_failed' as const };
+    }
+
+    try {
+      const meterEvent = await this.stripe.createUsageMeterEvent({
+        identifier: event.id,
+        customerId: account.providerCustomerId,
+        value: this.decimalUsdToCents(event.totalCost),
+        usageEventId: event.id,
+        workspaceId: event.workspaceId,
+        projectId: event.projectId,
+        resourceType: event.resourceType,
+        resourceId: event.resourceId,
+        channel: event.channel,
+        timestamp: event.occurredAt,
+      });
+
+      return {
+        status: 'stripe_reported' as const,
+        stripeMeterEventId: meterEvent.identifier,
+      };
+    } catch {
+      return { status: 'stripe_failed' as const };
+    }
   }
 
   async createCheckoutSession(context: RequestContext, input: CreateCheckoutSessionInput) {
@@ -189,7 +449,7 @@ export class BillingService {
 
   private async getWorkspaceSpentCents(workspaceId: string) {
     const aggregate = await this.prisma.usageEvent.aggregate({
-      where: { workspaceId },
+      where: { workspaceId, settlementStatus: { not: 'voided' } },
       _sum: { totalCost: true },
     });
     const totalCost = aggregate._sum.totalCost;
@@ -199,6 +459,47 @@ export class BillingService {
     }
 
     return Math.round(totalCost.toNumber() * 100);
+  }
+
+  private createCostWhere(
+    context: RequestContext,
+    input: BillingCostQueryInput,
+    options: { includeVoided?: boolean } = {},
+  ): Prisma.UsageEventWhereInput {
+    return {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      settlementStatus: options.includeVoided ? undefined : { not: 'voided' },
+      occurredAt: {
+        gte: input.from ? new Date(input.from) : undefined,
+        lte: input.to ? new Date(input.to) : undefined,
+      },
+    };
+  }
+
+  private serializeBillingControls(balance: {
+    balanceCents: number;
+    spendLimitCents: number | null;
+  }) {
+    return {
+      prepaidRequired: true,
+      spendLimitCents: balance.spendLimitCents,
+      balanceCents: balance.balanceCents,
+      canSpend: balance.balanceCents > 0,
+      lowBalance: balance.balanceCents <= 500,
+    };
+  }
+
+  private decimalToString(value: Decimal | null) {
+    return value?.toString() ?? '0';
+  }
+
+  private decimalUsdToCents(value: Decimal | null) {
+    if (!value) {
+      return 0;
+    }
+
+    return Math.round(value.toNumber() * 100);
   }
 
   private async findOrCreateWorkspaceBalance(workspaceId: string) {
@@ -255,10 +556,7 @@ export class BillingService {
     });
   }
 
-  private async handleCheckoutCompleted(
-    tx: Prisma.TransactionClient,
-    event: StripeWebhookEvent,
-  ) {
+  private async handleCheckoutCompleted(tx: Prisma.TransactionClient, event: StripeWebhookEvent) {
     const stripeObject = event.data.object;
     const workspaceId = this.workspaceIdFromEvent(event);
 

@@ -1,4 +1,7 @@
 import type { PrismaService } from '../prisma/prisma.service';
+import type { AuditService } from '../audit/audit.service';
+import { UsageSettlementStatus, type UsageEvent } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { BillingService } from './billing.service';
 import type { StripeClientService } from './stripe-client.service';
 
@@ -32,20 +35,55 @@ describe('BillingService', () => {
         customer: 'cus_123',
       }),
       constructWebhookEvent: jest.fn(),
+      isUsageMeteringConfigured: jest.fn().mockReturnValue(false),
+      createUsageMeterEvent: jest.fn().mockResolvedValue({
+        identifier: 'use_123',
+        event_name: 'agentline_usage',
+      }),
       getConfigurationStatus: jest.fn().mockReturnValue({
         mode: 'test',
         secretKeyConfigured: true,
         secretKeyMatchesMode: true,
         webhookSecretConfigured: true,
         webhookToleranceSeconds: 300,
+        usageMeterEventNameConfigured: false,
       }),
       getMode: jest.fn().mockReturnValue('test'),
       ...stripeOverrides,
     } as unknown as StripeClientService;
+    const audit = {
+      record: jest.fn().mockResolvedValue({}),
+    } as unknown as AuditService;
 
     return {
-      service: new BillingService(prisma, stripe),
+      service: new BillingService(prisma, stripe, audit),
       stripe,
+      audit,
+    };
+  }
+
+  function usageEventFixture(overrides: Partial<UsageEvent> = {}): UsageEvent {
+    return {
+      id: 'use_123',
+      workspaceId: 'ws_123',
+      projectId: 'proj_123',
+      agentId: 'agt_123',
+      resourceType: 'call',
+      resourceId: 'call_123',
+      channel: 'voice',
+      quantity: new Decimal(2),
+      billableQuantity: new Decimal(2),
+      unit: 'minute',
+      unitCost: new Decimal('0.0300'),
+      totalCost: new Decimal('0.0600'),
+      pricingVersion: '2026-05-14',
+      calculation: {},
+      evidence: {},
+      settlementStatus: UsageSettlementStatus.internal_debited,
+      stripeMeterEventId: null,
+      occurredAt: now,
+      createdAt: now,
+      ...overrides,
     };
   }
 
@@ -187,6 +225,211 @@ describe('BillingService', () => {
       secretKeyMatchesMode: true,
       webhookSecretConfigured: true,
       webhookToleranceSeconds: 300,
+      usageMeterEventNameConfigured: false,
+    });
+  });
+
+  it('keeps usage internally debited when Stripe metering is not configured', async () => {
+    const prisma = {
+      billingAccount: {
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, stripe } = createService(prisma);
+
+    await expect(service.reportUsageEventToStripe(usageEventFixture())).resolves.toEqual({
+      status: 'internal_debited',
+    });
+    expect(stripe.createUsageMeterEvent).not.toHaveBeenCalled();
+    expect(prisma.billingAccount.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('reports usage evidence to Stripe meter events when a billing customer exists', async () => {
+    const prisma = {
+      billingAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+        }),
+      },
+    } as unknown as PrismaService;
+    const { service, stripe } = createService(prisma, {
+      isUsageMeteringConfigured: jest.fn().mockReturnValue(true),
+    });
+
+    await expect(service.reportUsageEventToStripe(usageEventFixture())).resolves.toEqual({
+      status: 'stripe_reported',
+      stripeMeterEventId: 'use_123',
+    });
+    expect(stripe.createUsageMeterEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identifier: 'use_123',
+        customerId: 'cus_123',
+        value: 6,
+        usageEventId: 'use_123',
+        resourceType: 'call',
+        resourceId: 'call_123',
+        channel: 'voice',
+      }),
+    );
+  });
+
+  it('does not report already settled usage to Stripe again', async () => {
+    const prisma = {
+      billingAccount: {
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, stripe } = createService(prisma, {
+      isUsageMeteringConfigured: jest.fn().mockReturnValue(true),
+    });
+
+    await expect(
+      service.reportUsageEventToStripe(
+        usageEventFixture({
+          settlementStatus: UsageSettlementStatus.stripe_reported,
+          stripeMeterEventId: 'meter_evt_123',
+        }),
+      ),
+    ).resolves.toEqual({
+      status: 'stripe_reported',
+      stripeMeterEventId: 'meter_evt_123',
+    });
+    expect(stripe.createUsageMeterEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns pricing rules for cost calculation', () => {
+    const prisma = {} as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    expect(service.getPricing()).toEqual(
+      expect.objectContaining({
+        currency: 'USD',
+        rates: expect.arrayContaining([
+          expect.objectContaining({
+            key: 'voice_minute',
+            unitCostCents: 3,
+            formula: 'ceil(duration_seconds / 60) * voice_minute',
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('updates workspace billing controls', async () => {
+    const prisma = {
+      billingBalance: {
+        findUnique: jest.fn().mockResolvedValue(balanceFixture()),
+        update: jest.fn().mockResolvedValue(balanceFixture({ spendLimitCents: 2500 })),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = createService(prisma);
+
+    const result = await service.updateControls(
+      { workspaceId: 'ws_123', projectId: 'proj_123', apiKeyId: 'key_123' },
+      { spendLimitCents: 2500 },
+    );
+
+    expect(result.controls.spendLimitCents).toBe(2500);
+    expect(prisma.billingBalance.update).toHaveBeenCalledWith({
+      where: { workspaceId: 'ws_123' },
+      data: { spendLimitCents: 2500 },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_123',
+        action: 'billing.controls_updated',
+        metadata: {
+          previousSpendLimitCents: null,
+          spendLimitCents: 2500,
+        },
+      }),
+    );
+  });
+
+  it('returns cost summary with clear channel and agent breakdowns', async () => {
+    const prisma = {
+      billingBalance: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(balanceFixture({ balanceCents: 1000, spendLimitCents: 5000 })),
+      },
+      usageEvent: {
+        aggregate: jest.fn().mockResolvedValue({
+          _count: { _all: 2 },
+          _sum: {
+            quantity: { toString: () => '3' },
+            totalCost: { toString: () => '0.07', toNumber: () => 0.07 },
+          },
+        }),
+        groupBy: jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              channel: 'voice',
+              unit: 'minute',
+              unitCost: { toString: () => '0.0300', toNumber: () => 0.03 },
+              _count: { _all: 1 },
+              _sum: {
+                quantity: { toString: () => '2' },
+                totalCost: { toString: () => '0.06', toNumber: () => 0.06 },
+              },
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              resourceType: 'call',
+              _count: { _all: 1 },
+              _sum: {
+                quantity: { toString: () => '2' },
+                totalCost: { toString: () => '0.06', toNumber: () => 0.06 },
+              },
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              agentId: 'agt_123',
+              _count: { _all: 1 },
+              _sum: {
+                quantity: { toString: () => '2' },
+                totalCost: { toString: () => '0.06', toNumber: () => 0.06 },
+              },
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              settlementStatus: 'internal_debited',
+              _count: { _all: 2 },
+              _sum: {
+                quantity: { toString: () => '3' },
+                totalCost: { toString: () => '0.07', toNumber: () => 0.07 },
+              },
+            },
+          ]),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      agent: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'agt_123', name: 'Support Agent' }]),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.getCostSummary(
+      { workspaceId: 'ws_123', projectId: 'proj_123', apiKeyId: 'key_123' },
+      {},
+    );
+
+    expect(result.totals.totalCostCents).toBe(7);
+    expect(result.controls.spendLimitRemainingCents).toBe(4993);
+    expect(result.breakdowns.byChannel[0]).toMatchObject({
+      channel: 'voice',
+      unitCostCents: 3,
+      totalCostCents: 6,
+    });
+    expect(result.breakdowns.byAgent[0]).toMatchObject({
+      agentId: 'agt_123',
+      agentName: 'Support Agent',
     });
   });
 

@@ -5,6 +5,8 @@ export const USAGE_PRICING_CENTS = {
   voiceMinute: 3,
 } as const;
 
+export const USAGE_PRICING_VERSION = '2026-05-14';
+
 export function centsToUsdDecimal(cents: number) {
   return (cents / 100).toFixed(4);
 }
