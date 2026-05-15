@@ -234,17 +234,11 @@ export class TwilioProviderService implements TelecomProvider {
     const body: TwilioRequestBody = {
       From: input.from,
       To: input.to,
-      Url: this.config.get<string>(
-        'TWILIO_VOICE_WEBHOOK_URL',
-        'https://example.com/agentline/twiml',
-      ),
+      Url: this.getRequiredConfig('TWILIO_VOICE_WEBHOOK_URL'),
     };
-    const statusCallbackUrl = this.config.get<string>('TWILIO_VOICE_STATUS_CALLBACK_URL');
-    if (statusCallbackUrl) {
-      body.StatusCallback = statusCallbackUrl;
-      body.StatusCallbackMethod = 'POST';
-      body.StatusCallbackEvent = ['initiated', 'ringing', 'answered', 'completed'];
-    }
+    body.StatusCallback = this.getRequiredConfig('TWILIO_VOICE_STATUS_CALLBACK_URL');
+    body.StatusCallbackMethod = 'POST';
+    body.StatusCallbackEvent = ['initiated', 'ringing', 'answered', 'completed'];
 
     const response = await this.request<TwilioCall>('POST', '/Calls.json', body);
 
@@ -335,6 +329,15 @@ export class TwilioProviderService implements TelecomProvider {
       accountSid: this.config.get<string>('TWILIO_ACCOUNT_SID'),
       authToken: this.config.get<string>('TWILIO_AUTH_TOKEN'),
     };
+  }
+
+  private getRequiredConfig(name: string) {
+    const value = this.config.get<string>(name);
+    if (!value?.trim()) {
+      throw new ApiException('provider_error', `${name} is required for Twilio calls.`, 500);
+    }
+
+    return value;
   }
 
   private isTestMode() {

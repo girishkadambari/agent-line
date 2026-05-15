@@ -752,16 +752,19 @@ export class CallsService {
   ) {
     const shouldSettleDuration =
       input.durationSeconds !== undefined && input.durationSeconds > existing.durationSeconds;
+    const shouldSettleStatus =
+      this.terminalCallStatuses.has(input.status) && existing.status !== input.status;
     const shouldSetOutcome = !existing.outcome && this.terminalCallStatuses.has(input.status);
     const shouldSetEndedAt = !existing.endedAt && this.terminalCallStatuses.has(input.status);
 
-    if (!shouldSettleDuration && !shouldSetOutcome && !shouldSetEndedAt) {
+    if (!shouldSettleDuration && !shouldSettleStatus && !shouldSetOutcome && !shouldSetEndedAt) {
       return existing;
     }
 
     const call = await this.prisma.call.update({
       where: { id: existing.id },
       data: {
+        status: shouldSettleStatus ? input.status : existing.status,
         durationSeconds: shouldSettleDuration ? input.durationSeconds : existing.durationSeconds,
         outcome: shouldSetOutcome ? input.status : existing.outcome,
         endedAt: shouldSetEndedAt ? new Date() : existing.endedAt,

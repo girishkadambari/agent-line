@@ -659,4 +659,61 @@ describe('CallsService', () => {
     });
     expect(events.create).not.toHaveBeenCalled();
   });
+
+  it('settles a final Twilio callback status even when the call was still queued locally', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'queued',
+            durationSeconds: 0,
+            outcome: 'response_captured',
+            endedAt: null,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'completed',
+            durationSeconds: 12,
+            outcome: 'response_captured',
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'completed',
+      durationSeconds: 12,
+      rawPayload: { CallSid: 'CA123', CallStatus: 'completed', CallDuration: '12' },
+    });
+
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({
+        status: 'completed',
+        durationSeconds: 12,
+        endedAt: expect.any(Date),
+      }),
+    });
+    expect(usage.finalizeVoiceCall).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      callId: 'call_123',
+      durationSeconds: 12,
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.completed',
+      }),
+    );
+  });
 });

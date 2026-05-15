@@ -18,6 +18,11 @@ const rawEnvSchema = z
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_TEST_ACCOUNT_SID: z.string().optional(),
     TWILIO_TEST_AUTH_TOKEN: z.string().optional(),
+    TWILIO_INBOUND_SMS_WEBHOOK_URL: z.string().optional(),
+    TWILIO_MESSAGE_STATUS_CALLBACK_URL: z.string().optional(),
+    TWILIO_VOICE_WEBHOOK_URL: z.string().optional(),
+    TWILIO_VOICE_GATHER_CALLBACK_URL: z.string().optional(),
+    TWILIO_VOICE_STATUS_CALLBACK_URL: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
@@ -137,6 +142,14 @@ function validateTwilioConfig(input: {
 
   requireEnv(input.parsed.TWILIO_ACCOUNT_SID, 'TWILIO_ACCOUNT_SID');
   requireEnv(input.parsed.TWILIO_AUTH_TOKEN, 'TWILIO_AUTH_TOKEN');
+  requireEnv(input.parsed.TWILIO_INBOUND_SMS_WEBHOOK_URL, 'TWILIO_INBOUND_SMS_WEBHOOK_URL');
+  requireEnv(
+    input.parsed.TWILIO_MESSAGE_STATUS_CALLBACK_URL,
+    'TWILIO_MESSAGE_STATUS_CALLBACK_URL',
+  );
+  requireEnv(input.parsed.TWILIO_VOICE_WEBHOOK_URL, 'TWILIO_VOICE_WEBHOOK_URL');
+  requireEnv(input.parsed.TWILIO_VOICE_GATHER_CALLBACK_URL, 'TWILIO_VOICE_GATHER_CALLBACK_URL');
+  requireEnv(input.parsed.TWILIO_VOICE_STATUS_CALLBACK_URL, 'TWILIO_VOICE_STATUS_CALLBACK_URL');
 
   if (input.appEnv === 'production' && input.twilioMode !== 'live') {
     throw new Error('APP_ENV=production requires TWILIO_MODE=live.');

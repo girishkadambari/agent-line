@@ -354,4 +354,22 @@ describe('TwilioProviderService', () => {
       'completed',
     ]);
   });
+
+  it('rejects call creation when the voice status callback URL is missing', async () => {
+    const service = createService({
+      TWILIO_MODE: 'live-dev',
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'secret',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
+    });
+
+    await expect(service.createCall({ from: '+19012316325', to: '+917799027234' })).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'provider_error',
+          message: 'TWILIO_VOICE_STATUS_CALLBACK_URL is required for Twilio calls.',
+        },
+      },
+    });
+  });
 });

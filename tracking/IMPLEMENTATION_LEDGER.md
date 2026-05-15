@@ -2,6 +2,49 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-15: P0 Live Call Lifecycle Hardening
+
+**Status:** done
+
+Implemented:
+
+- Fixed Twilio terminal callback settlement in `CallsService` so a final
+  provider callback can update the persisted call status, final duration,
+  outcome, and `endedAt` without emitting duplicate lifecycle webhooks.
+- Added regression coverage for a real live-call failure mode where speech was
+  captured but the call could remain locally queued.
+- Removed silent Twilio voice callback fallback during call creation.
+- Twilio outbound call creation now requires:
+  - `TWILIO_VOICE_WEBHOOK_URL`
+  - `TWILIO_VOICE_STATUS_CALLBACK_URL`
+- Live Twilio modes now fail startup validation unless all callback URLs are
+  configured:
+  - `TWILIO_INBOUND_SMS_WEBHOOK_URL`
+  - `TWILIO_MESSAGE_STATUS_CALLBACK_URL`
+  - `TWILIO_VOICE_WEBHOOK_URL`
+  - `TWILIO_VOICE_GATHER_CALLBACK_URL`
+  - `TWILIO_VOICE_STATUS_CALLBACK_URL`
+
+Verification:
+
+- `npm test -- env.validation.spec.ts twilio-provider.service.spec.ts calls.service.spec.ts --runInBand`
+  passed.
+
+Release impact:
+
+- Live calls should no longer silently remain in misleading lifecycle states
+  because of missing Twilio status callback configuration.
+- Bad live-dev/live Twilio configuration now fails loudly before customer-facing
+  flows create confusing records.
+
+Next:
+
+- P0.2: tighten usage/cost evidence and frontend usage totals.
+- P0.3: replace Settings provider/control placeholders with real readiness and
+  control data.
+- P0.4: expand audit coverage for admin, billing, number, webhook, and call
+  operations.
+
 ## 2026-05-15: Billing And Pricing Strategy Source Of Truth
 
 **Status:** done

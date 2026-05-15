@@ -65,6 +65,39 @@ describe('validateEnv', () => {
     ).toThrow('TWILIO_ACCOUNT_SID is required');
   });
 
+  it('requires Twilio callback URLs for live-dev mode', () => {
+    expect(() =>
+      validateEnv({
+        APP_ENV: 'local',
+        TELECOM_PROVIDER: 'twilio',
+        TWILIO_MODE: 'live-dev',
+        TWILIO_ACCOUNT_SID: 'AC_live',
+        TWILIO_AUTH_TOKEN: 'live_secret',
+      }),
+    ).toThrow('TWILIO_INBOUND_SMS_WEBHOOK_URL is required');
+  });
+
+  it('accepts live-dev Twilio config when all live callback URLs are configured', () => {
+    const config = validateEnv({
+      APP_ENV: 'local',
+      TELECOM_PROVIDER: 'twilio',
+      TWILIO_MODE: 'live-dev',
+      TWILIO_ACCOUNT_SID: 'AC_live',
+      TWILIO_AUTH_TOKEN: 'live_secret',
+      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://agentline.test/v1/providers/twilio/sms/inbound',
+      TWILIO_MESSAGE_STATUS_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/sms/status',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://agentline.test/v1/providers/twilio/voice/inbound',
+      TWILIO_VOICE_GATHER_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/voice/gather',
+      TWILIO_VOICE_STATUS_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/voice/status',
+    });
+
+    expect(config).toMatchObject({
+      APP_ENV: 'local',
+      TELECOM_PROVIDER: 'twilio',
+      TWILIO_MODE: 'live-dev',
+    });
+  });
+
   it('requires production to use Twilio live mode', () => {
     expect(() =>
       validateEnv({
@@ -73,8 +106,12 @@ describe('validateEnv', () => {
         TWILIO_MODE: 'live-dev',
         TWILIO_ACCOUNT_SID: 'AC_live',
         TWILIO_AUTH_TOKEN: 'live_secret',
+        TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://agentline.test/v1/providers/twilio/sms/inbound',
+        TWILIO_MESSAGE_STATUS_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/sms/status',
+        TWILIO_VOICE_WEBHOOK_URL: 'https://agentline.test/v1/providers/twilio/voice/inbound',
+        TWILIO_VOICE_GATHER_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/voice/gather',
+        TWILIO_VOICE_STATUS_CALLBACK_URL: 'https://agentline.test/v1/providers/twilio/voice/status',
       }),
     ).toThrow('APP_ENV=production requires TWILIO_MODE=live');
   });
 });
-
