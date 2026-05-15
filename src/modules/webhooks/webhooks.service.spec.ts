@@ -1,4 +1,5 @@
 import type { PrismaService } from '../prisma/prisma.service';
+import type { AuditService } from '../audit/audit.service';
 import type { EventsService } from '../events/events.service';
 import { WebhooksService } from './webhooks.service';
 
@@ -55,10 +56,14 @@ function createService(prisma: PrismaService) {
       payload: { endpointId: 'wh_123' },
     }),
   } as unknown as EventsService;
+  const audit = {
+    record: jest.fn().mockResolvedValue({ id: 'audit_123' }),
+  } as unknown as AuditService;
 
   return {
-    service: new WebhooksService(prisma, events),
+    service: new WebhooksService(prisma, events, audit),
     events,
+    audit,
   };
 }
 
@@ -76,7 +81,7 @@ describe('WebhooksService', () => {
         create: jest.fn().mockResolvedValue(endpointFixture()),
       },
     } as unknown as PrismaService;
-    const { service } = createService(prisma);
+    const { service, audit } = createService(prisma);
 
     const result = await service.createEndpoint(context, {
       url: 'https://example.com/webhooks',
@@ -93,6 +98,22 @@ describe('WebhooksService', () => {
         status: 'active',
       }),
     });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: context.workspaceId,
+        actorApiKeyId: context.apiKeyId,
+        action: 'webhook_endpoint.created',
+        resourceType: 'webhook_endpoint',
+        resourceId: 'wh_123',
+        metadata: expect.objectContaining({
+          projectId: context.projectId,
+          url: 'https://example.com/webhooks',
+          events: ['agent.message.sent'],
+          status: 'active',
+          eventCount: 1,
+        }),
+      }),
+    );
   });
 
   it('creates signed failed test delivery with retry time', async () => {
@@ -114,7 +135,7 @@ describe('WebhooksService', () => {
         ),
       },
     } as unknown as PrismaService;
-    const { service } = createService(prisma);
+    const { service, audit } = createService(prisma);
 
     const result = await service.createTestDelivery(context, 'wh_123', {
       simulateFailure: true,
@@ -138,6 +159,18 @@ describe('WebhooksService', () => {
         nextAttemptAt: expect.any(Date),
       }),
     });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'webhook_delivery.tested',
+        resourceType: 'webhook_endpoint',
+        resourceId: 'wh_123',
+        metadata: expect.objectContaining({
+          deliveryId: 'whdel_123',
+          deliveryStatus: 'failed',
+          simulateFailure: true,
+        }),
+      }),
+    );
   });
 
   it('delivers matching active endpoint events immediately', async () => {

@@ -72,6 +72,123 @@ Next:
 - P0.5: add a release smoke checklist for Twilio, Stripe, Google OAuth, Brevo,
   usage evidence, and webhook delivery.
 
+## 2026-05-15: Number Audit Coverage
+
+**Status:** done
+
+Implemented:
+
+- Added audit logging for provider-backed phone-number lifecycle operations:
+  - number provisioned
+  - number imported
+  - number attached
+  - number detached
+  - number released
+- Audit records capture workspace, project, actor API key/session user when
+  available, phone number, provider, status, and previous/attached agent ids.
+- Wired `AuditModule` into `NumbersModule` so number operations can write audit
+  evidence without controller-level duplication.
+- Added focused test coverage proving number provisioning writes an audit record
+  while preserving the billing authorization before provider write behavior.
+
+Verification:
+
+- `npm test -- numbers.service.spec.ts --runInBand` passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Admin/support review can now answer who provisioned, imported, attached,
+  detached, or released a customer phone number.
+- Phone-number billing and provider actions now have a traceable operational
+  history, which is required for production trust and dispute/debug workflows.
+
+Next:
+
+- P0.5: expand audit coverage to calls, webhooks, billing settings, and
+  workspace controls.
+- P0.6: add a production smoke checklist for Twilio, Stripe, Google OAuth,
+  Brevo, usage evidence, and webhook delivery.
+
+## 2026-05-15: Call And Webhook Audit Coverage
+
+**Status:** done
+
+Implemented:
+
+- Added audit logging for customer-triggered call operations:
+  - outbound call created
+  - provider creation failed after local call creation
+  - call ended from API/UI
+  - call transferred
+- Added audit logging for webhook endpoint and delivery operations:
+  - endpoint created
+  - endpoint updated
+  - endpoint disabled
+  - test delivery sent
+  - delivery retried
+  - delivery exhausted
+- Audit records include actor, workspace, project, endpoint/call ids, provider
+  status, failure reason, transfer target, delivery status, and prior webhook
+  settings where relevant.
+- Wired `AuditModule` into `CallsModule` and `WebhooksModule`.
+- Added focused tests for call and webhook audit records.
+
+Verification:
+
+- `npm test -- calls.service.spec.ts webhooks.service.spec.ts --runInBand`
+  passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Core customer operations now produce operational evidence for support,
+  trust, debugging, and later enterprise audit views.
+- Webhook retries/exhaustion are now traceable instead of being invisible
+  operational actions.
+
+Next:
+
+- P0.6: add billing settings and workspace control audit coverage.
+- P0.7: create a production smoke checklist for Twilio, Stripe, Google OAuth,
+  Brevo, usage evidence, and webhook delivery.
+
+## 2026-05-15: Event And Audit Constants
+
+**Status:** done
+
+Implemented:
+
+- Added `src/domain/events.ts` as the canonical source for production event
+  names, wildcard event patterns, audit actions, and event resource types.
+- Replaced hardcoded event/action/resource strings in the hottest live paths:
+  - calls
+  - numbers
+  - webhooks
+  - webhook event catalog
+- Kept API payload values unchanged while reducing typo risk for future
+  webhook subscriptions, event emission, and audit evidence.
+
+Verification:
+
+- `npm test -- numbers.service.spec.ts calls.service.spec.ts webhooks.service.spec.ts --runInBand`
+  passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Webhook event names and audit actions now have a stable internal contract.
+- Future SDK, MCP, examples, and docs can import/reference one canonical event
+  catalog instead of copying strings from controller/service code.
+
+Next:
+
+- P0.6: expand constants into agents, messages, conversations, contacts, and
+  usage emission paths.
+- P0.7: add billing settings and workspace control audit coverage.
+- P0.8: create a production smoke checklist for Twilio, Stripe, Google OAuth,
+  Brevo, usage evidence, and webhook delivery.
+
 ## 2026-05-15: Billing And Pricing Strategy Source Of Truth
 
 **Status:** done

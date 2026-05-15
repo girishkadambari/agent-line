@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import { MockProviderService } from '../providers/mock/mock-provider.service';
+import type { AuditService } from '../audit/audit.service';
 import type { UsageService } from '../usage/usage.service';
 import { NumbersService } from './numbers.service';
 
@@ -22,6 +23,9 @@ function createService(prisma: PrismaService) {
   const webhooks = {
     createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
   };
+  const audit = {
+    record: jest.fn().mockResolvedValue({ id: 'audit_123' }),
+  } as unknown as AuditService;
 
   return {
     service: new NumbersService(
@@ -30,10 +34,12 @@ function createService(prisma: PrismaService) {
       usage,
       events as never,
       webhooks as never,
+      audit,
     ),
     usage,
     events,
     webhooks,
+    audit,
   };
 }
 
@@ -67,7 +73,7 @@ describe('NumbersService', () => {
         update: jest.fn().mockResolvedValue(numberFixture()),
       },
     } as unknown as PrismaService;
-    const { service, usage, events } = createService(prisma);
+    const { service, usage, events, audit } = createService(prisma);
 
     const result = await service.provisionNumber(context, {
       agentId: 'agt_123',
@@ -99,6 +105,22 @@ describe('NumbersService', () => {
         resourceType: 'phone_number',
       }),
     );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: context.workspaceId,
+        actorApiKeyId: context.apiKeyId,
+        action: 'number.provisioned',
+        resourceType: 'phone_number',
+        resourceId: 'num_123',
+        metadata: expect.objectContaining({
+          projectId: context.projectId,
+          phoneNumber: '+14155551000',
+          provider: 'mock',
+          status: 'active',
+          attachedAgentId: 'agt_123',
+        }),
+      }),
+    );
   });
 
   it('does not create number when usage debit fails', async () => {
@@ -119,6 +141,7 @@ describe('NumbersService', () => {
       usage,
       {} as never,
       {} as never,
+      { record: jest.fn() } as never,
     );
 
     await expect(
@@ -168,6 +191,7 @@ describe('NumbersService', () => {
       usage,
       { create: jest.fn().mockResolvedValue({ id: 'evt_123' }) } as never,
       { createDeliveriesForEvent: jest.fn().mockResolvedValue([]) } as never,
+      { record: jest.fn().mockResolvedValue({ id: 'audit_123' }) } as never,
     );
 
     const result = await service.importNumber(context, {

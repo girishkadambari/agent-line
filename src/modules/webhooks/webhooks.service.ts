@@ -5,12 +5,19 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import {
+  AgentLineEvent,
+  AgentLineEventPattern,
+  AuditAction,
+  EventResourceType,
+} from '../../domain/events';
 import type {
   CreateWebhookInput,
   RetryWebhookDeliveryInput,
   TestWebhookInput,
   UpdateWebhookInput,
 } from '../../domain/schemas';
+import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createWebhookSecret, signWebhookPayload } from './webhook-signature';
@@ -30,42 +37,66 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Wildcard',
     events: [
-      { name: '*', description: 'Receive every AgentLine event.' },
-      { name: 'agent.*', description: 'Receive every agent-scoped event.' },
-      { name: 'agent.call.*', description: 'Receive all call lifecycle and transcript events.' },
-      { name: 'agent.message.*', description: 'Receive all SMS/message events.' },
-      { name: 'agent.number.*', description: 'Receive all phone number lifecycle events.' },
-      { name: 'agent.conversation.*', description: 'Receive all conversation lifecycle events.' },
-      { name: 'agent.contact.*', description: 'Receive all contact lifecycle events.' },
-      { name: 'agent.usage.*', description: 'Receive all usage, cost, and settlement events.' },
+      { name: AgentLineEventPattern.All, description: 'Receive every AgentLine event.' },
+      { name: AgentLineEventPattern.Agents, description: 'Receive every agent-scoped event.' },
+      {
+        name: AgentLineEventPattern.Calls,
+        description: 'Receive all call lifecycle and transcript events.',
+      },
+      { name: AgentLineEventPattern.Messages, description: 'Receive all SMS/message events.' },
+      {
+        name: AgentLineEventPattern.Numbers,
+        description: 'Receive all phone number lifecycle events.',
+      },
+      {
+        name: AgentLineEventPattern.Conversations,
+        description: 'Receive all conversation lifecycle events.',
+      },
+      {
+        name: AgentLineEventPattern.Contacts,
+        description: 'Receive all contact lifecycle events.',
+      },
+      {
+        name: AgentLineEventPattern.Usage,
+        description: 'Receive all usage, cost, and settlement events.',
+      },
     ],
   },
   {
     group: 'Agents',
     events: [
-      { name: 'agent.created', description: 'An agent was created.' },
-      { name: 'agent.updated', description: 'An agent configuration changed.' },
-      { name: 'agent.disabled', description: 'An agent was disabled.' },
+      { name: AgentLineEvent.AgentCreated, description: 'An agent was created.' },
+      { name: AgentLineEvent.AgentUpdated, description: 'An agent configuration changed.' },
+      { name: AgentLineEvent.AgentDisabled, description: 'An agent was disabled.' },
     ],
   },
   {
     group: 'Numbers',
     events: [
-      { name: 'agent.number.provisioned', description: 'A provider-backed number became active.' },
-      { name: 'agent.number.imported', description: 'An existing provider number was imported.' },
-      { name: 'agent.number.attached', description: 'A number was attached to an agent.' },
-      { name: 'agent.number.detached', description: 'A number was detached from an agent.' },
-      { name: 'agent.number.released', description: 'A number was released.' },
-      { name: 'agent.number.failed', description: 'A number provisioning attempt failed.' },
+      {
+        name: AgentLineEvent.NumberProvisioned,
+        description: 'A provider-backed number became active.',
+      },
+      {
+        name: AgentLineEvent.NumberImported,
+        description: 'An existing provider number was imported.',
+      },
+      { name: AgentLineEvent.NumberAttached, description: 'A number was attached to an agent.' },
+      { name: AgentLineEvent.NumberDetached, description: 'A number was detached from an agent.' },
+      { name: AgentLineEvent.NumberReleased, description: 'A number was released.' },
+      { name: AgentLineEvent.NumberFailed, description: 'A number provisioning attempt failed.' },
     ],
   },
   {
     group: 'Messages',
     events: [
-      { name: 'agent.message.sent', description: 'An outbound SMS was accepted by the provider.' },
-      { name: 'agent.message.received', description: 'An inbound SMS was received.' },
       {
-        name: 'agent.message.delivery_updated',
+        name: AgentLineEvent.MessageSent,
+        description: 'An outbound SMS was accepted by the provider.',
+      },
+      { name: AgentLineEvent.MessageReceived, description: 'An inbound SMS was received.' },
+      {
+        name: AgentLineEvent.MessageDeliveryUpdated,
         description: 'A provider delivery status changed.',
       },
     ],
@@ -73,30 +104,33 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Calls',
     events: [
-      { name: 'agent.call.started', description: 'A call entered active handling.' },
+      { name: AgentLineEvent.CallStarted, description: 'A call entered active handling.' },
       {
-        name: 'agent.call.status_updated',
+        name: AgentLineEvent.CallStatusUpdated,
         description: 'A non-terminal provider call status changed.',
       },
       {
-        name: 'agent.call.transcript_updated',
+        name: AgentLineEvent.CallTranscriptUpdated,
         description: 'A call transcript turn was captured.',
       },
-      { name: 'agent.call.completed', description: 'A call completed successfully.' },
-      { name: 'agent.call.failed', description: 'A call failed.' },
-      { name: 'agent.call.ended', description: 'A call reached a terminal non-completed state.' },
-      { name: 'agent.call.transferred', description: 'A call was transferred.' },
+      { name: AgentLineEvent.CallCompleted, description: 'A call completed successfully.' },
+      { name: AgentLineEvent.CallFailed, description: 'A call failed.' },
+      {
+        name: AgentLineEvent.CallEnded,
+        description: 'A call reached a terminal non-completed state.',
+      },
+      { name: AgentLineEvent.CallTransferred, description: 'A call was transferred.' },
     ],
   },
   {
     group: 'Conversations',
     events: [
       {
-        name: 'agent.conversation.created',
+        name: AgentLineEvent.ConversationCreated,
         description: 'A new SMS or voice conversation started.',
       },
       {
-        name: 'agent.conversation.updated',
+        name: AgentLineEvent.ConversationUpdated,
         description: 'A conversation status or metadata changed.',
       },
     ],
@@ -104,30 +138,33 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Contacts',
     events: [
-      { name: 'agent.contact.created', description: 'A contact was created from a phone number.' },
-      { name: 'agent.contact.updated', description: 'A contact profile changed.' },
+      {
+        name: AgentLineEvent.ContactCreated,
+        description: 'A contact was created from a phone number.',
+      },
+      { name: AgentLineEvent.ContactUpdated, description: 'A contact profile changed.' },
     ],
   },
   {
     group: 'Usage And Billing',
     events: [
       {
-        name: 'agent.usage.recorded',
+        name: AgentLineEvent.UsageRecorded,
         description: 'A billable usage event was recorded with cost evidence.',
       },
       {
-        name: 'agent.usage.finalized',
+        name: AgentLineEvent.UsageFinalized,
         description: 'A previously estimated usage event was finalized.',
       },
       {
-        name: 'agent.usage.voided',
+        name: AgentLineEvent.UsageVoided,
         description: 'A usage event was voided and credited back.',
       },
     ],
   },
   {
     group: 'Testing',
-    events: [{ name: 'webhook.test', description: 'A signed test delivery.' }],
+    events: [{ name: AgentLineEvent.WebhookTest, description: 'A signed test delivery.' }],
   },
 ];
 
@@ -140,6 +177,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
+    private readonly audit: AuditService,
   ) {}
 
   async listEndpoints(context: RequestContext, limit: number) {
@@ -172,11 +210,15 @@ export class WebhooksService {
       },
     });
 
+    await this.recordWebhookAudit(context, AuditAction.WebhookEndpointCreated, endpoint, {
+      eventCount: endpoint.events.length,
+    });
+
     return serializeWebhookEndpointWithSecret(endpoint);
   }
 
   async updateEndpoint(context: RequestContext, id: string, input: UpdateWebhookInput) {
-    await this.findEndpointOrThrow(context, id);
+    const existing = await this.findEndpointOrThrow(context, id);
     const endpoint = await this.prisma.webhookEndpoint.update({
       where: { id },
       data: {
@@ -186,14 +228,24 @@ export class WebhooksService {
       },
     });
 
+    await this.recordWebhookAudit(context, AuditAction.WebhookEndpointUpdated, endpoint, {
+      previousUrl: existing.url,
+      previousEvents: existing.events,
+      previousStatus: existing.status,
+    });
+
     return serializeWebhookEndpoint(endpoint);
   }
 
   async disableEndpoint(context: RequestContext, id: string) {
-    await this.findEndpointOrThrow(context, id);
+    const existing = await this.findEndpointOrThrow(context, id);
     const endpoint = await this.prisma.webhookEndpoint.update({
       where: { id },
       data: { status: 'disabled' },
+    });
+
+    await this.recordWebhookAudit(context, AuditAction.WebhookEndpointDisabled, endpoint, {
+      previousStatus: existing.status,
     });
 
     return serializeWebhookEndpoint(endpoint);
@@ -209,8 +261,8 @@ export class WebhooksService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: 'webhook.test',
-      resourceType: 'webhook_endpoint',
+      type: AgentLineEvent.WebhookTest,
+      resourceType: EventResourceType.WebhookEndpoint,
       resourceId: endpoint.id,
       payload: { endpointId: endpoint.id },
     });
@@ -237,6 +289,12 @@ export class WebhooksService {
           error: 'Simulated webhook delivery failure.',
         })
       : await this.deliver(endpoint, delivery.id, payload);
+
+    await this.recordWebhookAudit(context, AuditAction.WebhookDeliveryTested, endpoint, {
+      deliveryId: delivered.id,
+      deliveryStatus: delivered.status,
+      simulateFailure: input.simulateFailure ?? false,
+    });
 
     return {
       delivery: serializeWebhookDelivery(delivered),
@@ -326,10 +384,42 @@ export class WebhooksService {
         },
       });
 
+      await this.audit.record({
+        workspaceId: context.workspaceId,
+        actorUserId: context.userId,
+        actorApiKeyId: context.apiKeyId,
+        action: AuditAction.WebhookDeliveryExhausted,
+        resourceType: EventResourceType.WebhookDelivery,
+        resourceId: delivery.id,
+        metadata: {
+          projectId: context.projectId,
+          endpointId: existing.endpointId,
+          eventId: existing.eventId,
+          eventType: existing.eventType,
+          previousStatus: existing.status,
+        },
+      });
+
       return serializeWebhookDelivery(delivery);
     }
 
-    return this.replayDelivery(context, id, { retryOnly: true });
+    const delivery = await this.replayDelivery(context, id, { retryOnly: true });
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorUserId: context.userId,
+      actorApiKeyId: context.apiKeyId,
+      action: AuditAction.WebhookDeliveryRetried,
+      resourceType: EventResourceType.WebhookDelivery,
+      resourceId: id,
+      metadata: {
+        projectId: context.projectId,
+        endpointId: existing.endpointId,
+        eventId: existing.eventId,
+        eventType: existing.eventType,
+        status: delivery.status,
+      },
+    });
+    return delivery;
   }
 
   async replayDelivery(context: RequestContext, id: string, options: { retryOnly?: boolean } = {}) {
@@ -385,7 +475,7 @@ export class WebhooksService {
   }
 
   async exhaustDelivery(context: RequestContext, id: string) {
-    await this.findDeliveryOrThrow(context, id);
+    const existing = await this.findDeliveryOrThrow(context, id);
     const delivery = await this.prisma.webhookDelivery.update({
       where: { id },
       data: {
@@ -394,7 +484,46 @@ export class WebhooksService {
       },
     });
 
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorUserId: context.userId,
+      actorApiKeyId: context.apiKeyId,
+      action: AuditAction.WebhookDeliveryExhausted,
+      resourceType: EventResourceType.WebhookDelivery,
+      resourceId: delivery.id,
+      metadata: {
+        projectId: context.projectId,
+        endpointId: existing.endpointId,
+        eventId: existing.eventId,
+        eventType: existing.eventType,
+        previousStatus: existing.status,
+      },
+    });
+
     return serializeWebhookDelivery(delivery);
+  }
+
+  private async recordWebhookAudit(
+    context: RequestContext,
+    action: string,
+    endpoint: Pick<WebhookEndpoint, 'id' | 'url' | 'events' | 'status'>,
+    metadata: Record<string, unknown> = {},
+  ) {
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorUserId: context.userId,
+      actorApiKeyId: context.apiKeyId,
+      action,
+      resourceType: EventResourceType.WebhookEndpoint,
+      resourceId: endpoint.id,
+      metadata: {
+        projectId: context.projectId,
+        url: endpoint.url,
+        events: endpoint.events,
+        status: endpoint.status,
+        ...metadata,
+      },
+    });
   }
 
   private createPayload(event: {

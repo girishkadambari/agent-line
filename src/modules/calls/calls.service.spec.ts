@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import type { AuditService } from '../audit/audit.service';
 import type { ContactsService } from '../contacts/contacts.service';
 import type { ConversationsService } from '../conversations/conversations.service';
 import type { EventsService } from '../events/events.service';
@@ -78,15 +79,28 @@ function createService(prisma: PrismaService, providerOverride?: TelecomProvider
     finalizeVoiceCall: jest.fn().mockResolvedValue({ finalized: true, deltaCents: -24 }),
     voidUsageForFailedOperation: jest.fn().mockResolvedValue({ voided: true, refundedCents: 3 }),
   } as unknown as UsageService;
+  const audit = {
+    record: jest.fn().mockResolvedValue({ id: 'audit_123' }),
+  } as unknown as AuditService;
   const provider = providerOverride ?? new MockProviderService();
 
   return {
-    service: new CallsService(prisma, contacts, conversations, events, provider, usage, webhooks),
+    service: new CallsService(
+      prisma,
+      contacts,
+      conversations,
+      events,
+      provider,
+      usage,
+      webhooks,
+      audit,
+    ),
     contacts,
     conversations,
     events,
     usage,
     webhooks,
+    audit,
   };
 }
 
@@ -110,7 +124,7 @@ describe('CallsService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 3 }),
       },
     } as unknown as PrismaService;
-    const { service, events, usage } = createService(prisma);
+    const { service, events, usage, audit } = createService(prisma);
 
     const result = await service.createOutboundCall(context, {
       agentId: 'agt_123',
@@ -141,6 +155,22 @@ describe('CallsService', () => {
       expect.objectContaining({
         type: 'agent.call.completed',
         resourceType: 'call',
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: context.workspaceId,
+        actorApiKeyId: context.apiKeyId,
+        action: 'call.created',
+        resourceType: 'call',
+        resourceId: 'call_123',
+        metadata: expect.objectContaining({
+          projectId: context.projectId,
+          agentId: 'agt_123',
+          status: 'completed',
+          provider: 'mock',
+          providerStatus: 'completed',
+        }),
       }),
     );
   });
@@ -278,7 +308,7 @@ describe('CallsService', () => {
         update: jest.fn().mockResolvedValue(callFixture({ status: 'transferred' })),
       },
     } as unknown as PrismaService;
-    const { service, events } = createService(prisma);
+    const { service, events, audit } = createService(prisma);
 
     const result = await service.transferCall(context, 'call_123', { to: '+14155550200' });
 
@@ -286,6 +316,16 @@ describe('CallsService', () => {
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'agent.call.transferred',
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'call.transferred',
+        resourceType: 'call',
+        resourceId: 'call_123',
+        metadata: expect.objectContaining({
+          transferTo: '+14155550200',
+        }),
       }),
     );
   });

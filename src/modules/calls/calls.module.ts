@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { ConversationsModule } from '../conversations/conversations.module';
@@ -12,6 +13,7 @@ import { CallsService } from './calls.service';
 
 @Module({
   imports: [
+    AuditModule,
     AuthModule,
     ContactsModule,
     ConversationsModule,

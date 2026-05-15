@@ -5,8 +5,10 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AgentLineEvent, AuditAction, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
 import type { CreateCallInput, CreateWebCallInput, TransferCallInput } from '../../domain/schemas';
+import { AuditService } from '../audit/audit.service';
 import { ContactsService } from '../contacts/contacts.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { EventsService } from '../events/events.service';
@@ -36,6 +38,7 @@ export class CallsService {
     @Inject(TELECOM_PROVIDER) private readonly telecomProvider: TelecomProvider,
     private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
+    private readonly audit: AuditService,
   ) {}
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
@@ -114,19 +117,25 @@ export class CallsService {
       const event = await this.events.create({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        type: providerCall.status === 'completed' ? 'agent.call.completed' : 'agent.call.started',
-        resourceType: 'call',
+        type:
+          providerCall.status === 'completed'
+            ? AgentLineEvent.CallCompleted
+            : AgentLineEvent.CallStarted,
+        resourceType: EventResourceType.Call,
         resourceId: call.id,
         payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
       });
       await this.webhooks.createDeliveriesForEvent(event);
+      await this.recordCallAudit(context, AuditAction.CallCreated, call, {
+        providerStatus: providerCall.status,
+      });
 
       return serializeCall(call);
     } catch (error) {
       if (!providerStarted) {
         await this.usage.voidUsageForFailedOperation({
           workspaceId: context.workspaceId,
-          resourceType: 'call',
+          resourceType: EventResourceType.Call,
           resourceId: callId,
         });
       }
@@ -140,14 +149,17 @@ export class CallsService {
         const event = await this.events.create({
           workspaceId: context.workspaceId,
           projectId: context.projectId,
-          type: 'agent.call.failed',
-          resourceType: 'call',
+          type: AgentLineEvent.CallFailed,
+          resourceType: EventResourceType.Call,
           resourceId: failedCall.id,
           payload: this.buildCallEventPayload(failedCall, {
             failureReason: error instanceof Error ? error.message : 'Call failed.',
           }),
         });
         await this.webhooks.createDeliveriesForEvent(event);
+        await this.recordCallAudit(context, AuditAction.CallFailed, failedCall, {
+          failureReason: error instanceof Error ? error.message : 'Call failed.',
+        });
       }
       throw error;
     }
@@ -208,12 +220,15 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: 'agent.call.ended',
-      resourceType: 'call',
+      type: AgentLineEvent.CallEnded,
+      resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
+    await this.recordCallAudit(context, AuditAction.CallEnded, call, {
+      providerStatus: providerCall.status,
+    });
 
     return serializeCall(call);
   }
@@ -283,7 +298,7 @@ export class CallsService {
         workspaceId: call.workspaceId,
         projectId: call.projectId,
         type: this.callLifecycleEventType(nextStatus),
-        resourceType: 'call',
+        resourceType: EventResourceType.Call,
         resourceId: call.id,
         payload: this.buildCallEventPayload(call, { providerStatus: input.status }),
       });
@@ -293,7 +308,7 @@ export class CallsService {
         workspaceId: call.workspaceId,
         projectId: call.projectId,
         type: this.callLifecycleEventType(nextStatus),
-        resourceType: 'call',
+        resourceType: EventResourceType.Call,
         resourceId: call.id,
         payload: this.buildCallEventPayload(call, { providerStatus: input.status }),
       });
@@ -323,8 +338,8 @@ export class CallsService {
       const event = await this.events.create({
         workspaceId: updated.workspaceId,
         projectId: updated.projectId,
-        type: 'agent.call.started',
-        resourceType: 'call',
+        type: AgentLineEvent.CallStarted,
+        resourceType: EventResourceType.Call,
         resourceId: updated.id,
         payload: this.buildCallEventPayload(updated, { providerStatus: 'in-progress' }),
       });
@@ -432,8 +447,8 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: call.workspaceId,
       projectId: call.projectId,
-      type: 'agent.call.transcript_updated',
-      resourceType: 'call',
+      type: AgentLineEvent.CallTranscriptUpdated,
+      resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: {
         ...this.buildCallEventPayload(updated),
@@ -476,12 +491,15 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: 'agent.call.transferred',
-      resourceType: 'call',
+      type: AgentLineEvent.CallTransferred,
+      resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: this.buildCallEventPayload(call, { transferTo: input.to }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
+    await this.recordCallAudit(context, AuditAction.CallTransferred, call, {
+      transferTo: input.to,
+    });
 
     return serializeCall(call);
   }
@@ -594,18 +612,18 @@ export class CallsService {
 
   private callLifecycleEventType(status: string) {
     if (status === 'completed') {
-      return 'agent.call.completed';
+      return AgentLineEvent.CallCompleted;
     }
     if (status === 'failed') {
-      return 'agent.call.failed';
+      return AgentLineEvent.CallFailed;
     }
     if (this.terminalCallStatuses.has(status)) {
-      return 'agent.call.ended';
+      return AgentLineEvent.CallEnded;
     }
     if (status === 'in_progress') {
-      return 'agent.call.started';
+      return AgentLineEvent.CallStarted;
     }
-    return 'agent.call.status_updated';
+    return AgentLineEvent.CallStatusUpdated;
   }
 
   private buildCallEventPayload(
@@ -649,6 +667,53 @@ export class CallsService {
       endedAt: call.endedAt?.toISOString() ?? null,
       ...extra,
     };
+  }
+
+  private async recordCallAudit(
+    context: RequestContext,
+    action: string,
+    call: Pick<
+      Call,
+      | 'id'
+      | 'agentId'
+      | 'conversationId'
+      | 'contactId'
+      | 'phoneNumberId'
+      | 'direction'
+      | 'fromNumber'
+      | 'toNumber'
+      | 'status'
+      | 'outcome'
+      | 'durationSeconds'
+      | 'provider'
+      | 'providerCallId'
+    >,
+    metadata: Record<string, unknown> = {},
+  ) {
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorUserId: context.userId,
+      actorApiKeyId: context.apiKeyId,
+      action,
+      resourceType: EventResourceType.Call,
+      resourceId: call.id,
+      metadata: {
+        projectId: context.projectId,
+        agentId: call.agentId,
+        conversationId: call.conversationId,
+        contactId: call.contactId,
+        phoneNumberId: call.phoneNumberId,
+        direction: call.direction,
+        fromNumber: call.fromNumber,
+        toNumber: call.toNumber,
+        status: call.status,
+        outcome: call.outcome,
+        durationSeconds: call.durationSeconds,
+        provider: call.provider,
+        providerCallId: call.providerCallId,
+        ...metadata,
+      },
+    });
   }
 
   private async listProviderDiagnosticsForCall(call: {
