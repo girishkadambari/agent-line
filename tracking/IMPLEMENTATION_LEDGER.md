@@ -45,6 +45,33 @@ Next:
 - P0.4: expand audit coverage for admin, billing, number, webhook, and call
   operations.
 
+## 2026-05-15: Workspace Provider Readiness Alignment
+
+**Status:** done
+
+Implemented:
+
+- Updated workspace provider readiness to require the full Twilio live callback
+  set before reporting callback readiness:
+  - inbound SMS
+  - SMS status
+  - voice inbound
+  - voice gather
+  - voice status
+
+Verification:
+
+- `npm test -- env.validation.spec.ts twilio-provider.service.spec.ts calls.service.spec.ts --runInBand`
+  passed.
+- `npm run build` passed.
+
+Next:
+
+- P0.4: expand audit coverage for admin, billing, number, webhook, and call
+  operations.
+- P0.5: add a release smoke checklist for Twilio, Stripe, Google OAuth, Brevo,
+  usage evidence, and webhook delivery.
+
 ## 2026-05-15: Billing And Pricing Strategy Source Of Truth
 
 **Status:** done

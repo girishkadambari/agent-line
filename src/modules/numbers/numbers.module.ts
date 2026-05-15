@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { EventsModule } from '../events/events.module';
 import { ProvidersModule } from '../providers/providers.module';
@@ -9,7 +10,7 @@ import { NumbersController } from './numbers.controller';
 import { NumbersService } from './numbers.service';
 
 @Module({
-  imports: [AuthModule, ProvidersModule, UsageModule, EventsModule, WebhooksModule],
+  imports: [AuditModule, AuthModule, ProvidersModule, UsageModule, EventsModule, WebhooksModule],
   controllers: [NumbersController],
   providers: [NumbersService],
   exports: [NumbersService],

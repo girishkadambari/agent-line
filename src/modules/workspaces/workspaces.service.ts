@@ -525,7 +525,9 @@ export class WorkspacesService {
     const twilioCallbackReady =
       this.hasConfig('TWILIO_INBOUND_SMS_WEBHOOK_URL') &&
       this.hasConfig('TWILIO_MESSAGE_STATUS_CALLBACK_URL') &&
-      this.hasConfig('TWILIO_VOICE_WEBHOOK_URL');
+      this.hasConfig('TWILIO_VOICE_WEBHOOK_URL') &&
+      this.hasConfig('TWILIO_VOICE_GATHER_CALLBACK_URL') &&
+      this.hasConfig('TWILIO_VOICE_STATUS_CALLBACK_URL');
 
     return {
       telecom: {

@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { AuditService } from '../audit/audit.service';
 import { serializeNumber } from './numbers.serializer';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class NumbersService {
     private readonly usage: UsageService,
     private readonly events: EventsService,
     private readonly webhooks: WebhooksService,
+    private readonly audit: AuditService,
   ) {}
 
   async listNumbers(context: RequestContext, limit: number) {
@@ -92,6 +94,9 @@ export class NumbersService {
       if (input.agentId) {
         await this.emitNumberEvent(context, 'agent.number.attached', number);
       }
+      await this.recordNumberAudit(context, 'number.provisioned', number, {
+        attachedAgentId: input.agentId ?? null,
+      });
       return serializeNumber(number);
     } catch (error) {
       if (providerNumberId) {
@@ -157,6 +162,10 @@ export class NumbersService {
       if (input.agentId) {
         await this.emitNumberEvent(context, 'agent.number.attached', updated);
       }
+      await this.recordNumberAudit(context, 'number.imported', updated, {
+        attachedAgentId: input.agentId ?? null,
+        existingRecord: true,
+      });
       return serializeNumber(updated);
     }
 
@@ -180,6 +189,10 @@ export class NumbersService {
     if (input.agentId) {
       await this.emitNumberEvent(context, 'agent.number.attached', number);
     }
+    await this.recordNumberAudit(context, 'number.imported', number, {
+      attachedAgentId: input.agentId ?? null,
+      existingRecord: false,
+    });
 
     return serializeNumber(number);
   }
@@ -207,6 +220,12 @@ export class NumbersService {
       await this.emitNumberEvent(
         context,
         number.agentId ? 'agent.number.attached' : 'agent.number.detached',
+        number,
+        { previousAgentId: existing.agentId },
+      );
+      await this.recordNumberAudit(
+        context,
+        number.agentId ? 'number.attached' : 'number.detached',
         number,
         { previousAgentId: existing.agentId },
       );
@@ -242,6 +261,9 @@ export class NumbersService {
     await this.emitNumberEvent(context, 'agent.number.detached', updated, {
       previousAgentId: agentId,
     });
+    await this.recordNumberAudit(context, 'number.detached', updated, {
+      previousAgentId: agentId,
+    });
 
     return serializeNumber(updated);
   }
@@ -268,8 +290,34 @@ export class NumbersService {
     await this.emitNumberEvent(context, 'agent.number.released', released, {
       previousAgentId: number.agentId,
     });
+    await this.recordNumberAudit(context, 'number.released', released, {
+      previousAgentId: number.agentId,
+    });
 
     return serializeNumber(released);
+  }
+
+  private async recordNumberAudit(
+    context: RequestContext,
+    action: string,
+    number: PhoneNumber,
+    metadata: Record<string, unknown> = {},
+  ) {
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorUserId: context.userId,
+      actorApiKeyId: context.apiKeyId,
+      action,
+      resourceType: 'phone_number',
+      resourceId: number.id,
+      metadata: {
+        projectId: context.projectId,
+        phoneNumber: number.phoneNumber,
+        provider: number.provider,
+        status: number.status,
+        ...metadata,
+      },
+    });
   }
 
   private async emitNumberEvent(
