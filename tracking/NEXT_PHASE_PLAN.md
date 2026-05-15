@@ -367,3 +367,38 @@ Remaining:
 - Do not process unsigned Twilio or Stripe webhooks.
 - Do not allow production to use mock telecom.
 - Do not allow local product flows to silently use mock telecom.
+
+## Current Billing Flow Clarification
+
+Subscription creation is webhook-confirmed, not created only by clicking the
+dashboard button.
+
+1. Dashboard calls `POST /v1/billing/subscription-checkout-sessions`.
+2. Backend creates a Stripe Checkout Session and records a local
+   `subscription_checkout_session.created` transaction with status `pending`.
+3. User completes the Stripe Checkout page.
+4. Stripe sends `checkout.session.completed` to
+   `/v1/billing/stripe/webhook`.
+5. Backend validates the Stripe signature, upserts `BillingSubscription`, and
+   marks the pending local Checkout transaction as `succeeded`.
+6. Later Stripe `invoice.paid` events grant included usage allowance for the
+   billing period.
+
+If step 4 is missed, `GET /v1/billing/subscription` now attempts to recover the
+latest Stripe subscription for the workspace customer and create the local
+subscription record. When that recovery succeeds, AgentLine also marks the
+latest matching pending subscription Checkout transaction as `succeeded`.
+
+Next billing work:
+
+- Add a visible "sync billing from Stripe" action for support/admin use.
+- Add invoice list/status once invoice history becomes part of the UI.
+- Add low-balance and failed-payment emails.
+- Add a production runbook for Stripe CLI forwarding, webhook secrets, and
+  dashboard webhook endpoint setup.
+- Move usage pricing from constants into versioned rate-card tables:
+  `BillingProduct`, `BillingRateCard`, `BillingRate`,
+  `WorkspacePricingOverride`, and `ProviderCostRecord`.
+- Add internal admin controls for phone number, SMS, voice, recording, hosted
+  agent, and webhook delivery pricing after the customer-facing billing flow is
+  stable.

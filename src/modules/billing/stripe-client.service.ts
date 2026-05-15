@@ -28,6 +28,30 @@ export interface StripeMeterEvent {
   created?: number;
 }
 
+export interface StripeSubscription {
+  id: string;
+  customer: string;
+  status: string;
+  currency?: string;
+  current_period_start?: number;
+  current_period_end?: number;
+  trial_end?: number | null;
+  cancel_at_period_end?: boolean;
+  metadata?: Record<string, unknown>;
+  items?: {
+    data?: Array<{
+      price?: {
+        id?: string;
+      };
+    }>;
+  };
+}
+
+interface StripeListResponse<T> {
+  data: T[];
+  has_more?: boolean;
+}
+
 export interface StripeWebhookEvent {
   id: string;
   type: string;
@@ -156,6 +180,20 @@ export class StripeClientService {
     });
   }
 
+  async listCustomerSubscriptions(customerId: string) {
+    const response = await this.request<StripeListResponse<StripeSubscription>>(
+      'GET',
+      '/v1/subscriptions',
+      {
+        customer: customerId,
+        status: 'all',
+        limit: 10,
+      },
+    );
+
+    return response.data;
+  }
+
   async createUsageMeterEvent(input: {
     identifier: string;
     customerId: string;
@@ -246,7 +284,7 @@ export class StripeClientService {
   }
 
   private async request<T>(
-    method: 'POST',
+    method: 'GET' | 'POST',
     path: string,
     body: Record<string, unknown>,
   ): Promise<T> {
@@ -257,13 +295,19 @@ export class StripeClientService {
     }
     this.assertSecretKeyMode(secretKey);
 
-    const response = await fetch(`https://api.stripe.com${path}`, {
+    const encoded = this.encodeForm(body);
+    const url =
+      method === 'GET'
+        ? `https://api.stripe.com${path}?${encoded.toString()}`
+        : `https://api.stripe.com${path}`;
+
+    const response = await fetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${secretKey}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: this.encodeForm(body),
+      body: method === 'POST' ? encoded : undefined,
     });
 
     const payload = (await response.json()) as Record<string, unknown>;

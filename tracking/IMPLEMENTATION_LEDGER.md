@@ -2,6 +2,42 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-15: Billing And Pricing Strategy Source Of Truth
+
+**Status:** done
+
+Implemented:
+
+- Added `docs/BILLING_AND_PRICING_STRATEGY.md`.
+- Documented the customer-facing billing model: subscription plan, included
+  allowance, prepaid credits, optional Stripe metered overage, and usage
+  evidence.
+- Documented the current public rate card:
+  - phone number provision/import: $1.00 per event
+  - outbound SMS: $0.01 per message
+  - inbound SMS: $0.01 per message
+  - voice: $0.03 per started minute
+- Documented the settlement order:
+  - trial allowance
+  - subscription included allowance
+  - Stripe metered usage
+  - prepaid balance
+  - blocked usage
+- Documented future internal pricing controls:
+  - `BillingProduct`
+  - `BillingRateCard`
+  - `BillingRate`
+  - `WorkspacePricingOverride`
+  - `ProviderCostRecord`
+- Linked the pricing strategy from `docs/STRIPE_BILLING_PLAN.md`.
+
+Business decision:
+
+- Customer billing pages should show plan, available funds, usage rates, recent
+  activity, and Stripe portal actions.
+- Raw Stripe ids, workspace ids, balance ids, and provider debug data should
+  move behind support/developer details or a future admin console.
+
 ## 2026-05-06: Documentation Foundation
 
 **Status:** done
@@ -1477,3 +1513,46 @@ Verification:
 - `npm test` passed.
 - `npm run typecheck` passed.
 - `npm run build` passed.
+
+## 2026-05-15: Stripe Subscription Reconciliation
+
+**Status:** implemented
+
+Problem found:
+
+- Stripe had created a real trialing subscription for the workspace customer,
+  but `BillingSubscription` was still empty locally because AgentLine had only
+  recorded the pending Checkout Session transaction.
+- This means the Stripe Checkout redirect can succeed while the local product
+  still shows "Free trial" if the `checkout.session.completed` webhook is
+  missed, not forwarded, or not signed with the configured webhook secret.
+
+Implemented:
+
+- Added Stripe customer subscription listing to the Stripe client.
+- `GET /v1/billing/subscription` now attempts a safe Stripe reconciliation when
+  the workspace has a Stripe customer but no local subscription row.
+- Stripe reconciliation now also marks the latest matching pending subscription
+  Checkout transaction as `succeeded` so the UI does not keep showing stale
+  pending checkout state after recovery.
+- `checkout.session.completed` now marks the matching local pending Checkout
+  transaction as `succeeded` for both prepaid credits and subscription checkout.
+- Added `checkout.session.expired` handling so abandoned checkout sessions can
+  mark the matching pending transaction as `expired`.
+- Added focused tests for:
+  - syncing a missing local subscription from Stripe
+  - reconciling pending prepaid Checkout transactions
+  - creating a subscription from subscription Checkout completion
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm test -- --runInBand src/modules/billing/billing.service.spec.ts src/modules/billing/stripe-client.service.spec.ts` passed.
+- `npm run build` passed.
+
+Notes:
+
+- Full `npm test -- --runInBand` currently fails in pre-existing service specs
+  because several mocks are typed as `PrismaService` and then assert model
+  delegates that TypeScript does not see on the mocked object. The billing
+  slice itself is covered by focused tests and backend typecheck/build passed.

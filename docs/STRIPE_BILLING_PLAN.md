@@ -4,6 +4,8 @@
 
 Stripe will handle payment collection, customer payment methods, invoices, receipts, hosted checkout, and customer portal. AgentLine remains the source of truth for telecom usage events, mock/real provider usage, workspace entitlements, and product-level spend controls.
 
+See [`BILLING_AND_PRICING_STRATEGY.md`](BILLING_AND_PRICING_STRATEGY.md) for the customer-facing billing model, rate-card strategy, settlement order, and future internal pricing controls.
+
 ## Recommended Stripe Model
 
 Use Stripe in this order:

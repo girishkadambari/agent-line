@@ -28,7 +28,11 @@ import {
   serializeBillingSubscription,
   serializeBillingTransaction,
 } from './billing.serializer';
-import { StripeClientService, type StripeWebhookEvent } from './stripe-client.service';
+import {
+  StripeClientService,
+  type StripeSubscription,
+  type StripeWebhookEvent,
+} from './stripe-client.service';
 
 const BILLING_PLANS = [
   {
@@ -149,17 +153,23 @@ export class BillingService {
 
   async getSubscription(context: RequestContext) {
     const account = await this.createSignupBillingState(context.workspaceId);
-    const [subscription, allowanceGrants] = await Promise.all([
-      this.prisma.billingSubscription.findFirst({
-        where: { workspaceId: context.workspaceId },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.billingAllowanceGrant.findMany({
-        where: { workspaceId: context.workspaceId },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
-    ]);
+    let subscription = await this.prisma.billingSubscription.findFirst({
+      where: { workspaceId: context.workspaceId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      subscription = await this.syncLatestStripeSubscriptionForAccount(
+        context.workspaceId,
+        account.providerCustomerId,
+      );
+    }
+
+    const allowanceGrants = await this.prisma.billingAllowanceGrant.findMany({
+      where: { workspaceId: context.workspaceId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
 
     return {
       billingAccount: {
@@ -171,6 +181,56 @@ export class BillingService {
       allowanceGrants: allowanceGrants.map(serializeBillingAllowanceGrant),
       plans: this.getPlans(),
     };
+  }
+
+  private async syncLatestStripeSubscriptionForAccount(
+    workspaceId: string,
+    providerCustomerId: string,
+  ) {
+    try {
+      const subscriptions = await this.stripe.listCustomerSubscriptions(providerCustomerId);
+      const subscription = this.pickRelevantStripeSubscription(subscriptions);
+      if (!subscription) {
+        return null;
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        const syncedSubscription = await this.upsertSubscriptionFromStripeObject(
+          tx,
+          workspaceId,
+          subscription as unknown as Record<string, unknown>,
+        );
+        await this.markLatestPendingSubscriptionCheckoutFromSync(tx, {
+          workspaceId,
+          providerCustomerId,
+          planKey: syncedSubscription.planKey,
+        });
+
+        return syncedSubscription;
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  private pickRelevantStripeSubscription(subscriptions: StripeSubscription[]) {
+    const rank = new Map([
+      ['trialing', 0],
+      ['active', 1],
+      ['past_due', 2],
+      ['incomplete', 3],
+      ['unpaid', 4],
+      ['canceled', 5],
+    ]);
+
+    return [...subscriptions].sort((a, b) => {
+      const statusRank = (rank.get(a.status) ?? 99) - (rank.get(b.status) ?? 99);
+      if (statusRank !== 0) {
+        return statusRank;
+      }
+
+      return String(b.id).localeCompare(String(a.id));
+    })[0];
   }
 
   async createSignupBillingState(workspaceId: string) {
@@ -727,6 +787,11 @@ export class BillingService {
           return { received: true, duplicate: false, ignored: false };
         }
 
+        if (event.type === 'checkout.session.expired') {
+          await this.handleCheckoutExpired(tx, event);
+          return { received: true, duplicate: false, ignored: false };
+        }
+
         if (event.type.startsWith('customer.subscription.')) {
           const handled = await this.handleSubscriptionEvent(tx, event);
           return { received: true, duplicate: false, ignored: !handled };
@@ -952,6 +1017,12 @@ export class BillingService {
     const purpose = String(metadata?.purpose ?? '');
     if (purpose === 'subscription') {
       await this.upsertSubscriptionFromStripeObject(tx, workspaceId, stripeObject);
+      await this.markPendingCheckoutTransaction(tx, {
+        workspaceId,
+        checkoutSessionId: String(stripeObject.id ?? ''),
+        type: 'subscription_checkout_session.created',
+        status: 'succeeded',
+      });
       await tx.billingTransaction.create({
         data: {
           id: createId('btxn'),
@@ -969,6 +1040,12 @@ export class BillingService {
     }
 
     const amountCents = this.amountCentsFromCheckoutSession(stripeObject);
+    await this.markPendingCheckoutTransaction(tx, {
+      workspaceId,
+      checkoutSessionId: String(stripeObject.id ?? ''),
+      type: 'checkout_session.created',
+      status: 'succeeded',
+    });
     await tx.billingTransaction.create({
       data: {
         id: createId('btxn'),
@@ -990,6 +1067,41 @@ export class BillingService {
         workspaceId,
         currency: 'USD',
         balanceCents: amountCents,
+      },
+    });
+  }
+
+  private async handleCheckoutExpired(tx: Prisma.TransactionClient, event: StripeWebhookEvent) {
+    const stripeObject = event.data.object;
+    const workspaceId = this.workspaceIdFromEvent(event);
+
+    if (!workspaceId) {
+      return;
+    }
+
+    const metadata = stripeObject.metadata as Record<string, unknown> | undefined;
+    const purpose = String(metadata?.purpose ?? '');
+    await this.markPendingCheckoutTransaction(tx, {
+      workspaceId,
+      checkoutSessionId: String(stripeObject.id ?? ''),
+      type:
+        purpose === 'subscription'
+          ? 'subscription_checkout_session.created'
+          : 'checkout_session.created',
+      status: 'expired',
+    });
+
+    await tx.billingTransaction.create({
+      data: {
+        id: createId('btxn'),
+        workspaceId,
+        provider: 'stripe',
+        providerEventId: event.id,
+        type: event.type,
+        amountCents: Number(stripeObject.amount_total ?? 0),
+        currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
+        status: 'expired',
+        metadata: stripeObject as Prisma.InputJsonValue,
       },
     });
   }
@@ -1151,6 +1263,92 @@ export class BillingService {
         trialEndsAt: this.dateFromUnix(stripeObject.trial_end),
         cancelAtPeriodEnd: Boolean(stripeObject.cancel_at_period_end),
         metadata: stripeObject as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  private async markPendingCheckoutTransaction(
+    tx: Prisma.TransactionClient,
+    input: {
+      workspaceId: string;
+      checkoutSessionId: string;
+      type: 'checkout_session.created' | 'subscription_checkout_session.created';
+      status: 'succeeded' | 'expired';
+    },
+  ) {
+    if (!input.checkoutSessionId) {
+      return;
+    }
+
+    const pendingTransactions = await tx.billingTransaction.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        provider: 'stripe',
+        type: input.type,
+        status: 'pending',
+      },
+      take: 25,
+    });
+    const matching = pendingTransactions.find((transaction) => {
+      const metadata = transaction.metadata as Record<string, unknown> | null;
+      return metadata?.checkoutSessionId === input.checkoutSessionId;
+    });
+
+    if (!matching) {
+      return;
+    }
+
+    await tx.billingTransaction.update({
+      where: { id: matching.id },
+      data: {
+        status: input.status,
+        metadata: {
+          ...((matching.metadata as Record<string, unknown> | null) ?? {}),
+          reconciledAt: new Date().toISOString(),
+          reconciledBy: 'stripe_webhook',
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  private async markLatestPendingSubscriptionCheckoutFromSync(
+    tx: Prisma.TransactionClient,
+    input: {
+      workspaceId: string;
+      providerCustomerId: string;
+      planKey: string;
+    },
+  ) {
+    const pendingTransactions = await tx.billingTransaction.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        provider: 'stripe',
+        type: 'subscription_checkout_session.created',
+        status: 'pending',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    const matching = pendingTransactions.find((transaction) => {
+      const metadata = transaction.metadata as Record<string, unknown> | null;
+      return (
+        metadata?.customerId === input.providerCustomerId && metadata?.planKey === input.planKey
+      );
+    });
+
+    if (!matching) {
+      return;
+    }
+
+    await tx.billingTransaction.update({
+      where: { id: matching.id },
+      data: {
+        status: 'succeeded',
+        metadata: {
+          ...((matching.metadata as Record<string, unknown> | null) ?? {}),
+          reconciledAt: new Date().toISOString(),
+          reconciledBy: 'stripe_subscription_sync',
+        } as Prisma.InputJsonValue,
       },
     });
   }

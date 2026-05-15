@@ -40,6 +40,7 @@ describe('BillingService', () => {
         url: 'https://billing.stripe.com/session/bps_123',
         customer: 'cus_123',
       }),
+      listCustomerSubscriptions: jest.fn().mockResolvedValue([]),
       constructWebhookEvent: jest.fn(),
       isUsageMeteringConfigured: jest.fn().mockReturnValue(false),
       createUsageMeterEvent: jest.fn().mockResolvedValue({
@@ -389,6 +390,127 @@ describe('BillingService', () => {
     });
   });
 
+  it('syncs missing local subscription from Stripe when summary is loaded', async () => {
+    const prisma = withTransaction({
+      billingAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'bacc_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+          status: 'active',
+          defaultCurrency: 'USD',
+          createdAt: now,
+          updatedAt: now,
+        }),
+        upsert: jest.fn(),
+      },
+      billingAllowanceGrant: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'balg_trial' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      billingSubscription: {
+        findFirst: jest.fn().mockResolvedValueOnce(null),
+        upsert: jest.fn().mockResolvedValue({
+          id: 'bsub_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+          providerSubscriptionId: 'sub_123',
+          providerPriceId: 'price_starter',
+          planKey: 'starter',
+          status: 'trialing',
+          billingMode: 'subscription_usage',
+          currentPeriodStart: now,
+          currentPeriodEnd: now,
+          trialEndsAt: now,
+          cancelAtPeriodEnd: false,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+      billingTransaction: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'btxn_sub_pending',
+            workspaceId: 'ws_123',
+            provider: 'stripe',
+            providerEventId: null,
+            type: 'subscription_checkout_session.created',
+            amountCents: 2900,
+            currency: 'USD',
+            status: 'pending',
+            metadata: {
+              checkoutSessionId: 'cs_sub_123',
+              customerId: 'cus_123',
+              planKey: 'starter',
+            },
+            createdAt: now,
+          },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    });
+    const previous = process.env.STRIPE_STARTER_PRICE_ID;
+    process.env.STRIPE_STARTER_PRICE_ID = 'price_starter';
+    const { service, stripe } = createService(prisma, {
+      listCustomerSubscriptions: jest.fn().mockResolvedValue([
+        {
+          id: 'sub_123',
+          customer: 'cus_123',
+          status: 'trialing',
+          current_period_start: 1778112000,
+          current_period_end: 1780790400,
+          trial_end: 1779321600,
+          cancel_at_period_end: false,
+          metadata: { workspaceId: 'ws_123', planKey: 'starter' },
+          items: { data: [{ price: { id: 'price_starter' } }] },
+        },
+      ]),
+    });
+
+    try {
+      const result = await service.getSubscription({
+        workspaceId: 'ws_123',
+        projectId: 'proj_123',
+        apiKeyId: 'key_123',
+      });
+
+      expect(stripe.listCustomerSubscriptions).toHaveBeenCalledWith('cus_123');
+      expect(result.subscription?.providerSubscriptionId).toBe('sub_123');
+      expect(prisma.billingSubscription.upsert).toHaveBeenCalledWith({
+        where: {
+          provider_providerSubscriptionId: {
+            provider: 'stripe',
+            providerSubscriptionId: 'sub_123',
+          },
+        },
+        update: expect.objectContaining({
+          providerCustomerId: 'cus_123',
+          providerPriceId: 'price_starter',
+          planKey: 'starter',
+          status: 'trialing',
+        }),
+        create: expect.objectContaining({
+          workspaceId: 'ws_123',
+          providerSubscriptionId: 'sub_123',
+          planKey: 'starter',
+        }),
+      });
+      expect(prisma.billingTransaction.update).toHaveBeenCalledWith({
+        where: { id: 'btxn_sub_pending' },
+        data: expect.objectContaining({ status: 'succeeded' }),
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.STRIPE_STARTER_PRICE_ID;
+      } else {
+        process.env.STRIPE_STARTER_PRICE_ID = previous;
+      }
+    }
+  });
+
   it('returns Stripe configuration status without exposing secrets', () => {
     const prisma = {} as unknown as PrismaService;
     const { service } = createService(prisma);
@@ -611,6 +733,21 @@ describe('BillingService', () => {
     const prisma = withTransaction({
       billingTransaction: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'btxn_pending',
+            workspaceId: 'ws_123',
+            provider: 'stripe',
+            providerEventId: null,
+            type: 'checkout_session.created',
+            amountCents: 2000,
+            currency: 'USD',
+            status: 'pending',
+            metadata: { checkoutSessionId: 'cs_123' },
+            createdAt: now,
+          },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
         create: jest.fn().mockResolvedValue({
           id: 'btxn_123',
           workspaceId: 'ws_123',
@@ -635,6 +772,7 @@ describe('BillingService', () => {
         data: {
           object: {
             amount_total: 2000,
+            id: 'cs_123',
             currency: 'usd',
             metadata: { workspaceId: 'ws_123', amountCents: '2000' },
           },
@@ -661,6 +799,105 @@ describe('BillingService', () => {
         status: 'succeeded',
         amountCents: 2000,
       }),
+    });
+    expect(prisma.billingTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'btxn_pending' },
+      data: expect.objectContaining({ status: 'succeeded' }),
+    });
+  });
+
+  it('creates subscription from checkout completed webhook and reconciles pending transaction', async () => {
+    const prisma = withTransaction({
+      billingTransaction: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'btxn_sub_pending',
+            workspaceId: 'ws_123',
+            provider: 'stripe',
+            providerEventId: null,
+            type: 'subscription_checkout_session.created',
+            amountCents: 2900,
+            currency: 'USD',
+            status: 'pending',
+            metadata: { checkoutSessionId: 'cs_sub_123' },
+            createdAt: now,
+          },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      billingAccount: {
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      billingSubscription: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'bsub_123',
+          workspaceId: 'ws_123',
+          provider: 'stripe',
+          providerCustomerId: 'cus_123',
+          providerSubscriptionId: 'sub_123',
+          providerPriceId: 'price_starter',
+          planKey: 'starter',
+          status: 'trialing',
+          billingMode: 'subscription_usage',
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          trialEndsAt: null,
+          cancelAtPeriodEnd: false,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+    });
+    const { service } = createService(prisma, {
+      constructWebhookEvent: jest.fn().mockReturnValue({
+        id: 'evt_sub_completed',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_sub_123',
+            amount_total: 0,
+            currency: 'usd',
+            customer: 'cus_123',
+            subscription: 'sub_123',
+            status: 'trialing',
+            metadata: {
+              workspaceId: 'ws_123',
+              purpose: 'subscription',
+              planKey: 'starter',
+            },
+          },
+        },
+      }),
+    });
+
+    const result = await service.handleStripeWebhook(Buffer.from('{}'), 't=1,v1=test');
+
+    expect(result).toEqual({ received: true, duplicate: false, ignored: false });
+    expect(prisma.billingSubscription.upsert).toHaveBeenCalledWith({
+      where: {
+        provider_providerSubscriptionId: {
+          provider: 'stripe',
+          providerSubscriptionId: 'sub_123',
+        },
+      },
+      update: expect.objectContaining({
+        providerCustomerId: 'cus_123',
+        planKey: 'starter',
+        status: 'trialing',
+      }),
+      create: expect.objectContaining({
+        workspaceId: 'ws_123',
+        providerCustomerId: 'cus_123',
+        providerSubscriptionId: 'sub_123',
+        planKey: 'starter',
+      }),
+    });
+    expect(prisma.billingTransaction.update).toHaveBeenCalledWith({
+      where: { id: 'btxn_sub_pending' },
+      data: expect.objectContaining({ status: 'succeeded' }),
     });
   });
 
