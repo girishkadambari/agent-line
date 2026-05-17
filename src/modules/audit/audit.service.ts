@@ -37,9 +37,25 @@ export class AuditService {
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
       },
+      include: {
+        actorUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
-    return serializeAuditEvent(event);
+    const apiKey = event.actorApiKeyId
+      ? await this.prisma.aPIKey.findUnique({
+          where: { id: event.actorApiKeyId },
+          select: { id: true, label: true, prefix: true },
+        })
+      : undefined;
+
+    return serializeAuditEvent(event, apiKey ?? undefined);
   }
 
   async listForWorkspace(context: RequestContext, limit: number) {
@@ -47,8 +63,37 @@ export class AuditService {
       where: { workspaceId: context.workspaceId },
       orderBy: { createdAt: 'desc' },
       take: limit,
+      include: {
+        actorUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
-    return list(events.map(serializeAuditEvent), { limit, nextCursor: null });
+    const actorApiKeyIds = Array.from(
+      new Set(events.map((event) => event.actorApiKeyId).filter((id): id is string => Boolean(id))),
+    );
+    const apiKeys =
+      actorApiKeyIds.length > 0
+        ? await this.prisma.aPIKey.findMany({
+            where: { workspaceId: context.workspaceId, id: { in: actorApiKeyIds } },
+            select: { id: true, label: true, prefix: true },
+          })
+        : [];
+    const apiKeysById = new Map(apiKeys.map((apiKey) => [apiKey.id, apiKey]));
+
+    return list(
+      events.map((event) =>
+        serializeAuditEvent(
+          event,
+          event.actorApiKeyId ? apiKeysById.get(event.actorApiKeyId) : undefined,
+        ),
+      ),
+      { limit, nextCursor: null },
+    );
   }
 }

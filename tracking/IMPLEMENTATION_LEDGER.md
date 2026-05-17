@@ -2,6 +2,41 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-17: Audit Actor Enrichment
+
+**Status:** done
+
+Implemented:
+
+- Enriched audit event API responses with a structured actor object instead of
+  forcing the dashboard to guess from raw ids.
+- Audit events now resolve actor context as:
+  - workspace user name/email when the action came from a dashboard session
+  - API key label/prefix when the action came from an API key
+  - AgentLine system when the action was automated or has no human/API actor
+- Included `actorUser` on audit writes and list reads so newly created audit
+  records serialize consistently.
+- Added API key lookup for audit rows that were created by API-key traffic.
+- Updated audit service coverage to assert the enriched API-key actor shape.
+
+Verification:
+
+- `npm test -- audit.service.spec.ts --runInBand` passed.
+
+Release impact:
+
+- The customer audit log can now answer who changed something without vague
+  labels like "Dashboard user".
+- Support and billing investigations get clearer actor evidence while keeping
+  raw internal implementation details out of the customer UI.
+
+Next:
+
+- Add audit filters for area/action/actor once the frontend needs higher-volume
+  audit navigation.
+- Continue release hardening for billing evidence, workspace controls, SDK, MCP,
+  and sample-agent flows.
+
 ## 2026-05-15: P0 Live Call Lifecycle Hardening
 
 **Status:** done

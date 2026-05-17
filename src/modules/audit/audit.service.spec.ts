@@ -19,6 +19,14 @@ describe('AuditService', () => {
           ipAddress: null,
           userAgent: null,
           createdAt: now,
+          actorUser: null,
+        }),
+      },
+      aPIKey: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'key_123',
+          label: 'Local development key',
+          prefix: 'sk_test',
         }),
       },
     } as unknown as PrismaService;
@@ -41,7 +49,23 @@ describe('AuditService', () => {
         resourceType: 'agent',
         resourceId: 'agt_123',
       }),
+      include: {
+        actorUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
     expect(result.action).toBe('agent.created');
+    expect(result.actor).toEqual({
+      type: 'api_key',
+      name: null,
+      email: null,
+      apiKeyLabel: 'Local development key',
+      apiKeyPrefix: 'sk_test',
+    });
   });
 });
