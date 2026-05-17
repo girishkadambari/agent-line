@@ -5,6 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AuditAction, EventResourceType } from '../../domain/events';
 import type {
   AcceptInviteInput,
   CreateInviteInput,
@@ -204,8 +205,8 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: result.id,
       actorUserId: userId,
-      action: 'workspace.created',
-      resourceType: 'workspace',
+      action: AuditAction.WorkspaceCreated,
+      resourceType: EventResourceType.Workspace,
       resourceId: result.id,
       metadata: { name: result.name },
     });
@@ -232,8 +233,9 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'workspace.updated',
-      resourceType: 'workspace',
+      actorUserId: context.userId,
+      action: AuditAction.WorkspaceUpdated,
+      resourceType: EventResourceType.Workspace,
       resourceId: workspace.id,
       metadata: input,
     });
@@ -268,8 +270,9 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'member.role_updated',
-      resourceType: 'workspace_member',
+      actorUserId: context.userId,
+      action: AuditAction.MemberRoleUpdated,
+      resourceType: EventResourceType.WorkspaceMember,
       resourceId: memberId,
       metadata: input as Record<string, unknown>,
     });
@@ -293,8 +296,9 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'member.removed',
-      resourceType: 'workspace_member',
+      actorUserId: context.userId,
+      action: AuditAction.MemberRemoved,
+      resourceType: EventResourceType.WorkspaceMember,
       resourceId: memberId,
     });
 
@@ -331,8 +335,8 @@ export class WorkspacesService {
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
       actorUserId: context.userId,
-      action: 'invite.created',
-      resourceType: 'workspace_invite',
+      action: AuditAction.InviteCreated,
+      resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
       metadata: { email: invite.email, role: invite.role },
     });
@@ -361,8 +365,9 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'invite.revoked',
-      resourceType: 'workspace_invite',
+      actorUserId: context.userId,
+      action: AuditAction.InviteRevoked,
+      resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
     });
 
@@ -388,8 +393,8 @@ export class WorkspacesService {
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
       actorUserId: context.userId,
-      action: 'invite.resent',
-      resourceType: 'workspace_invite',
+      action: AuditAction.InviteResent,
+      resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
       metadata: { email: updated.email, role: updated.role },
     });
@@ -419,6 +424,13 @@ export class WorkspacesService {
       await this.prisma.workspaceInvite.update({
         where: { id: invite.id },
         data: { status: 'expired' },
+      });
+      await this.audit.record({
+        workspaceId: invite.workspaceId,
+        action: AuditAction.InviteExpired,
+        resourceType: EventResourceType.WorkspaceInvite,
+        resourceId: invite.id,
+        metadata: { email: invite.email, role: invite.role },
       });
       throw new ApiException('conflict', 'Invite has expired.', 409, { inviteId: invite.id });
     }
@@ -460,8 +472,8 @@ export class WorkspacesService {
     await this.audit.record({
       workspaceId: invite.workspaceId,
       actorUserId: userId,
-      action: 'invite.accepted',
-      resourceType: 'workspace_invite',
+      action: AuditAction.InviteAccepted,
+      resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
       metadata: { email: invite.email, role: invite.role },
     });

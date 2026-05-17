@@ -1790,3 +1790,38 @@ Notes:
   because several mocks are typed as `PrismaService` and then assert model
   delegates that TypeScript does not see on the mocked object. The billing
   slice itself is covered by focused tests and backend typecheck/build passed.
+
+## 2026-05-17: P0.7 Admin, Billing, And Workspace Audit Coverage
+
+**Status:** implemented
+
+Implemented:
+
+- Added canonical audit constants for workspace, member, invite, API key, and
+  billing-sensitive actions.
+- Added canonical resource type constants for workspace, workspace member,
+  workspace invite, API key, billing balance, billing subscription, and billing
+  transaction records.
+- Completed actor attribution for workspace/member/invite/API-key audit records
+  so dashboard session users are recorded alongside API-key actors where
+  available.
+- Added API key rotation with:
+  - new secret material
+  - one-time raw key return
+  - old-prefix/new-prefix audit metadata
+  - revoked-key rotation protection
+- Added audit records for expired invites when the accept flow detects an
+  expired token.
+- Added transactional billing audit records for Stripe:
+  - prepaid credit applied
+  - subscription synced from Checkout or subscription webhooks
+  - Checkout expired
+  - invoice paid
+  - invoice payment failed
+- Kept Stripe billing audit writes inside the same database transaction as the
+  billing transaction/balance/subscription updates to avoid orphaned evidence.
+
+Verification:
+
+- `npm test -- api-keys.service.spec.ts billing.service.spec.ts workspaces.service.spec.ts --runInBand` passed.
+- `npm run build` passed.

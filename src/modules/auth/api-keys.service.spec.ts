@@ -6,6 +6,7 @@ const context = {
   workspaceId: 'ws_123',
   projectId: 'proj_123',
   apiKeyId: 'key_actor',
+  userId: 'usr_actor',
 };
 
 const now = new Date('2026-05-07T00:00:00.000Z');
@@ -76,6 +77,7 @@ describe('ApiKeysService', () => {
       expect.objectContaining({
         action: 'api_key.created',
         actorApiKeyId: context.apiKeyId,
+        actorUserId: context.userId,
       }),
     );
   });
@@ -114,6 +116,45 @@ describe('ApiKeysService', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'api_key.revoked',
+      }),
+    );
+  });
+
+  it('rotates API key secrets and returns the new raw key once', async () => {
+    const existing = apiKeyFixture({ prefix: 'sk_test_old123' });
+    const prisma = {
+      aPIKey: {
+        findFirst: jest.fn().mockResolvedValue(existing),
+        update: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve(
+            apiKeyFixture({
+              prefix: data.prefix,
+              keyHash: data.keyHash,
+              status: data.status,
+            }),
+          ),
+        ),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = createService(prisma);
+
+    const result = await service.rotateApiKey(context, 'key_123');
+
+    expect(result.key).toMatch(/^sk_test_/);
+    expect(result.prefix).not.toBe(existing.prefix);
+    expect(prisma.aPIKey.update).toHaveBeenCalledWith({
+      where: { id: 'key_123' },
+      data: expect.objectContaining({
+        status: 'active',
+        prefix: expect.any(String),
+        keyHash: expect.any(String),
+      }),
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'api_key.rotated',
+        actorUserId: context.userId,
+        metadata: expect.objectContaining({ previousPrefix: existing.prefix }),
       }),
     );
   });

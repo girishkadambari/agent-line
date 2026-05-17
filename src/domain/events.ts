@@ -40,6 +40,25 @@ export const AgentLineEventPattern = {
 } as const;
 
 export const AuditAction = {
+  WorkspaceCreated: 'workspace.created',
+  WorkspaceUpdated: 'workspace.updated',
+  MemberRoleUpdated: 'member.role_updated',
+  MemberRemoved: 'member.removed',
+  InviteCreated: 'invite.created',
+  InviteRevoked: 'invite.revoked',
+  InviteResent: 'invite.resent',
+  InviteAccepted: 'invite.accepted',
+  InviteExpired: 'invite.expired',
+  ApiKeyCreated: 'api_key.created',
+  ApiKeyUpdated: 'api_key.updated',
+  ApiKeyRevoked: 'api_key.revoked',
+  ApiKeyRotated: 'api_key.rotated',
+  BillingControlsUpdated: 'billing.controls_updated',
+  BillingCreditApplied: 'billing.credit_applied',
+  BillingCheckoutExpired: 'billing.checkout_expired',
+  BillingSubscriptionSynced: 'billing.subscription_synced',
+  BillingInvoicePaid: 'billing.invoice_paid',
+  BillingInvoicePaymentFailed: 'billing.invoice_payment_failed',
   CallCreated: 'call.created',
   CallFailed: 'call.failed',
   CallEnded: 'call.ended',
@@ -59,6 +78,10 @@ export const AuditAction = {
 
 export const EventResourceType = {
   Agent: 'agent',
+  ApiKey: 'api_key',
+  BillingBalance: 'billing_balance',
+  BillingSubscription: 'billing_subscription',
+  BillingTransaction: 'billing_transaction',
   Call: 'call',
   Contact: 'contact',
   Conversation: 'conversation',
@@ -67,4 +90,7 @@ export const EventResourceType = {
   UsageEvent: 'usage_event',
   WebhookEndpoint: 'webhook_endpoint',
   WebhookDelivery: 'webhook_delivery',
+  Workspace: 'workspace',
+  WorkspaceInvite: 'workspace_invite',
+  WorkspaceMember: 'workspace_member',
 } as const;

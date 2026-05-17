@@ -11,6 +11,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AuditAction, EventResourceType } from '../../domain/events';
 import type {
   BillingCostQueryInput,
   CreateCheckoutSessionInput,
@@ -284,8 +285,8 @@ export class BillingService {
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
       actorUserId: context.userId,
-      action: 'billing.controls_updated',
-      resourceType: 'billing_balance',
+      action: AuditAction.BillingControlsUpdated,
+      resourceType: EventResourceType.BillingBalance,
       resourceId: balance.id,
       metadata: {
         previousSpendLimitCents: existing.spendLimitCents,
@@ -1036,6 +1037,20 @@ export class BillingService {
           metadata: stripeObject as Prisma.InputJsonValue,
         },
       });
+      await this.recordBillingAudit(tx, {
+        workspaceId,
+        action: AuditAction.BillingSubscriptionSynced,
+        resourceType: EventResourceType.BillingSubscription,
+        resourceId: String(stripeObject.subscription ?? stripeObject.id ?? ''),
+        metadata: {
+          eventId: event.id,
+          eventType: event.type,
+          checkoutSessionId: stripeObject.id,
+          planKey: metadata?.planKey,
+          amountCents: Number(stripeObject.amount_total ?? 0),
+          currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
+        },
+      });
       return;
     }
 
@@ -1067,6 +1082,18 @@ export class BillingService {
         workspaceId,
         currency: 'USD',
         balanceCents: amountCents,
+      },
+    });
+    await this.recordBillingAudit(tx, {
+      workspaceId,
+      action: AuditAction.BillingCreditApplied,
+      resourceType: EventResourceType.BillingBalance,
+      metadata: {
+        eventId: event.id,
+        eventType: event.type,
+        checkoutSessionId: stripeObject.id,
+        amountCents,
+        currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
       },
     });
   }
@@ -1104,6 +1131,17 @@ export class BillingService {
         metadata: stripeObject as Prisma.InputJsonValue,
       },
     });
+    await this.recordBillingAudit(tx, {
+      workspaceId,
+      action: AuditAction.BillingCheckoutExpired,
+      resourceType: EventResourceType.BillingTransaction,
+      metadata: {
+        eventId: event.id,
+        eventType: event.type,
+        checkoutSessionId: stripeObject.id,
+        purpose,
+      },
+    });
   }
 
   private async handleSubscriptionEvent(tx: Prisma.TransactionClient, event: StripeWebhookEvent) {
@@ -1126,6 +1164,18 @@ export class BillingService {
         currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
         status: 'succeeded',
         metadata: stripeObject as Prisma.InputJsonValue,
+      },
+    });
+    await this.recordBillingAudit(tx, {
+      workspaceId,
+      action: AuditAction.BillingSubscriptionSynced,
+      resourceType: EventResourceType.BillingSubscription,
+      resourceId: String(stripeObject.id ?? stripeObject.subscription ?? ''),
+      metadata: {
+        eventId: event.id,
+        eventType: event.type,
+        providerSubscriptionId: stripeObject.id,
+        status: stripeObject.status,
       },
     });
 
@@ -1152,6 +1202,23 @@ export class BillingService {
         currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
         status: event.type === 'invoice.paid' ? 'succeeded' : 'failed',
         metadata: stripeObject as Prisma.InputJsonValue,
+      },
+    });
+    await this.recordBillingAudit(tx, {
+      workspaceId,
+      action:
+        event.type === 'invoice.paid'
+          ? AuditAction.BillingInvoicePaid
+          : AuditAction.BillingInvoicePaymentFailed,
+      resourceType: EventResourceType.BillingTransaction,
+      resourceId: String(stripeObject.id ?? ''),
+      metadata: {
+        eventId: event.id,
+        eventType: event.type,
+        invoiceId: stripeObject.id,
+        amountCents,
+        currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
+        providerSubscriptionId: stripeObject.subscription,
       },
     });
 
@@ -1191,6 +1258,28 @@ export class BillingService {
     });
 
     return true;
+  }
+
+  private async recordBillingAudit(
+    tx: Prisma.TransactionClient,
+    input: {
+      workspaceId: string;
+      action: string;
+      resourceType: string;
+      resourceId?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    await tx.auditEvent.create({
+      data: {
+        id: createId('audit'),
+        workspaceId: input.workspaceId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+        metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+    });
   }
 
   private async upsertSubscriptionFromStripeObject(

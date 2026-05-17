@@ -36,6 +36,11 @@ export class ApiKeysController {
     return success(await this.apiKeys.updateApiKey(context, id, updateApiKeySchema.parse(body)));
   }
 
+  @Post(':id/rotate')
+  async rotateApiKey(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.apiKeys.rotateApiKey(context, id));
+  }
+
   @Delete(':id')
   async revokeApiKey(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.apiKeys.revokeApiKey(context, id));

@@ -97,6 +97,11 @@ describe('BillingService', () => {
   }
 
   function withTransaction(prisma: Record<string, unknown>) {
+    if (!('auditEvent' in prisma)) {
+      prisma.auditEvent = {
+        create: jest.fn().mockResolvedValue({ id: 'audit_123' }),
+      };
+    }
     return {
       ...prisma,
       $transaction: jest.fn(async (callback: (tx: unknown) => unknown) => callback(prisma)),

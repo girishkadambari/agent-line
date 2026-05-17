@@ -5,6 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AuditAction, EventResourceType } from '../../domain/events';
 import type { CreateApiKeyInput, UpdateApiKeyInput } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -65,8 +66,9 @@ export class ApiKeysService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'api_key.created',
-      resourceType: 'api_key',
+      actorUserId: context.userId,
+      action: AuditAction.ApiKeyCreated,
+      resourceType: EventResourceType.ApiKey,
       resourceId: apiKey.id,
       metadata: { label: apiKey.label, prefix: apiKey.prefix },
     });
@@ -88,8 +90,9 @@ export class ApiKeysService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'api_key.updated',
-      resourceType: 'api_key',
+      actorUserId: context.userId,
+      action: AuditAction.ApiKeyUpdated,
+      resourceType: EventResourceType.ApiKey,
       resourceId: apiKey.id,
       metadata: { label: apiKey.label, status: apiKey.status },
     });
@@ -112,13 +115,48 @@ export class ApiKeysService {
     await this.audit.record({
       workspaceId: context.workspaceId,
       actorApiKeyId: context.apiKeyId,
-      action: 'api_key.revoked',
-      resourceType: 'api_key',
+      actorUserId: context.userId,
+      action: AuditAction.ApiKeyRevoked,
+      resourceType: EventResourceType.ApiKey,
       resourceId: apiKey.id,
       metadata: { label: apiKey.label, prefix: apiKey.prefix },
     });
 
     return serializeApiKey(apiKey);
+  }
+
+  async rotateApiKey(context: RequestContext, id: string) {
+    const existing = await this.findApiKeyOrThrow(context, id);
+
+    if (existing.status === 'revoked') {
+      throw new ApiException('conflict', 'Revoked API keys cannot be rotated.', 409, { id });
+    }
+
+    const rawKey = this.create('sk_test');
+    const apiKey = await this.prisma.aPIKey.update({
+      where: { id },
+      data: {
+        prefix: this.prefix(rawKey),
+        keyHash: this.hash(rawKey),
+        status: 'active',
+      },
+    });
+
+    await this.audit.record({
+      workspaceId: context.workspaceId,
+      actorApiKeyId: context.apiKeyId,
+      actorUserId: context.userId,
+      action: AuditAction.ApiKeyRotated,
+      resourceType: EventResourceType.ApiKey,
+      resourceId: apiKey.id,
+      metadata: {
+        label: apiKey.label,
+        previousPrefix: existing.prefix,
+        prefix: apiKey.prefix,
+      },
+    });
+
+    return serializeCreatedApiKey(apiKey, rawKey);
   }
 
   private async findApiKeyOrThrow(context: RequestContext, id: string) {
