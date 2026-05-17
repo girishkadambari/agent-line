@@ -189,6 +189,53 @@ Next:
 - P0.8: create a production smoke checklist for Twilio, Stripe, Google OAuth,
   Brevo, usage evidence, and webhook delivery.
 
+## 2026-05-17: Core Event Contract Cleanup
+
+**Status:** done
+
+Implemented:
+
+- Extended the canonical event/resource contract in `src/domain/events.ts` to
+  cover:
+  - agents
+  - contacts
+  - conversations
+  - messages
+  - usage events
+- Replaced remaining hardcoded event and event-resource strings in the core
+  customer-facing emitters:
+  - `AgentsService`
+  - `MessagesService`
+  - `ContactsService`
+  - `ConversationsService`
+  - `UsageService`
+- Kept external webhook payload values unchanged while moving internal usage to
+  constants.
+- Updated agent provider-diagnostic resource mapping to use canonical resource
+  type constants for call and message resources.
+
+Verification:
+
+- `npm test -- agents.service.spec.ts messages.service.spec.ts usage.service.spec.ts conversations.service.spec.ts contacts.service.spec.ts --runInBand`
+  passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Core webhook events now have one backend source of truth across all primary
+  ICP flows: agent setup, SMS, voice, contacts, conversations, usage, numbers,
+  and webhooks.
+- Future SDK/MCP/sample-agent work can safely reference the canonical event
+  contract instead of scraping service implementation strings.
+
+Next:
+
+- P0.7: add audit coverage for billing controls, workspace settings, members,
+  invites, and API keys.
+- P0.8: add production smoke checklist and release gates.
+- P0.9: start TypeScript SDK and sample real-world agent once event/audit
+  contracts are stable.
+
 ## 2026-05-15: Billing And Pricing Strategy Source Of Truth
 
 **Status:** done

@@ -58,9 +58,13 @@ export const AuditAction = {
 } as const;
 
 export const EventResourceType = {
+  Agent: 'agent',
   Call: 'call',
+  Contact: 'contact',
+  Conversation: 'conversation',
   Message: 'message',
   PhoneNumber: 'phone_number',
+  UsageEvent: 'usage_event',
   WebhookEndpoint: 'webhook_endpoint',
   WebhookDelivery: 'webhook_delivery',
 } as const;

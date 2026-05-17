@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { createId } from '../../common/ids';
+import { AgentLineEvent, EventResourceType } from '../../domain/events';
 import type { UsageQueryInput } from '../../domain/schemas';
 import { BillingService } from '../billing/billing.service';
 import { EventsService } from '../events/events.service';
@@ -95,14 +96,14 @@ export class UsageService {
     });
 
     if (!shouldReportToStripe) {
-      await this.emitUsageEvent('agent.usage.recorded', usageEvent);
+      await this.emitUsageEvent(AgentLineEvent.UsageRecorded, usageEvent);
       return usageEvent;
     }
 
     const stripeSettlement = await this.billing.reportUsageEventToStripe(usageEvent);
 
     if (stripeSettlement.status === 'internal_debited') {
-      await this.emitUsageEvent('agent.usage.recorded', usageEvent);
+      await this.emitUsageEvent(AgentLineEvent.UsageRecorded, usageEvent);
       return usageEvent;
     }
 
@@ -114,7 +115,7 @@ export class UsageService {
       },
     });
 
-    await this.emitUsageEvent('agent.usage.recorded', settledEvent);
+    await this.emitUsageEvent(AgentLineEvent.UsageRecorded, settledEvent);
 
     return settledEvent;
   }
@@ -157,7 +158,7 @@ export class UsageService {
 
     await Promise.all(
       events.map((event) =>
-        this.emitUsageEvent('agent.usage.voided', {
+        this.emitUsageEvent(AgentLineEvent.UsageVoided, {
           ...event,
           settlementStatus: 'voided',
         }),
@@ -171,7 +172,7 @@ export class UsageService {
     const event = await this.prisma.usageEvent.findFirst({
       where: {
         workspaceId: input.workspaceId,
-        resourceType: 'call',
+        resourceType: EventResourceType.Call,
         resourceId: input.callId,
         channel: 'voice',
       },
@@ -229,7 +230,7 @@ export class UsageService {
       });
     }
 
-    await this.emitUsageEvent('agent.usage.finalized', finalizedEvent);
+    await this.emitUsageEvent(AgentLineEvent.UsageFinalized, finalizedEvent);
 
     return { finalized: true, deltaCents };
   }
@@ -244,7 +245,7 @@ export class UsageService {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       agentId: input.agentId,
-      resourceType: 'phone_number',
+      resourceType: EventResourceType.PhoneNumber,
       resourceId: input.numberId,
       channel: 'number',
       quantity: 1,
@@ -268,7 +269,7 @@ export class UsageService {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       agentId: input.agentId,
-      resourceType: 'message',
+      resourceType: EventResourceType.Message,
       resourceId: input.messageId,
       channel: input.direction === 'outbound' ? 'sms.outbound' : 'sms.inbound',
       quantity: 1,
@@ -298,7 +299,7 @@ export class UsageService {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       agentId: input.agentId,
-      resourceType: 'call',
+      resourceType: EventResourceType.Call,
       resourceId: input.callId,
       channel: 'voice',
       quantity: minutes,
@@ -401,7 +402,7 @@ export class UsageService {
       workspaceId: event.workspaceId,
       projectId: event.projectId,
       type,
-      resourceType: 'usage_event',
+      resourceType: EventResourceType.UsageEvent,
       resourceId: event.id,
       payload: {
         usageEvent: serializeUsageEvent(event),

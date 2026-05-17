@@ -5,6 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AgentLineEvent, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
 import type { SendMessageInput, SimulateInboundSmsInput } from '../../domain/schemas';
 import { ContactsService } from '../contacts/contacts.service';
@@ -83,8 +84,8 @@ export class MessagesService {
       const event = await this.events.create({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        type: 'agent.message.sent',
-        resourceType: 'message',
+        type: AgentLineEvent.MessageSent,
+        resourceType: EventResourceType.Message,
         resourceId: message.id,
         payload: this.buildMessageEventPayload(message),
       });
@@ -95,7 +96,7 @@ export class MessagesService {
       if (!providerSent) {
         await this.usage.voidUsageForFailedOperation({
           workspaceId: context.workspaceId,
-          resourceType: 'message',
+          resourceType: EventResourceType.Message,
           resourceId: messageId,
         });
       }
@@ -148,8 +149,8 @@ export class MessagesService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: 'agent.message.received',
-      resourceType: 'message',
+      type: AgentLineEvent.MessageReceived,
+      resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(message),
     });
@@ -246,8 +247,8 @@ export class MessagesService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: 'agent.message.received',
-      resourceType: 'message',
+      type: AgentLineEvent.MessageReceived,
+      resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(message),
     });
@@ -297,8 +298,8 @@ export class MessagesService {
     const event = await this.events.create({
       workspaceId: message.workspaceId,
       projectId: message.projectId,
-      type: 'agent.message.delivery_updated',
-      resourceType: 'message',
+      type: AgentLineEvent.MessageDeliveryUpdated,
+      resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(updated, { providerStatus: input.status }),
     });

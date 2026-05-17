@@ -5,6 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AgentLineEvent, EventResourceType } from '../../domain/events';
 import type { UpdateContactInput } from '../../domain/schemas';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -65,7 +66,7 @@ export class ContactsService {
       },
     });
 
-    await this.emitContactEvent(context, 'agent.contact.updated', contact);
+    await this.emitContactEvent(context, AgentLineEvent.ContactUpdated, contact);
 
     return serializeContact(contact);
   }
@@ -91,7 +92,7 @@ export class ContactsService {
         phoneNumber,
       },
     });
-    await this.emitContactEvent(context, 'agent.contact.created', contact);
+    await this.emitContactEvent(context, AgentLineEvent.ContactCreated, contact);
 
     return contact;
   }
@@ -103,7 +104,7 @@ export class ContactsService {
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type,
-      resourceType: 'contact',
+      resourceType: EventResourceType.Contact,
       resourceId: contact.id,
       payload: {
         contactId: contact.id,

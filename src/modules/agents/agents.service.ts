@@ -6,6 +6,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
+import { AgentLineEvent, EventResourceType } from '../../domain/events';
 import type { CreateAgentInput, UpdateAgentInput } from '../../domain/schemas';
 import { serializeCall } from '../calls/calls.serializer';
 import { serializeConversation } from '../conversations/conversations.serializer';
@@ -58,7 +59,7 @@ export class AgentsService {
       },
     });
 
-    await this.emitAgentEvent(context, 'agent.created', agent);
+    await this.emitAgentEvent(context, AgentLineEvent.AgentCreated, agent);
 
     return serializeAgent(agent);
   }
@@ -114,16 +115,16 @@ export class AgentsService {
           projectId: context.projectId,
           eventType: {
             in: [
-              'agent.message.sent',
-              'agent.message.received',
-              'agent.message.delivery_updated',
-              'agent.call.started',
-              'agent.call.completed',
-              'agent.call.ended',
-              'agent.call.failed',
-              'agent.call.status_updated',
-              'agent.call.transferred',
-              'agent.call.transcript_updated',
+              AgentLineEvent.MessageSent,
+              AgentLineEvent.MessageReceived,
+              AgentLineEvent.MessageDeliveryUpdated,
+              AgentLineEvent.CallStarted,
+              AgentLineEvent.CallCompleted,
+              AgentLineEvent.CallEnded,
+              AgentLineEvent.CallFailed,
+              AgentLineEvent.CallStatusUpdated,
+              AgentLineEvent.CallTransferred,
+              AgentLineEvent.CallTranscriptUpdated,
             ],
           },
           OR: [
@@ -210,7 +211,7 @@ export class AgentsService {
       },
     });
 
-    await this.emitAgentEvent(context, 'agent.updated', agent);
+    await this.emitAgentEvent(context, AgentLineEvent.AgentUpdated, agent);
 
     return serializeAgent(agent);
   }
@@ -223,7 +224,7 @@ export class AgentsService {
       data: { status: 'disabled' },
     });
 
-    await this.emitAgentEvent(context, 'agent.disabled', agent);
+    await this.emitAgentEvent(context, AgentLineEvent.AgentDisabled, agent);
 
     return serializeAgent(agent);
   }
@@ -257,7 +258,7 @@ export class AgentsService {
       workspaceId: context.workspaceId,
       projectId: context.projectId,
       type,
-      resourceType: 'agent',
+      resourceType: EventResourceType.Agent,
       resourceId: agent.id,
       payload: this.buildAgentEventPayload(agent),
     });
@@ -429,17 +430,26 @@ export class AgentsService {
     calls: Array<{ id: string; providerCallId: string | null }>,
     messages: Array<{ id: string; providerMessageId: string | null }>,
   ) {
-    const resources = new Map<string, { resourceType: 'call' | 'message'; resourceId: string }>();
+    const resources = new Map<
+      string,
+      {
+        resourceType: typeof EventResourceType.Call | typeof EventResourceType.Message;
+        resourceId: string;
+      }
+    >();
 
     for (const call of calls) {
       if (call.providerCallId) {
-        resources.set(call.providerCallId, { resourceType: 'call', resourceId: call.id });
+        resources.set(call.providerCallId, {
+          resourceType: EventResourceType.Call,
+          resourceId: call.id,
+        });
       }
     }
     for (const message of messages) {
       if (message.providerMessageId) {
         resources.set(message.providerMessageId, {
-          resourceType: 'message',
+          resourceType: EventResourceType.Message,
           resourceId: message.id,
         });
       }
@@ -457,7 +467,13 @@ export class AgentsService {
       payload: Prisma.JsonValue;
       createdAt: Date;
     }>,
-    resources: Map<string, { resourceType: 'call' | 'message'; resourceId: string }>,
+    resources: Map<
+      string,
+      {
+        resourceType: typeof EventResourceType.Call | typeof EventResourceType.Message;
+        resourceId: string;
+      }
+    >,
   ) {
     return events
       .map((event) => {
@@ -501,7 +517,13 @@ export class AgentsService {
 
   private findProviderEventResource(
     providerEventId: string | null,
-    resources: Map<string, { resourceType: 'call' | 'message'; resourceId: string }>,
+    resources: Map<
+      string,
+      {
+        resourceType: typeof EventResourceType.Call | typeof EventResourceType.Message;
+        resourceId: string;
+      }
+    >,
   ) {
     if (!providerEventId) {
       return null;
