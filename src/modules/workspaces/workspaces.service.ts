@@ -354,13 +354,16 @@ export class WorkspacesService {
 
   async revokeInvite(context: RequestContext, inviteId: string) {
     const invite = await this.findInviteOrThrow(context, inviteId);
-    const updated = await this.prisma.workspaceInvite.update({
-      where: { id: invite.id },
-      data: {
-        status: 'revoked',
-        revokedAt: new Date(),
-      },
-    });
+    const [updated, workspace] = await Promise.all([
+      this.prisma.workspaceInvite.update({
+        where: { id: invite.id },
+        data: { status: 'revoked', revokedAt: new Date() },
+      }),
+      this.prisma.workspace.findUnique({
+        where: { id: context.workspaceId },
+        select: { name: true },
+      }),
+    ]);
 
     await this.audit.record({
       workspaceId: context.workspaceId,
@@ -369,6 +372,13 @@ export class WorkspacesService {
       action: AuditAction.InviteRevoked,
       resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
+    });
+
+    await this.email.sendInviteRevokedEmail({
+      workspaceId: context.workspaceId,
+      inviteId: invite.id,
+      email: invite.email,
+      workspaceName: workspace?.name ?? 'AgentLine',
     });
 
     return serializeInvite(updated);
@@ -469,6 +479,11 @@ export class WorkspacesService {
       });
     });
 
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: invite.workspaceId },
+      select: { name: true },
+    });
+
     await this.audit.record({
       workspaceId: invite.workspaceId,
       actorUserId: userId,
@@ -476,6 +491,14 @@ export class WorkspacesService {
       resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
       metadata: { email: invite.email, role: invite.role },
+    });
+
+    await this.email.sendInviteAcceptedEmail({
+      workspaceId: invite.workspaceId,
+      inviteId: invite.id,
+      email: invite.email,
+      role: invite.role,
+      workspaceName: workspace?.name ?? 'AgentLine',
     });
 
     return serializeInvite(accepted);

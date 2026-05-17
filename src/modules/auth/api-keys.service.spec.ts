@@ -1,4 +1,5 @@
 import type { AuditService } from '../audit/audit.service';
+import type { EmailService } from '../email/email.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { ApiKeysService } from './api-keys.service';
 
@@ -32,9 +33,14 @@ function createService(prisma: PrismaService) {
     record: jest.fn().mockResolvedValue({ id: 'audit_123' }),
   } as unknown as AuditService;
 
+  const email = {
+    sendApiKeySecurityEmail: jest.fn().mockResolvedValue({}),
+  } as unknown as EmailService;
+
   return {
-    service: new ApiKeysService(prisma, audit),
+    service: new ApiKeysService(prisma, audit, email),
     audit,
+    email,
   };
 }
 
@@ -53,6 +59,8 @@ describe('ApiKeysService', () => {
           ),
         ),
       },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: 'owner@example.com' }) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }) },
     } as unknown as PrismaService;
     const { service, audit } = createService(prisma);
 
@@ -103,6 +111,8 @@ describe('ApiKeysService', () => {
         findFirst: jest.fn().mockResolvedValue(apiKeyFixture()),
         update: jest.fn().mockResolvedValue(apiKeyFixture({ status: 'revoked' })),
       },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: 'owner@example.com' }) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }) },
     } as unknown as PrismaService;
     const { service, audit } = createService(prisma);
 
@@ -135,6 +145,8 @@ describe('ApiKeysService', () => {
           ),
         ),
       },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: 'owner@example.com' }) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }) },
     } as unknown as PrismaService;
     const { service, audit } = createService(prisma);
 
@@ -170,5 +182,73 @@ describe('ApiKeysService', () => {
     await expect(service.revokeApiKey(context, 'key_missing')).rejects.toMatchObject({
       code: 'not_found',
     });
+  });
+
+  it('sends security email to actor user on API key creation', async () => {
+    const prisma = {
+      aPIKey: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve(
+              apiKeyFixture({ id: data.id, prefix: data.prefix, keyHash: data.keyHash }),
+            ),
+          ),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: 'owner@example.com' }) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ name: 'My Workspace' }) },
+    } as unknown as PrismaService;
+    const { service, email } = createService(prisma);
+
+    await service.createApiKey(context, { label: 'Test key' });
+
+    expect(email.sendApiKeySecurityEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'owner@example.com',
+        workspaceName: 'My Workspace',
+        action: 'created',
+      }),
+    );
+  });
+
+  it('skips security email when no actor userId (API key auth)', async () => {
+    const apiKeyOnlyContext = { ...context, userId: undefined };
+    const prisma = {
+      aPIKey: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve(
+              apiKeyFixture({ id: data.id, prefix: data.prefix, keyHash: data.keyHash }),
+            ),
+          ),
+      },
+    } as unknown as PrismaService;
+    const { service, email } = createService(prisma);
+
+    await service.createApiKey(apiKeyOnlyContext, { label: 'Automated key' });
+
+    expect(email.sendApiKeySecurityEmail).not.toHaveBeenCalled();
+  });
+
+  it('sends security email to actor user on API key revoke', async () => {
+    const prisma = {
+      aPIKey: {
+        findFirst: jest.fn().mockResolvedValue(apiKeyFixture()),
+        update: jest.fn().mockResolvedValue(apiKeyFixture({ status: 'revoked' })),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: 'owner@example.com' }) },
+      workspace: { findUnique: jest.fn().mockResolvedValue({ name: 'My Workspace' }) },
+    } as unknown as PrismaService;
+    const { service, email } = createService(prisma);
+
+    await service.revokeApiKey(context, 'key_123');
+
+    expect(email.sendApiKeySecurityEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'owner@example.com',
+        action: 'revoked',
+      }),
+    );
   });
 });

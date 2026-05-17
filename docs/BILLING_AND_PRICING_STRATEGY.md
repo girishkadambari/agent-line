@@ -36,7 +36,7 @@ These are the current implementation defaults. They are intentionally simple whi
 | Inbound SMS | $0.01 | message | Provider inbound webhook is processed |
 | Voice call | $0.03 | started minute | Final provider duration is settled |
 
-Current pricing version: `2026-05-14`.
+Current pricing version: `2026-05-17`.
 
 ## Settlement Order
 
@@ -75,13 +75,18 @@ The plan price is not only telecom resale. It pays for:
 
 ## Internal Pricing Controls
 
-The next production-grade pricing layer should move rates from constants into versioned database records.
+The production pricing layer uses versioned database records as the source of
+truth when an active rate card exists. Code-level launch defaults remain as a
+safe fallback for tests and first boot only.
 
-Suggested objects:
+Implemented objects:
+
+- `BillingRateCard`: named pricing version with status `draft`, `active`, or `archived`.
+- `BillingRate`: unit price, billing unit, formula, resource type, and channel.
+
+Future objects:
 
 - `BillingProduct`: customer-facing sellable category such as `phone_number`, `sms`, `voice`, `recording`, `hosted_agent`, `webhook_delivery`.
-- `BillingRateCard`: named pricing version with status `draft`, `active`, or `archived`.
-- `BillingRate`: unit price, billing unit, rounding policy, minimum charge, effective date, and provider region.
 - `WorkspacePricingOverride`: per-workspace contract pricing or promotional override.
 - `ProviderCostRecord`: optional internal cost basis imported from Twilio/Stripe/provider invoices.
 
@@ -92,6 +97,10 @@ Rules:
 - Draft rate cards can be previewed but not used for live billing.
 - Only one global rate card should be active per environment unless a workspace override exists.
 - Provider raw cost and customer charge must stay separate.
+
+Stripe still owns subscription, payment, invoice, customer portal, and optional
+metered overage collection. AgentLine owns the usage evidence and applied rate
+snapshot so every customer charge can be explained later.
 
 ## Billing Opportunities
 
@@ -164,4 +173,3 @@ Future internal admin:
 - Manual credits/debits.
 - Billing dispute notes.
 - Settlement reconciliation.
-

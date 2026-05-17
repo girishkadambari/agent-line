@@ -2,6 +2,7 @@ import type { ExecutionContext } from '@nestjs/common';
 
 import type { ApiException } from '../../common/errors/api.exception';
 import type { AuditService } from '../audit/audit.service';
+import type { EmailService } from '../email/email.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { ApiKeyGuard } from './api-key.guard';
 import { ApiKeysService } from './api-keys.service';
@@ -21,7 +22,7 @@ function createExecutionContext(authorization?: string): ExecutionContext {
 }
 
 describe('ApiKeyGuard', () => {
-  const apiKeys = new ApiKeysService({} as PrismaService, {} as AuditService);
+  const apiKeys = new ApiKeysService({} as PrismaService, {} as AuditService, {} as EmailService);
 
   it('rejects missing API key', async () => {
     const guard = new ApiKeyGuard({} as PrismaService, apiKeys);

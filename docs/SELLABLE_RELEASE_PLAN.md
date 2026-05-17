@@ -157,6 +157,7 @@ hardening.
 Implemented:
 
 - Usage events with calculation evidence.
+- Versioned rate-card tables for active usage pricing.
 - Trial allowance, subscription allowance, prepaid balance, Stripe meter path.
 - Stripe Checkout for top-ups and subscriptions.
 - Stripe webhook idempotency and balance/account updates.
@@ -165,9 +166,7 @@ Implemented:
 
 Pending:
 
-- Move usage prices from code constants into versioned rate-card tables.
 - Add provider cost records for Twilio cost reconciliation.
-- Add adjustment ledger for final voice settlement.
 - Add invoice/history surface that is customer-readable.
 - Add low-balance and failed-payment emails.
 - Clean billing UI so customers see "available to spend", "included usage",
@@ -361,9 +360,9 @@ Make customers trust the money side before launch.
 Build:
 
 - Versioned rate-card tables:
+  - rate card. **Implemented 2026-05-17.**
+  - rate. **Implemented 2026-05-17.**
   - billing product
-  - rate card
-  - rate
   - workspace pricing override
 - Provider cost records for Twilio reconciliation.
 - Final voice settlement adjustment ledger. **Implemented 2026-05-17.**
@@ -499,12 +498,11 @@ Exit criteria:
 
 These must be closed before public production release:
 
-1. Rate card is still code-first, not admin-configurable/versioned.
-2. Provider cost reconciliation is not complete.
-3. Recording consent/data retention controls are not complete.
-4. Live Google OAuth, Stripe, Twilio, and Brevo smoke matrix must pass.
-5. Frontend onboarding and settings need final customer-facing polish.
-6. SDK/MCP/sample-agent story is not ready enough for developer-led adoption.
+1. Provider cost reconciliation is not complete.
+2. Recording consent/data retention controls are not complete.
+3. Live Google OAuth, Stripe, Twilio, and Brevo smoke matrix must pass.
+4. Frontend onboarding and settings need final customer-facing polish.
+5. SDK/MCP/sample-agent story is not ready enough for developer-led adoption.
 
 ## What Can Be Sold First
 

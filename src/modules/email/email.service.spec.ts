@@ -86,7 +86,9 @@ describe('EmailService', () => {
       emailDelivery: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(delivery),
-        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
       },
     } as unknown as PrismaService;
     const brevo = {
@@ -167,5 +169,123 @@ describe('EmailService', () => {
       take: 20,
     });
     expect(result.data).toHaveLength(1);
+  });
+
+  it('sends invite accepted email and marks delivery sent', async () => {
+    const delivery = deliveryFixture({ template: 'invite_accepted' });
+    const prisma = {
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(delivery),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      send: jest.fn().mockResolvedValue({ providerMessageId: 'msg_456' }),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendInviteAcceptedEmail({
+      workspaceId: 'ws_123',
+      inviteId: 'inv_123',
+      email: 'new@example.com',
+      role: 'developer',
+      workspaceName: 'AgentLine Local',
+    });
+
+    expect(brevo.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'new@example.com',
+        subject: 'new@example.com joined AgentLine Local',
+      }),
+    );
+    expect(result.status).toBe('sent');
+  });
+
+  it('skips invite accepted email when Brevo is not configured', async () => {
+    const delivery = deliveryFixture({ template: 'invite_accepted', status: 'skipped' });
+    const prisma = {
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(delivery),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(false),
+      send: jest.fn(),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendInviteAcceptedEmail({
+      workspaceId: 'ws_123',
+      inviteId: 'inv_123',
+      email: 'new@example.com',
+      role: 'developer',
+      workspaceName: 'AgentLine Local',
+    });
+
+    expect(result.status).toBe('skipped');
+    expect(brevo.send).not.toHaveBeenCalled();
+  });
+
+  it('sends invite revoked email and marks delivery sent', async () => {
+    const delivery = deliveryFixture({ template: 'invite_revoked' });
+    const prisma = {
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(delivery),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      send: jest.fn().mockResolvedValue({ providerMessageId: 'msg_789' }),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendInviteRevokedEmail({
+      workspaceId: 'ws_123',
+      inviteId: 'inv_123',
+      email: 'revoked@example.com',
+      workspaceName: 'AgentLine Local',
+    });
+
+    expect(brevo.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'revoked@example.com',
+        subject: 'Your invite to AgentLine Local was revoked',
+      }),
+    );
+    expect(result.status).toBe('sent');
+  });
+
+  it('returns existing delivery for duplicate invite accepted idempotency key', async () => {
+    const existing = deliveryFixture({ template: 'invite_accepted', status: 'sent' });
+    const prisma = {
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      send: jest.fn(),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendInviteAcceptedEmail({
+      workspaceId: 'ws_123',
+      inviteId: 'inv_123',
+      email: 'new@example.com',
+      role: 'developer',
+      workspaceName: 'AgentLine Local',
+    });
+
+    expect(result).toBe(existing);
+    expect(brevo.send).not.toHaveBeenCalled();
   });
 });

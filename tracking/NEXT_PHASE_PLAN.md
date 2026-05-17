@@ -54,6 +54,7 @@ Implemented in this release phase:
 - Final voice settlement adjustment billing transactions for provider-final
   call duration deltas.
 - Automatic due-delivery worker for customer webhook retries.
+- Versioned usage rate-card lookup for billing evidence and cost calculation.
 
 Exit criteria:
 
@@ -115,6 +116,9 @@ Implemented in this trust slice:
 
 - Usage events now store billable quantity, pricing version, calculation
   evidence, detection evidence, settlement status, and Stripe meter event id.
+- Usage events now resolve current rates from a versioned `BillingRateCard` and
+  `BillingRate` data model, with launch defaults only as a first-boot/test
+  fallback.
 - Voided usage is preserved for audit but excluded from normal usage totals and
   spend-limit checks.
 - Cost summary includes settlement-status breakdowns for finance/support
@@ -131,6 +135,7 @@ Remaining:
 - Low-balance and spend-limit notification emails.
 - Provider-specific cost reconciliation against Twilio invoice data.
 - Billing dashboard frontend integration.
+- Internal-only pricing admin controls and workspace pricing overrides.
 
 ## Following Implementation Phase: P2 Brevo Transactional Email
 
@@ -164,10 +169,16 @@ Exit criteria:
 
 Remaining:
 
-- Invite accepted/revoked notification emails.
 - Billing top-up and low balance notification emails.
-- Security emails for login/API key events.
 - Dashboard view for email delivery logs.
+
+Implemented in this slice:
+
+- Invite accepted email: notifies the new member confirming they joined. Wired
+  into `acceptInvite` after audit record.
+- Invite revoked email: notifies the invited person when their invite is
+  cancelled. Wired into `revokeInvite` after audit record.
+- Both are idempotent per `inviteId` and respect Brevo configuration.
 
 ## Following Phases
 
@@ -226,12 +237,13 @@ Remaining:
    - Status: in progress.
    - Implemented:
      - Brevo adapter.
-     - invite emails.
+     - invite emails (send, resend, accepted, revoked).
+     - API key security emails (created, revoked, rotated) — actor-only, skipped for API key auth.
      - email delivery logs.
      - authenticated delivery log API.
-     - idempotent invite send keys.
+     - idempotent send keys for all templates.
    - Remaining:
-     - billing/security notifications.
+     - billing/low-balance notification emails.
      - email delivery dashboard/API.
 
 2.5. **P2 Core dashboard summary**

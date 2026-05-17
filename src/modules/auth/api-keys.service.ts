@@ -8,6 +8,7 @@ import { createId } from '../../common/ids';
 import { AuditAction, EventResourceType } from '../../domain/events';
 import type { CreateApiKeyInput, UpdateApiKeyInput } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { serializeApiKey, serializeCreatedApiKey } from './api-keys.serializer';
 
@@ -16,6 +17,7 @@ export class ApiKeysService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {}
 
   hash(apiKey: string) {
@@ -73,6 +75,13 @@ export class ApiKeysService {
       metadata: { label: apiKey.label, prefix: apiKey.prefix },
     });
 
+    await this.sendSecurityEmail(context, {
+      apiKeyId: apiKey.id,
+      label: apiKey.label,
+      prefix: apiKey.prefix,
+      action: 'created',
+    });
+
     return serializeCreatedApiKey(apiKey, rawKey);
   }
 
@@ -122,6 +131,13 @@ export class ApiKeysService {
       metadata: { label: apiKey.label, prefix: apiKey.prefix },
     });
 
+    await this.sendSecurityEmail(context, {
+      apiKeyId: apiKey.id,
+      label: apiKey.label,
+      prefix: apiKey.prefix,
+      action: 'revoked',
+    });
+
     return serializeApiKey(apiKey);
   }
 
@@ -156,7 +172,53 @@ export class ApiKeysService {
       },
     });
 
+    await this.sendSecurityEmail(context, {
+      apiKeyId: apiKey.id,
+      label: apiKey.label,
+      prefix: existing.prefix,
+      action: 'rotated',
+      newPrefix: apiKey.prefix,
+    });
+
     return serializeCreatedApiKey(apiKey, rawKey);
+  }
+
+  private async sendSecurityEmail(
+    context: RequestContext,
+    input: {
+      apiKeyId: string;
+      label: string;
+      prefix: string;
+      action: 'created' | 'revoked' | 'rotated';
+      newPrefix?: string;
+    },
+  ) {
+    if (!context.userId) {
+      return;
+    }
+
+    const [user, workspace] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: context.userId }, select: { email: true } }),
+      this.prisma.workspace.findUnique({
+        where: { id: context.workspaceId },
+        select: { name: true },
+      }),
+    ]);
+
+    if (!user?.email) {
+      return;
+    }
+
+    await this.email.sendApiKeySecurityEmail({
+      workspaceId: context.workspaceId,
+      apiKeyId: input.apiKeyId,
+      email: user.email,
+      workspaceName: workspace?.name ?? 'AgentLine',
+      label: input.label,
+      prefix: input.prefix,
+      action: input.action,
+      newPrefix: input.newPrefix,
+    });
   }
 
   private async findApiKeyOrThrow(context: RequestContext, id: string) {

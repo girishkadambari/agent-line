@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EmailDeliveryStatus } from '@prisma/client';
+import { EmailDeliveryStatus, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 
 import { createId } from '../../common/ids';
@@ -10,8 +10,20 @@ import { ApiException } from '../../common/errors/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { BrevoEmailError, BrevoEmailProvider } from './brevo-email.provider';
 import { serializeEmailDelivery } from './email.serializer';
-import { renderWorkspaceInviteEmail } from './email.templates';
-import type { WorkspaceInviteEmailInput } from './email.types';
+import {
+  renderApiKeyCreatedEmail,
+  renderApiKeyRevokedEmail,
+  renderApiKeyRotatedEmail,
+  renderInviteAcceptedEmail,
+  renderInviteRevokedEmail,
+  renderWorkspaceInviteEmail,
+} from './email.templates';
+import type {
+  ApiKeySecurityEmailInput,
+  InviteAcceptedEmailInput,
+  InviteRevokedEmailInput,
+  WorkspaceInviteEmailInput,
+} from './email.types';
 
 @Injectable()
 export class EmailService {
@@ -46,39 +58,138 @@ export class EmailService {
       select: { name: true },
     });
     const dashboardUrl = this.config.get<string>('DASHBOARD_URL') || 'http://localhost:8080';
+    const idempotencyKey = `workspace_invite:${input.inviteId}:${this.hashTokenFingerprint(input.rawToken)}`;
+
+    const existing = await this.prisma.emailDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      return existing;
+    }
+
     const email = renderWorkspaceInviteEmail({
       dashboardUrl,
       workspaceName: workspace?.name ?? 'AgentLine',
       role: input.role,
       token: input.rawToken,
     });
-    const idempotencyKey = `workspace_invite:${input.inviteId}:${this.hashTokenFingerprint(input.rawToken)}`;
-    const metadata = {
-      inviteId: input.inviteId,
-      role: input.role,
-      dashboardUrl,
-    };
 
-    const existing = await this.prisma.emailDelivery.findUnique({
-      where: { idempotencyKey },
+    return this.deliverEmail({
+      workspaceId: input.workspaceId,
+      recipientEmail: input.email,
+      template: 'workspace_invite',
+      idempotencyKey,
+      email,
+      metadata: { inviteId: input.inviteId, role: input.role, dashboardUrl },
     });
+  }
+
+  async sendInviteAcceptedEmail(input: InviteAcceptedEmailInput) {
+    const idempotencyKey = `invite_accepted:${input.inviteId}`;
+    const existing = await this.prisma.emailDelivery.findUnique({ where: { idempotencyKey } });
     if (existing) {
       return existing;
     }
 
+    const email = renderInviteAcceptedEmail({
+      workspaceName: input.workspaceName,
+      email: input.email,
+      role: input.role,
+    });
+
+    return this.deliverEmail({
+      workspaceId: input.workspaceId,
+      recipientEmail: input.email,
+      template: 'invite_accepted',
+      idempotencyKey,
+      email,
+      metadata: { inviteId: input.inviteId, role: input.role },
+    });
+  }
+
+  async sendInviteRevokedEmail(input: InviteRevokedEmailInput) {
+    const idempotencyKey = `invite_revoked:${input.inviteId}`;
+    const existing = await this.prisma.emailDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      return existing;
+    }
+
+    const email = renderInviteRevokedEmail({ workspaceName: input.workspaceName });
+
+    return this.deliverEmail({
+      workspaceId: input.workspaceId,
+      recipientEmail: input.email,
+      template: 'invite_revoked',
+      idempotencyKey,
+      email,
+      metadata: { inviteId: input.inviteId },
+    });
+  }
+
+  async sendApiKeySecurityEmail(input: ApiKeySecurityEmailInput) {
+    const idempotencyKey = `api_key_${input.action}:${input.apiKeyId}`;
+    const existing = await this.prisma.emailDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      return existing;
+    }
+
+    let email: ReturnType<typeof renderApiKeyCreatedEmail>;
+    if (input.action === 'created') {
+      email = renderApiKeyCreatedEmail({
+        workspaceName: input.workspaceName,
+        label: input.label,
+        prefix: input.prefix,
+      });
+    } else if (input.action === 'revoked') {
+      email = renderApiKeyRevokedEmail({
+        workspaceName: input.workspaceName,
+        label: input.label,
+        prefix: input.prefix,
+      });
+    } else {
+      email = renderApiKeyRotatedEmail({
+        workspaceName: input.workspaceName,
+        label: input.label,
+        newPrefix: input.newPrefix ?? input.prefix,
+      });
+    }
+
+    return this.deliverEmail({
+      workspaceId: input.workspaceId,
+      recipientEmail: input.email,
+      template: `api_key_${input.action}`,
+      idempotencyKey,
+      email,
+      metadata: {
+        apiKeyId: input.apiKeyId,
+        label: input.label,
+        prefix: input.prefix,
+        action: input.action,
+      },
+    });
+  }
+
+  private async deliverEmail(input: {
+    workspaceId: string;
+    recipientEmail: string;
+    template: string;
+    idempotencyKey: string;
+    email: { subject: string; html: string; text: string };
+    metadata: Prisma.InputJsonValue;
+  }) {
     const delivery = await this.prisma.emailDelivery.create({
       data: {
         id: createId('eml'),
         workspaceId: input.workspaceId,
-        recipientEmail: input.email,
-        template: 'workspace_invite',
-        subject: email.subject,
+        recipientEmail: input.recipientEmail,
+        template: input.template,
+        subject: input.email.subject,
         status: this.brevo.isConfigured() ? 'queued' : 'skipped',
         provider: this.brevo.isConfigured() ? 'brevo' : null,
-        idempotencyKey,
-        metadata,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata,
         errorCode: this.brevo.isConfigured() ? null : 'provider_not_configured',
-        errorMessage: this.brevo.isConfigured() ? null : 'BREVO_API_KEY and BREVO_FROM_EMAIL are not configured.',
+        errorMessage: this.brevo.isConfigured()
+          ? null
+          : 'BREVO_API_KEY and BREVO_FROM_EMAIL are not configured.',
       },
     });
 
@@ -88,19 +199,15 @@ export class EmailService {
 
     try {
       const result = await this.brevo.send({
-        to: input.email,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
+        to: input.recipientEmail,
+        subject: input.email.subject,
+        html: input.email.html,
+        text: input.email.text,
       });
 
       return this.prisma.emailDelivery.update({
         where: { id: delivery.id },
-        data: {
-          status: 'sent',
-          providerMessageId: result.providerMessageId,
-          sentAt: new Date(),
-        },
+        data: { status: 'sent', providerMessageId: result.providerMessageId, sentAt: new Date() },
       });
     } catch (error) {
       return this.prisma.emailDelivery.update({

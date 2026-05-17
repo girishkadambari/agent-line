@@ -900,3 +900,94 @@ Status: review
 ### Next Actions
 
 - Continue Phase 2B with provider timeout/retry, SMS rate limits, compliance fields, and live verification docs.
+
+## 2026-05-17: P2 Invite Accepted And Revoked Email Notifications
+
+Status: done
+
+### Scope Completed
+
+- [x] `renderInviteAcceptedEmail` template.
+- [x] `renderInviteRevokedEmail` template.
+- [x] `sendInviteAcceptedEmail` service method with idempotency.
+- [x] `sendInviteRevokedEmail` service method with idempotency.
+- [x] Shared `deliverEmail` private helper (removed duplicated create+send block from `sendWorkspaceInviteEmail`).
+- [x] Wired into `WorkspacesService.acceptInvite` and `revokeInvite`.
+- [x] 4 new tests, all passing.
+
+### Architecture Review
+
+- [x] Module boundaries are clear.
+- [x] Controllers are thin.
+- [x] Services own business logic.
+- [x] Provider-specific logic is isolated in `BrevoEmailProvider`.
+- [x] Public API responses are provider-neutral.
+- [x] No frontend code was added to backend repo.
+
+### Code Quality Review
+
+- [x] Names are clear.
+- [x] Files have single responsibility.
+- [x] No dead code remains.
+- [x] No secrets are committed.
+
+### Testing And Verification
+
+- [x] `npx prettier --write` on all changed files.
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test -- email.service.spec.ts --runInBand` (8 tests passed)
+- [x] `npm run build`
+
+### Known Limitations
+
+- Invite accepted email goes to the new member only. Admins are not separately
+  notified yet (acceptable for the current ICP scope).
+- Billing and security notification emails are not implemented yet.
+
+### Next Actions
+
+- Billing top-up and low-balance notification emails.
+- Security emails for login and API key events.
+- Frontend email delivery dashboard.
+
+## 2026-05-17: P2 API Key Security Email Notifications
+
+Status: done
+
+### Scope Completed
+
+- [x] `renderApiKeyCreatedEmail`, `renderApiKeyRevokedEmail`, `renderApiKeyRotatedEmail` templates.
+- [x] `ApiKeySecurityEmailInput` type.
+- [x] `sendApiKeySecurityEmail` in `EmailService` with per-action idempotency.
+- [x] `sendSecurityEmail` private helper in `ApiKeysService` — skips when no `userId`.
+- [x] Wired into create, revoke, rotate.
+- [x] `forwardRef` circular dependency fix for `AuthModule` ↔ `EmailModule`.
+- [x] 3 new tests. Existing tests updated to pass mock `EmailService`.
+
+### Architecture Review
+
+- [x] Module boundaries clear.
+- [x] Controllers thin.
+- [x] Services own business logic.
+- [x] Provider logic isolated in `BrevoEmailProvider`.
+- [x] No frontend code added.
+
+### Testing And Verification
+
+- [x] `npx prettier --write` on all changed files.
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test -- api-keys.service.spec.ts api-key.guard.spec.ts email.service.spec.ts --runInBand` (19 passed)
+- [x] `npm run build`
+
+### Known Limitations
+
+- Security email only sent when a human session user triggers the action.
+  Automated API-key-only actions do not notify anyone. Acceptable for ICP scope.
+- Billing notification emails are not yet implemented.
+
+### Next Actions
+
+- Billing top-up and low-balance notification emails.
+- Frontend email delivery log dashboard.

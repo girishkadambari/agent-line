@@ -2,6 +2,142 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-17: P2 API Key Security Email Notifications
+
+**Status:** done
+
+Implemented:
+
+- Added three email templates to `email.templates.ts`:
+  - `renderApiKeyCreatedEmail` — notifies the actor user when a new API key is
+    created, including label and prefix.
+  - `renderApiKeyRevokedEmail` — notifies the actor user when an API key is
+    revoked, with label and prefix.
+  - `renderApiKeyRotatedEmail` — notifies the actor user when an API key is
+    rotated, showing the new prefix.
+- Added `ApiKeySecurityEmailInput` type to `email.types.ts`.
+- Added `sendApiKeySecurityEmail` method to `EmailService` with per-action
+  idempotency key (`api_key_<action>:<apiKeyId>`).
+- Added private `sendSecurityEmail` helper in `ApiKeysService` that:
+  - Skips the email when `context.userId` is absent (API key auth — no human
+    actor to notify).
+  - Fetches actor user email and workspace name from the DB in parallel.
+  - Calls `EmailService.sendApiKeySecurityEmail`.
+- Wired into `createApiKey`, `revokeApiKey`, and `rotateApiKey` after audit
+  record.
+- Fixed `AuthModule` to import `EmailModule` with `forwardRef` (circular
+  dependency — `EmailModule` imports `AuthModule` for its controller guard).
+- Updated `api-key.guard.spec.ts` and `api-keys.service.spec.ts` to pass mock
+  `EmailService` to the constructor.
+- Added 3 new tests in `api-keys.service.spec.ts`:
+  - sends security email to actor user on create.
+  - skips security email when no userId (API key auth context).
+  - sends security email to actor user on revoke.
+
+Verification:
+
+- `npx prettier --write` on all changed files — passed.
+- `npm run lint` — passed.
+- `npm run typecheck` — passed.
+- `npm test -- api-keys.service.spec.ts api-key.guard.spec.ts email.service.spec.ts --runInBand`
+  — 19 tests passed.
+- `npm run build` — passed.
+
+Next:
+
+- Billing top-up and low-balance notification emails.
+- Email delivery dashboard in the frontend.
+
+## 2026-05-17: P2 Invite Accepted And Revoked Email Notifications
+
+**Status:** done
+
+Implemented:
+
+- Added `renderInviteAcceptedEmail` template: notifies the new member confirming
+  they joined the workspace.
+- Added `renderInviteRevokedEmail` template: notifies the invited person their
+  invite was cancelled.
+- Added `InviteAcceptedEmailInput` and `InviteRevokedEmailInput` types to
+  `email.types.ts`.
+- Added `sendInviteAcceptedEmail` and `sendInviteRevokedEmail` methods to
+  `EmailService`.
+- Refactored `sendWorkspaceInviteEmail` to use the new shared `deliverEmail`
+  private helper, eliminating the duplicated create+send block.
+- Wired `sendInviteRevokedEmail` into `WorkspacesService.revokeInvite` after
+  audit record.
+- Wired `sendInviteAcceptedEmail` into `WorkspacesService.acceptInvite` after
+  audit record.
+- Both methods are idempotent: a second call for the same `inviteId` returns the
+  existing delivery without re-sending.
+- Both methods respect Brevo configuration: logs `skipped` with
+  `provider_not_configured` when credentials are absent.
+
+Verification:
+
+- `npx prettier --write` passed on all changed files.
+- `npm run lint` passed.
+- `npm run typecheck` passed.
+- `npm test -- email.service.spec.ts --runInBand` passed (8 tests).
+- `npm run build` passed.
+
+Next:
+
+- Billing top-up and low-balance notification emails.
+- Security emails for login and API key events.
+- Email delivery dashboard in the frontend.
+
+## 2026-05-17: Versioned Usage Rate Card
+
+**Status:** done
+
+Implemented:
+
+- Added versioned pricing data models:
+  - `BillingRateCard`
+  - `BillingRate`
+  - `BillingRateCardStatus`
+- Updated the launch pricing version to `2026-05-17`.
+- Added `BillingRateCardService` as the canonical pricing lookup layer.
+- `GET /v1/billing/pricing` now returns the active database rate card when one
+  exists and falls back to launch defaults only when no active card is present.
+- Usage recording now resolves rates by stable rate keys:
+  - `phone_number_provision`
+  - `sms_outbound`
+  - `sms_inbound`
+  - `voice_minute`
+- Usage evidence now captures rate key, pricing version, pricing source,
+  formula, unit cost, quantity, and settlement data at charge time.
+- Final voice settlement uses the same rate-card lookup so provider-final call
+  duration adjustments use the active pricing version.
+- Local seed now upserts the launch rate card and rates.
+
+Verification:
+
+- `npm test -- billing-rate-card.service.spec.ts billing.service.spec.ts usage.service.spec.ts --runInBand`
+  passed.
+- `npx prisma format` passed.
+- `npm run build` passed.
+- `npm run db:push` passed against local Postgres.
+
+Release impact:
+
+- Stripe still owns subscriptions, payments, invoices, portal, and optional
+  metered overages.
+- AgentLine now owns the pricing evidence needed to explain every usage charge
+  even after rates change.
+- This closes the largest trust gap in cost calculation without exposing
+  internal provider details to customers.
+
+Next:
+
+- Add provider cost reconciliation records so customer charges can be compared
+  with Twilio/provider cost evidence.
+- Add internal-only pricing admin controls after the sellable release path is
+  stable.
+- Add a live-dev smoke script for SMS, voice, transcript, usage, billing, and
+  webhook delivery.
+
 ## 2026-05-17: Automatic Webhook Retry Worker
 
 **Status:** done
