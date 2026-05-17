@@ -36,6 +36,9 @@ const rawEnvSchema = z
     STRIPE_STARTER_PRICE_ID: z.string().optional(),
     STRIPE_GROWTH_PRICE_ID: z.string().optional(),
     STRIPE_USAGE_METER_EVENT_NAME: z.string().optional(),
+    WEBHOOK_RETRY_WORKER_ENABLED: z.string().optional(),
+    WEBHOOK_RETRY_WORKER_INTERVAL_MS: z.string().optional(),
+    WEBHOOK_RETRY_WORKER_BATCH_SIZE: z.string().optional(),
   })
   .passthrough();
 
@@ -143,10 +146,7 @@ function validateTwilioConfig(input: {
   requireEnv(input.parsed.TWILIO_ACCOUNT_SID, 'TWILIO_ACCOUNT_SID');
   requireEnv(input.parsed.TWILIO_AUTH_TOKEN, 'TWILIO_AUTH_TOKEN');
   requireEnv(input.parsed.TWILIO_INBOUND_SMS_WEBHOOK_URL, 'TWILIO_INBOUND_SMS_WEBHOOK_URL');
-  requireEnv(
-    input.parsed.TWILIO_MESSAGE_STATUS_CALLBACK_URL,
-    'TWILIO_MESSAGE_STATUS_CALLBACK_URL',
-  );
+  requireEnv(input.parsed.TWILIO_MESSAGE_STATUS_CALLBACK_URL, 'TWILIO_MESSAGE_STATUS_CALLBACK_URL');
   requireEnv(input.parsed.TWILIO_VOICE_WEBHOOK_URL, 'TWILIO_VOICE_WEBHOOK_URL');
   requireEnv(input.parsed.TWILIO_VOICE_GATHER_CALLBACK_URL, 'TWILIO_VOICE_GATHER_CALLBACK_URL');
   requireEnv(input.parsed.TWILIO_VOICE_STATUS_CALLBACK_URL, 'TWILIO_VOICE_STATUS_CALLBACK_URL');

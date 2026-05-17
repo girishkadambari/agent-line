@@ -1,5 +1,6 @@
 import { Decimal } from '@prisma/client/runtime/library';
 
+import type { BillingRateCardService } from '../billing/billing-rate-card.service';
 import type { BillingService } from '../billing/billing.service';
 import type { EventsService } from '../events/events.service';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +29,7 @@ function usageFixture(overrides = {}) {
     unit: 'message',
     unitCost: new Decimal('0.0100'),
     totalCost: new Decimal('0.0100'),
-    pricingVersion: '2026-05-14',
+    pricingVersion: '2026-05-17',
     calculation: {},
     evidence: {},
     settlementMode: 'prepaid_balance',
@@ -73,10 +74,46 @@ function createService(prisma: PrismaService) {
   const webhooks = {
     createDeliveriesForEvent: jest.fn().mockResolvedValue([]),
   } as unknown as WebhooksService;
+  const rateCards = {
+    getRate: jest.fn().mockImplementation((key: string) => {
+      const rates = {
+        phone_number_provision: {
+          key,
+          unitCostCents: 100,
+          formula: 'quantity * phone_number_provision',
+        },
+        sms_outbound: {
+          key,
+          unitCostCents: 1,
+          formula: 'outbound_messages * sms_outbound',
+        },
+        sms_inbound: {
+          key,
+          unitCostCents: 1,
+          formula: 'inbound_messages * sms_inbound',
+        },
+        voice_minute: {
+          key,
+          unitCostCents: 3,
+          formula: 'ceil(duration_seconds / 60) * voice_minute',
+        },
+      };
+
+      return Promise.resolve({
+        resourceType: 'test',
+        channel: 'test',
+        unit: 'unit',
+        pricingVersion: '2026-05-17',
+        source: 'database',
+        ...rates[key as keyof typeof rates],
+      });
+    }),
+  } as unknown as BillingRateCardService;
 
   return {
-    service: new UsageService(prisma, billing, events, webhooks),
+    service: new UsageService(prisma, billing, rateCards, events, webhooks),
     billing,
+    rateCards,
     events,
     webhooks,
   };
@@ -111,9 +148,11 @@ describe('UsageService', () => {
         billableQuantity: new Decimal(1),
         unitCost: new Decimal('0.0100'),
         totalCost: new Decimal('0.0100'),
-        pricingVersion: '2026-05-14',
+        pricingVersion: '2026-05-17',
         calculation: expect.objectContaining({
-          formula: 'ceil(quantity * unitCostCents)',
+          formula: 'outbound_messages * sms_outbound',
+          rateKey: 'sms_outbound',
+          pricingSource: 'database',
           totalCents: 1,
         }),
         evidence: expect.objectContaining({
@@ -178,7 +217,7 @@ describe('UsageService', () => {
         update: jest.fn().mockResolvedValue(usageFixture()),
       },
     } as unknown as PrismaService;
-    const { service, billing, events } = createService(prisma);
+    const { service, billing, events, rateCards } = createService(prisma);
 
     const result = await service.finalizeVoiceCall({
       workspaceId: context.workspaceId,
@@ -199,10 +238,13 @@ describe('UsageService', () => {
         totalCost: new Decimal('0.0600'),
         calculation: expect.objectContaining({
           durationSeconds: 64,
+          rateKey: 'voice_minute',
+          pricingVersion: '2026-05-17',
           settlementDeltaCents: -24,
         }),
       }),
     });
+    expect(rateCards.getRate).toHaveBeenCalledWith('voice_minute');
     expect(billing.reportUsageEventToStripe).not.toHaveBeenCalled();
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'agent.usage.finalized' }),

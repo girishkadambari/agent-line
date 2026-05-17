@@ -446,4 +446,70 @@ describe('WebhooksService', () => {
       }),
     });
   });
+
+  it('processes due deliveries globally for the background worker', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 204 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const prisma = {
+      webhookDelivery: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            ...deliveryFixture({
+              id: 'whdel_due',
+              status: 'failed',
+              attemptCount: 1,
+              nextAttemptAt: new Date('2026-05-06T23:59:00.000Z'),
+            }),
+            endpoint: endpointFixture(),
+          },
+        ]),
+        findUnique: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            id: 'whdel_due',
+            status: 'failed',
+            attemptCount: 1,
+          }),
+        ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            id: 'whdel_due',
+            status: 'retrying',
+            attemptCount: 2,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          deliveryFixture({
+            id: 'whdel_due',
+            status: 'succeeded',
+            attemptCount: 2,
+            lastStatusCode: 204,
+            lastError: null,
+          }),
+        ),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.processDueDeliveriesForWorker(25);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('succeeded');
+    expect(prisma.webhookDelivery.findMany).toHaveBeenCalledWith({
+      where: {
+        workspaceId: undefined,
+        projectId: undefined,
+        status: { in: ['pending', 'failed', 'retrying'] },
+        endpoint: { status: 'active' },
+        OR: [
+          { nextAttemptAt: { lte: expect.any(Date) } },
+          { nextAttemptAt: null, status: { in: ['pending', 'retrying'] } },
+        ],
+      },
+      include: { endpoint: true },
+      orderBy: { createdAt: 'asc' },
+      take: 25,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

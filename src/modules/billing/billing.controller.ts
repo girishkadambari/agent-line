@@ -27,8 +27,8 @@ export class BillingController {
 
   @UseGuards(AuthContextGuard)
   @Get('pricing')
-  getPricing() {
-    return success(this.billing.getPricing());
+  async getPricing() {
+    return success(await this.billing.getPricing());
   }
 
   @UseGuards(AuthContextGuard)

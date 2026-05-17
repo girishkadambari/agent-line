@@ -21,8 +21,8 @@ import type {
 } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { USAGE_PRICING_CENTS } from '../usage/usage-pricing';
 import { serializeUsageEvent } from '../usage/usage.serializer';
+import { BillingRateCardService } from './billing-rate-card.service';
 import {
   serializeBillingAllowanceGrant,
   serializeBillingBalance,
@@ -80,6 +80,7 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly stripe: StripeClientService,
     private readonly audit: AuditService,
+    private readonly rateCards: BillingRateCardService,
   ) {}
 
   async getBalance(context: RequestContext) {
@@ -87,44 +88,15 @@ export class BillingService {
     return serializeBillingBalance(balance);
   }
 
-  getPricing() {
+  async getPricing() {
+    const rateCard = await this.rateCards.getActiveRateCard();
+
     return {
-      currency: 'USD',
+      currency: rateCard.currency,
+      pricingVersion: rateCard.version,
+      source: rateCard.source,
       plans: this.getPlans(),
-      rates: [
-        {
-          key: 'phone_number_provision',
-          resourceType: 'phone_number',
-          channel: 'number',
-          unit: 'number',
-          unitCostCents: USAGE_PRICING_CENTS.phoneNumberProvision,
-          formula: 'quantity * phone_number_provision',
-        },
-        {
-          key: 'sms_outbound',
-          resourceType: 'message',
-          channel: 'sms.outbound',
-          unit: 'message',
-          unitCostCents: USAGE_PRICING_CENTS.outboundSms,
-          formula: 'outbound_messages * sms_outbound',
-        },
-        {
-          key: 'sms_inbound',
-          resourceType: 'message',
-          channel: 'sms.inbound',
-          unit: 'message',
-          unitCostCents: USAGE_PRICING_CENTS.inboundSms,
-          formula: 'inbound_messages * sms_inbound',
-        },
-        {
-          key: 'voice_minute',
-          resourceType: 'call',
-          channel: 'voice',
-          unit: 'minute',
-          unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
-          formula: 'ceil(duration_seconds / 60) * voice_minute',
-        },
-      ],
+      rates: rateCard.rates,
       billingRules: {
         currencyPrecision: 'Costs are stored as USD decimals and debited as whole cents.',
         voiceMinimum: 'Voice calls have a 1 billable minute minimum.',
@@ -414,7 +386,7 @@ export class BillingService {
         })),
       },
       recentEvents: recentEvents.map(serializeUsageEvent),
-      pricing: this.getPricing(),
+      pricing: await this.getPricing(),
     };
   }
 
@@ -546,7 +518,7 @@ export class BillingService {
           where: { id: event.allowanceGrantId },
           data: { consumedCents: { decrement: refundCents } },
         });
-        return {
+        const result = {
           settlementMode: event.settlementMode,
           allowanceGrantId: event.allowanceGrantId,
           evidence: {
@@ -555,17 +527,21 @@ export class BillingService {
             refundCents,
           },
         };
+        await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+        return result;
       }
 
       if (event.settlementMode === UsageSettlementMode.prepaid_balance) {
         await this.creditWorkspace(event.workspaceId, refundCents);
       }
 
-      return {
+      const result = {
         settlementMode: event.settlementMode,
         allowanceGrantId: event.allowanceGrantId,
         evidence: { settlementReason: 'settlement_refund', refundCents },
       };
+      await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+      return result;
     }
 
     if (event.allowanceGrantId) {
@@ -580,7 +556,7 @@ export class BillingService {
           },
           data: { consumedCents: { increment: deltaCents } },
         });
-        return {
+        const result = {
           settlementMode: event.settlementMode,
           allowanceGrantId: event.allowanceGrantId,
           evidence: {
@@ -589,21 +565,67 @@ export class BillingService {
             deltaCents,
           },
         };
+        await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+        return result;
       }
     }
 
     if (event.settlementMode === UsageSettlementMode.stripe_meter) {
-      return {
+      const result = {
         settlementMode: UsageSettlementMode.stripe_meter,
         allowanceGrantId: null,
         evidence: { settlementReason: 'stripe_meter_delta', deltaCents },
       };
+      await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+      return result;
     }
 
-    return this.settleUsageCharge({
+    const result = await this.settleUsageCharge({
       workspaceId: event.workspaceId,
       cents: deltaCents,
       occurredAt: event.occurredAt,
+    });
+    await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+    return result;
+  }
+
+  private async recordUsageSettlementAdjustment(
+    event: UsageEvent,
+    deltaCents: number,
+    settlement: {
+      settlementMode: UsageSettlementMode;
+      allowanceGrantId: string | null;
+      evidence: Record<string, unknown>;
+    },
+  ) {
+    const previousTotalCents = this.decimalUsdToCents(event.totalCost);
+    const finalTotalCents = previousTotalCents + deltaCents;
+
+    await this.prisma.billingTransaction.create({
+      data: {
+        id: createId('btxn'),
+        workspaceId: event.workspaceId,
+        provider: 'agentline',
+        type: 'usage.settlement_adjustment',
+        amountCents: deltaCents,
+        currency: 'USD',
+        status: 'succeeded',
+        metadata: {
+          usageEventId: event.id,
+          projectId: event.projectId,
+          agentId: event.agentId,
+          resourceType: event.resourceType,
+          resourceId: event.resourceId,
+          channel: event.channel,
+          pricingVersion: event.pricingVersion,
+          previousTotalCents,
+          finalTotalCents,
+          deltaCents,
+          settlementMode: settlement.settlementMode,
+          allowanceGrantId: settlement.allowanceGrantId,
+          settlementEvidence: settlement.evidence,
+        } as Prisma.InputJsonValue,
+      },
     });
   }
 

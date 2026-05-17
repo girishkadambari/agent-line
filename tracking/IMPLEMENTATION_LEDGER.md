@@ -2,6 +2,142 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-17: Automatic Webhook Retry Worker
+
+**Status:** done
+
+Implemented:
+
+- Added an in-process webhook retry worker that automatically processes due
+  customer webhook deliveries.
+- The worker is enabled by default outside `APP_ENV=test` and can be controlled
+  with:
+  - `WEBHOOK_RETRY_WORKER_ENABLED`
+  - `WEBHOOK_RETRY_WORKER_INTERVAL_MS`
+  - `WEBHOOK_RETRY_WORKER_BATCH_SIZE`
+- Reused the same delivery path as manual retries so signatures, attempt
+  counts, backoff, success, failure, and exhaustion behavior stay consistent.
+- Added overlap protection so a slow retry pass cannot start another retry pass
+  before it finishes.
+- Added worker-level global due-delivery processing while keeping the existing
+  workspace-scoped manual endpoint intact.
+
+Verification:
+
+- `npm test -- webhooks.service.spec.ts webhook-retry.worker.spec.ts --runInBand`
+  passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Customer webhook retries no longer depend on someone manually calling the
+  process-due endpoint.
+- A failed customer webhook can recover automatically once the customer's
+  endpoint comes back online, which is required for a sellable developer API.
+
+Next:
+
+- Add a live-dev smoke script for SMS, voice, transcript, usage, billing, and
+  webhook delivery.
+- Move rate-card configuration from code constants into versioned data/admin
+  controls.
+- Add provider cost reconciliation records for Twilio invoice/debug evidence.
+
+## 2026-05-17: Final Voice Settlement Adjustment Ledger
+
+**Status:** done
+
+Implemented:
+
+- Added billing transaction evidence for nonzero final voice usage settlements.
+- When provider-final call duration is lower than the preauthorized amount,
+  AgentLine now records a visible settlement adjustment transaction for the
+  returned balance or allowance.
+- When provider-final call duration is higher than the preauthorized amount,
+  AgentLine now records a visible settlement adjustment transaction for the
+  additional allowance, Stripe-metered, or prepaid charge.
+- Settlement adjustment metadata captures:
+  - usage event id
+  - project id
+  - agent id
+  - resource type/id
+  - channel
+  - pricing version
+  - previous total
+  - final total
+  - delta
+  - settlement mode
+  - allowance grant id when used
+  - settlement evidence
+- Updated the dashboard billing activity mapping so customers see
+  customer-friendly "Voice usage adjusted" rows instead of raw internal
+  transaction types.
+
+Verification:
+
+- `npm test -- billing.service.spec.ts usage.service.spec.ts calls.service.spec.ts`
+  passed.
+- `npm run build` passed for the backend.
+- `npm run build` passed for the dashboard.
+
+Release impact:
+
+- Final call duration corrections are now visible in the billing ledger, which
+  closes the gap between provider-final voice duration and customer-facing cost
+  evidence.
+- Support can explain why a call cost changed without reading raw usage rows or
+  provider callbacks directly.
+
+Next:
+
+- Add a live-dev smoke script for SMS, voice, transcript, usage, and webhook
+  delivery.
+- Add scheduled webhook retry processing so due deliveries are handled without
+  manual API calls.
+- Move rate-card configuration from code constants into versioned data/admin
+  controls.
+
+## 2026-05-17: Inbound Twilio Voice Call Records
+
+**Status:** done
+
+Implemented:
+
+- Added provider-backed inbound voice call creation from Twilio `voice/inbound`
+  webhooks.
+- Inbound calls now route by the called AgentLine phone number and attached
+  agent instead of requiring a pre-existing outbound call record.
+- Created or reused the caller contact and voice conversation for inbound calls.
+- Added idempotency for Twilio inbound webhook retries by `CallSid`.
+- Added initial live-call transcript prompt, voice usage preauthorization,
+  `agent.call.started` webhook emission, and call audit evidence.
+- Updated Twilio voice webhook handling to pass `From`, `To`, `CallSid`, and
+  provider status into the call domain service.
+- Added regression coverage for first inbound call creation and duplicate
+  provider retry suppression.
+
+Verification:
+
+- `npm test -- calls.service.spec.ts` passed.
+- `npm run build` passed.
+
+Release impact:
+
+- A real customer can now call an AgentLine-managed Twilio number and get a
+  first-class call record, transcript seed, usage evidence, webhook event, and
+  audit trail.
+- This closes the largest missing piece in the real agent phone loop: inbound
+  voice no longer disappears as a provider-only event.
+
+Next:
+
+- Add final voice settlement adjustment ledger entries so preauthorized voice
+  usage and provider-final duration changes are visible as billing adjustments.
+- Add a live-dev smoke checklist/script for inbound voice, outbound voice, SMS,
+  usage, and webhook delivery.
+- Persist normalized provider issue state directly on call/message records if
+  raw-event diagnostics become too expensive.
+
 ## 2026-05-17: Audit Actor Enrichment
 
 **Status:** done

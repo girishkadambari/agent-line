@@ -390,7 +390,7 @@ model UsageEvent {
   unit               String
   unitCost           Decimal                @db.Decimal(12, 4)
   totalCost          Decimal                @db.Decimal(12, 4)
-  pricingVersion     String                 @default("2026-05-14")
+  pricingVersion     String                 @default("2026-05-17")
   calculation        Json                   @default("{}")
   evidence           Json                   @default("{}")
   settlementStatus   UsageSettlementStatus  @default(internal_debited)
@@ -422,6 +422,40 @@ model BillingBalance {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   workspace       Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model BillingRateCard {
+  id          String                @id
+  version     String                @unique
+  status      BillingRateCardStatus @default(draft)
+  currency    String                @default("USD")
+  description String?
+  effectiveAt DateTime
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  rates       BillingRate[]
+
+  @@index([status, effectiveAt])
+}
+
+model BillingRate {
+  id            String          @id
+  rateCardId    String
+  key           String
+  resourceType  String
+  channel       String
+  unit          String
+  unitCostCents Int
+  formula       String
+  active        Boolean         @default(true)
+  metadata      Json            @default("{}")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  rateCard      BillingRateCard @relation(fields: [rateCardId], references: [id])
+
+  @@unique([rateCardId, key])
+  @@index([key])
+  @@index([resourceType, channel])
 }
 
 model BillingAccount {
@@ -646,6 +680,12 @@ enum UsageSettlementMode {
   stripe_meter
   blocked
   voided
+}
+
+enum BillingRateCardStatus {
+  draft
+  active
+  archived
 }
 
 enum BillingSubscriptionStatus {

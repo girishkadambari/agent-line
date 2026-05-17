@@ -27,6 +27,13 @@ interface TwilioVoiceStatusWebhookBody {
   CallDuration?: string;
 }
 
+interface TwilioVoiceInboundWebhookBody {
+  CallSid?: string;
+  From?: string;
+  To?: string;
+  CallStatus?: string;
+}
+
 interface TwilioVoiceGatherWebhookBody {
   CallSid?: string;
   SpeechResult?: string;
@@ -40,7 +47,7 @@ export class TwilioWebhooksController {
     private readonly calls: CallsService,
     private readonly messages: MessagesService,
     private readonly signatures: TwilioSignatureService,
-  ) { }
+  ) {}
 
   @Post('sms/inbound')
   async receiveInboundSms(
@@ -99,18 +106,29 @@ export class TwilioWebhooksController {
 
   @Post('voice/inbound')
   @Header('Content-Type', 'text/xml')
-  async receiveVoiceTwiML(@Body() body: Record<string, unknown>, @Headers('x-twilio-signature') signature?: string) {
+  async receiveVoiceTwiML(
+    @Body() body: TwilioVoiceInboundWebhookBody,
+    @Headers('x-twilio-signature') signature?: string,
+  ) {
     this.signatures.verifyCallback({
       configuredUrl: this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL'),
       signature,
-      params: body,
+      params: body as Record<string, unknown>,
     });
 
-    const callSid = typeof body.CallSid === 'string' ? body.CallSid : undefined;
-    if (callSid) {
+    if (body.CallSid && body.From && body.To) {
+      await this.calls.receiveProviderInboundCall({
+        provider: 'twilio',
+        providerCallId: body.CallSid,
+        from: body.From,
+        to: body.To,
+        status: body.CallStatus,
+        rawPayload: body as Record<string, unknown>,
+      });
+    } else if (body.CallSid) {
       await this.calls.receiveProviderVoicePrompt({
         provider: 'twilio',
-        providerCallId: callSid,
+        providerCallId: body.CallSid,
       });
     }
 

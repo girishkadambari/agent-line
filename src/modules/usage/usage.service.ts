@@ -7,6 +7,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { createId } from '../../common/ids';
 import { AgentLineEvent, EventResourceType } from '../../domain/events';
 import type { UsageQueryInput } from '../../domain/schemas';
+import { BillingRateCardService } from '../billing/billing-rate-card.service';
 import { BillingService } from '../billing/billing.service';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,8 +15,8 @@ import { WebhooksService } from '../webhooks/webhooks.service';
 import {
   centsToUsdDecimal,
   secondsToBillableMinutes,
-  USAGE_PRICING_CENTS,
   USAGE_PRICING_VERSION,
+  type UsageRateKey,
 } from './usage-pricing';
 import { serializeUsageEvent, serializeUsageRollup } from './usage.serializer';
 
@@ -28,7 +29,8 @@ export interface RecordUsageInput {
   channel: string;
   quantity: number;
   unit: string;
-  unitCostCents: number;
+  unitCostCents?: number;
+  rateKey?: UsageRateKey;
   occurredAt?: Date;
   evidence?: Record<string, unknown>;
   calculation?: Record<string, unknown>;
@@ -40,12 +42,23 @@ export class UsageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
+    private readonly rateCards: BillingRateCardService,
     private readonly events: EventsService,
     private readonly webhooks: WebhooksService,
   ) {}
 
   async recordUsage(input: RecordUsageInput) {
-    const totalCents = Math.ceil(input.quantity * input.unitCostCents);
+    const rate = input.rateKey ? await this.rateCards.getRate(input.rateKey) : null;
+    const unitCostCents = input.unitCostCents ?? rate?.unitCostCents;
+    const pricingVersion = rate?.pricingVersion ?? USAGE_PRICING_VERSION;
+    const pricingSource = rate?.source ?? 'default';
+    const formula = input.calculation?.formula ?? rate?.formula ?? 'ceil(quantity * unitCostCents)';
+
+    if (unitCostCents === undefined) {
+      throw new Error('Usage rate is required to record billable usage.');
+    }
+
+    const totalCents = Math.ceil(input.quantity * unitCostCents);
     const settlement = await this.billing.settleUsageCharge({
       workspaceId: input.workspaceId,
       cents: totalCents,
@@ -66,19 +79,21 @@ export class UsageService {
         quantity: new Decimal(input.quantity),
         billableQuantity: new Decimal(input.quantity),
         unit: input.unit,
-        unitCost: new Decimal(centsToUsdDecimal(input.unitCostCents)),
+        unitCost: new Decimal(centsToUsdDecimal(unitCostCents)),
         totalCost: new Decimal(centsToUsdDecimal(totalCents)),
-        pricingVersion: USAGE_PRICING_VERSION,
+        pricingVersion,
         settlementMode: settlement.settlementMode,
         settlementStatus: settlement.settlementStatus,
         allowanceGrantId: settlement.allowanceGrantId,
         calculation: {
-          pricingVersion: USAGE_PRICING_VERSION,
-          formula: 'ceil(quantity * unitCostCents)',
+          pricingVersion,
+          pricingSource,
+          rateKey: input.rateKey ?? null,
+          formula,
           quantity: input.quantity,
           billableQuantity: input.quantity,
           unit: input.unit,
-          unitCostCents: input.unitCostCents,
+          unitCostCents,
           totalCents,
           settlementMode: settlement.settlementMode,
           ...input.calculation,
@@ -183,7 +198,8 @@ export class UsageService {
     }
 
     const quantity = secondsToBillableMinutes(input.durationSeconds);
-    const totalCents = quantity * USAGE_PRICING_CENTS.voiceMinute;
+    const rate = await this.rateCards.getRate('voice_minute');
+    const totalCents = quantity * rate.unitCostCents;
     const currentCents = Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
     const deltaCents = totalCents - currentCents;
     const settlement = await this.billing.adjustSettledUsageCharge(event, deltaCents);
@@ -197,12 +213,14 @@ export class UsageService {
         settlementMode: settlement.settlementMode,
         allowanceGrantId: settlement.allowanceGrantId,
         calculation: {
-          pricingVersion: USAGE_PRICING_VERSION,
-          formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
+          pricingVersion: rate.pricingVersion,
+          pricingSource: rate.source,
+          rateKey: rate.key,
+          formula: rate.formula,
           durationSeconds: input.durationSeconds,
           billableQuantity: quantity,
           unit: 'minute',
-          unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
+          unitCostCents: rate.unitCostCents,
           totalCents,
           previousTotalCents: currentCents,
           settlementDeltaCents: deltaCents,
@@ -250,7 +268,7 @@ export class UsageService {
       channel: 'number',
       quantity: 1,
       unit: 'number',
-      unitCostCents: USAGE_PRICING_CENTS.phoneNumberProvision,
+      rateKey: 'phone_number_provision',
       evidence: {
         source: 'number.provisioned',
         numberId: input.numberId,
@@ -274,10 +292,7 @@ export class UsageService {
       channel: input.direction === 'outbound' ? 'sms.outbound' : 'sms.inbound',
       quantity: 1,
       unit: 'message',
-      unitCostCents:
-        input.direction === 'outbound'
-          ? USAGE_PRICING_CENTS.outboundSms
-          : USAGE_PRICING_CENTS.inboundSms,
+      rateKey: input.direction === 'outbound' ? 'sms_outbound' : 'sms_inbound',
       evidence: {
         source: input.direction === 'outbound' ? 'sms.outbound' : 'sms.inbound',
         messageId: input.messageId,
@@ -304,7 +319,7 @@ export class UsageService {
       channel: 'voice',
       quantity: minutes,
       unit: 'minute',
-      unitCostCents: USAGE_PRICING_CENTS.voiceMinute,
+      rateKey: 'voice_minute',
       calculation: {
         formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
         durationSeconds: input.durationSeconds,

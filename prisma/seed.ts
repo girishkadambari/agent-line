@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 import { apiKeyPrefix, hashApiKey } from '../src/modules/auth/api-key.utils';
+import { DEFAULT_USAGE_RATES, USAGE_PRICING_VERSION } from '../src/modules/usage/usage-pricing';
 
 const prisma = new PrismaClient();
 
@@ -69,6 +70,53 @@ async function main() {
       spendLimitCents: 50000,
     },
   });
+
+  const rateCard = await prisma.billingRateCard.upsert({
+    where: { version: USAGE_PRICING_VERSION },
+    update: {
+      status: 'active',
+      currency: 'USD',
+      description: 'Default AgentLine launch pricing.',
+      effectiveAt: new Date('2026-05-17T00:00:00.000Z'),
+    },
+    create: {
+      id: `ratecard_${USAGE_PRICING_VERSION.replaceAll('-', '')}`,
+      version: USAGE_PRICING_VERSION,
+      status: 'active',
+      currency: 'USD',
+      description: 'Default AgentLine launch pricing.',
+      effectiveAt: new Date('2026-05-17T00:00:00.000Z'),
+    },
+  });
+
+  for (const rate of DEFAULT_USAGE_RATES) {
+    await prisma.billingRate.upsert({
+      where: {
+        rateCardId_key: {
+          rateCardId: rateCard.id,
+          key: rate.key,
+        },
+      },
+      update: {
+        resourceType: rate.resourceType,
+        channel: rate.channel,
+        unit: rate.unit,
+        unitCostCents: rate.unitCostCents,
+        formula: rate.formula,
+        active: true,
+      },
+      create: {
+        id: `rate_${rate.key}_${USAGE_PRICING_VERSION.replaceAll('-', '')}`,
+        rateCardId: rateCard.id,
+        key: rate.key,
+        resourceType: rate.resourceType,
+        channel: rate.channel,
+        unit: rate.unit,
+        unitCostCents: rate.unitCostCents,
+        formula: rate.formula,
+      },
+    });
+  }
 
   await prisma.aPIKey.upsert({
     where: { id: 'key_local' },

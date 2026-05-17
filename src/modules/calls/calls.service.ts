@@ -318,6 +318,132 @@ export class CallsService {
     return serializeCall(call);
   }
 
+  async receiveProviderInboundCall(input: {
+    provider: 'twilio';
+    providerCallId: string;
+    from: string;
+    to: string;
+    status?: string;
+    rawPayload: Record<string, unknown>;
+  }) {
+    const phoneNumber = await this.prisma.phoneNumber.findFirst({
+      where: {
+        provider: input.provider,
+        phoneNumber: input.to,
+        status: 'active',
+        capabilities: { has: 'voice' },
+        agentId: { not: null },
+      },
+    });
+
+    if (!phoneNumber?.agentId) {
+      return { received: true, ignored: true, reason: 'number_not_attached' };
+    }
+
+    const context: RequestContext = {
+      workspaceId: phoneNumber.workspaceId,
+      projectId: phoneNumber.projectId,
+    };
+
+    const existingCall = await this.prisma.call.findFirst({
+      where: {
+        provider: input.provider,
+        providerCallId: input.providerCallId,
+      },
+    });
+
+    if (existingCall) {
+      await this.ensureLiveVoicePromptTranscript(existingCall);
+      return { received: true, duplicate: true, ignored: false, call: serializeCall(existingCall) };
+    }
+
+    const recorded = await this.recordProviderRawEvent({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      provider: input.provider,
+      providerEventId: `${input.providerCallId}:voice:inbound`,
+      eventType: 'twilio.voice.inbound',
+      payload: input.rawPayload,
+    });
+
+    if (!recorded) {
+      const duplicateCall = await this.prisma.call.findFirst({
+        where: {
+          provider: input.provider,
+          providerCallId: input.providerCallId,
+        },
+      });
+      return {
+        received: true,
+        duplicate: true,
+        ignored: false,
+        call: duplicateCall ? serializeCall(duplicateCall) : undefined,
+      };
+    }
+
+    const contact = await this.contacts.findOrCreateByPhoneNumber(context, input.from);
+    const conversation = await this.conversations.findOrCreateVoiceConversation(
+      context,
+      phoneNumber.agentId,
+      contact.id,
+    );
+    const callId = createId('call');
+    const startedAt = new Date();
+    const status = this.nextProviderCallStatus(
+      'ringing',
+      this.normalizeProviderCallStatus(input.status ?? 'in-progress'),
+    );
+
+    await this.usage.recordVoiceCall({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId: phoneNumber.agentId,
+      callId,
+      durationSeconds: this.voicePreauthorizationSeconds,
+    });
+
+    const call = await this.prisma.call.create({
+      data: {
+        id: callId,
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId: phoneNumber.agentId,
+        conversationId: conversation.id,
+        phoneNumberId: phoneNumber.id,
+        contactId: contact.id,
+        direction: 'inbound',
+        fromNumber: input.from,
+        toNumber: input.to,
+        status,
+        durationSeconds: 0,
+        provider: input.provider,
+        providerCallId: input.providerCallId,
+        startedAt,
+      },
+    });
+
+    await this.ensureLiveVoicePromptTranscript(call);
+
+    const event = await this.events.create({
+      workspaceId: call.workspaceId,
+      projectId: call.projectId,
+      type: AgentLineEvent.CallStarted,
+      resourceType: EventResourceType.Call,
+      resourceId: call.id,
+      payload: this.buildCallEventPayload(call, {
+        providerStatus: input.status ?? 'in-progress',
+        source: 'provider.inbound_voice',
+      }),
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
+    await this.recordCallAudit(context, AuditAction.CallCreated, call, {
+      providerStatus: input.status ?? 'in-progress',
+      source: 'provider.inbound_voice',
+    });
+
+    return { received: true, ignored: false, call: serializeCall(call) };
+  }
+
   async receiveProviderVoicePrompt(input: { provider: 'twilio'; providerCallId: string }) {
     const call = await this.prisma.call.findFirst({
       where: {
@@ -346,31 +472,7 @@ export class CallsService {
       await this.webhooks.createDeliveriesForEvent(event);
     }
 
-    const existingPrompt = await this.prisma.transcriptTurn.findFirst({
-      where: {
-        workspaceId: call.workspaceId,
-        projectId: call.projectId,
-        callId: call.id,
-        speaker: 'agent',
-        startedAtMs: 0,
-      },
-    });
-
-    if (!existingPrompt) {
-      await this.prisma.transcriptTurn.create({
-        data: {
-          id: createId('trn'),
-          workspaceId: call.workspaceId,
-          projectId: call.projectId,
-          callId: call.id,
-          speaker: 'agent',
-          text: 'Hello from AgentLine. This is your live phone agent. Please say a short reply after the tone.',
-          startedAtMs: 0,
-          endedAtMs: 5000,
-          confidence: 1,
-        },
-      });
-    }
+    await this.ensureLiveVoicePromptTranscript(call);
 
     return { received: true, ignored: false };
   }
@@ -555,6 +657,38 @@ export class CallsService {
         endedAtMs: turn.endedAtMs,
         confidence: 0.99,
       })),
+    });
+  }
+
+  private async ensureLiveVoicePromptTranscript(
+    call: Pick<Call, 'workspaceId' | 'projectId' | 'id'>,
+  ) {
+    const existingPrompt = await this.prisma.transcriptTurn.findFirst({
+      where: {
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+        speaker: 'agent',
+        startedAtMs: 0,
+      },
+    });
+
+    if (existingPrompt) {
+      return;
+    }
+
+    await this.prisma.transcriptTurn.create({
+      data: {
+        id: createId('trn'),
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        callId: call.id,
+        speaker: 'agent',
+        text: 'Hello from AgentLine. This is your live phone agent. Please say a short reply after the tone.',
+        startedAtMs: 0,
+        endedAtMs: 5000,
+        confidence: 1,
+      },
     });
   }
 

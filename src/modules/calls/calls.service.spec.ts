@@ -385,6 +385,171 @@ describe('CallsService', () => {
     });
   });
 
+  it('creates a live inbound Twilio call from the called AgentLine number', async () => {
+    const inboundCall = callFixture({
+      id: 'call_inbound',
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      direction: 'inbound',
+      fromNumber: '+14155550100',
+      toNumber: '+14155551000',
+      status: 'in_progress',
+      durationSeconds: 0,
+      endedAt: null,
+    });
+    const prisma = {
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_123',
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          agentId: 'agt_123',
+          phoneNumber: '+14155551000',
+          provider: 'twilio',
+        }),
+      },
+      call: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(inboundCall),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+      transcriptTurn: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(transcriptTurnFixture({ callId: 'call_inbound' })),
+      },
+    } as unknown as PrismaService;
+    const { service, contacts, conversations, events, usage, audit } = createService(prisma);
+
+    const result = await service.receiveProviderInboundCall({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      from: '+14155550100',
+      to: '+14155551000',
+      status: 'in-progress',
+      rawPayload: { CallSid: 'CA123', From: '+14155550100', To: '+14155551000' },
+    });
+
+    expect(result).toMatchObject({
+      received: true,
+      ignored: false,
+      call: expect.objectContaining({
+        id: 'call_inbound',
+        direction: 'inbound',
+        status: 'in_progress',
+      }),
+    });
+    expect(contacts.findOrCreateByPhoneNumber).toHaveBeenCalledWith(
+      { workspaceId: context.workspaceId, projectId: context.projectId },
+      '+14155550100',
+    );
+    expect(conversations.findOrCreateVoiceConversation).toHaveBeenCalledWith(
+      { workspaceId: context.workspaceId, projectId: context.projectId },
+      'agt_123',
+      'ctc_123',
+    );
+    expect(usage.recordVoiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId: 'agt_123',
+        durationSeconds: 600,
+      }),
+    );
+    expect(prisma.call.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        agentId: 'agt_123',
+        phoneNumberId: 'num_123',
+        direction: 'inbound',
+        fromNumber: '+14155550100',
+        toNumber: '+14155551000',
+        provider: 'twilio',
+        providerCallId: 'CA123',
+        status: 'in_progress',
+      }),
+    });
+    expect(prisma.providerRawEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        providerEventId: 'CA123:voice:inbound',
+        eventType: 'twilio.voice.inbound',
+      }),
+    });
+    expect(prisma.transcriptTurn.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        callId: 'call_inbound',
+        speaker: 'agent',
+        startedAtMs: 0,
+      }),
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.started',
+        resourceType: 'call',
+        payload: expect.objectContaining({
+          direction: 'inbound',
+          source: 'provider.inbound_voice',
+        }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'call.created',
+        metadata: expect.objectContaining({
+          direction: 'inbound',
+          source: 'provider.inbound_voice',
+        }),
+      }),
+    );
+  });
+
+  it('does not duplicate a live inbound Twilio call when the provider retries', async () => {
+    const prisma = {
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_123',
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          agentId: 'agt_123',
+          phoneNumber: '+14155551000',
+          provider: 'twilio',
+        }),
+      },
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            direction: 'inbound',
+          }),
+        ),
+        create: jest.fn(),
+      },
+      providerRawEvent: {
+        create: jest.fn(),
+      },
+      transcriptTurn: {
+        findFirst: jest.fn().mockResolvedValue(transcriptTurnFixture()),
+        create: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderInboundCall({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      from: '+14155550100',
+      to: '+14155551000',
+      rawPayload: { CallSid: 'CA123' },
+    });
+
+    expect(result).toMatchObject({ received: true, duplicate: true, ignored: false });
+    expect(prisma.call.create).not.toHaveBeenCalled();
+    expect(prisma.providerRawEvent.create).not.toHaveBeenCalled();
+    expect(usage.recordVoiceCall).not.toHaveBeenCalled();
+    expect(events.create).not.toHaveBeenCalled();
+  });
+
   it('records live Twilio speech as a transcript turn and emits an update event', async () => {
     const prisma = {
       call: {

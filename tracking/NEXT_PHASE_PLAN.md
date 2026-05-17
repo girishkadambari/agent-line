@@ -37,37 +37,41 @@ phone and SMS. Prioritize features that make this loop work end to end:
 
 Do not prioritize generic SaaS polish ahead of this operating loop.
 
-## Current Implementation Phase: Agent Operating Console
+## Current Implementation Phase: R1 Real Agent Phone Loop
 
 Status: in progress.
 
-Implemented in this slice:
+Implemented in this release phase:
 
-- `GET /v1/agents/:id/summary`
-- Agent-scoped numbers, conversations, calls, messages, usage, and webhook
-  delivery debug data.
-- Frontend agent detail uses the summary endpoint as the source of truth.
-- Agent lifecycle timeline across calls, messages, usage charges, and webhook
-  deliveries.
-- Agent detail overview shows usage cost, webhook failure count, and recent
-  timeline activity.
-- Agent detail debug tab shows recent usage and webhook delivery diagnostics.
-- Provider issue normalization from Twilio raw callback events for failed SMS
-  and voice statuses.
-- Agent summary now includes provider issue count, issue details, and
-  provider-issue timeline entries.
+- Agent operating summary and frontend agent detail source of truth.
+- Provider issue normalization from Twilio raw callback events.
+- Twilio outbound SMS, inbound SMS, outbound voice, voice gather transcript
+  capture, and status callbacks.
+- Twilio inbound voice call record creation from the called AgentLine number.
+- Inbound voice contact/conversation creation, usage preauthorization,
+  `agent.call.started` webhook emission, and call audit evidence.
+- Idempotency for repeated inbound Twilio voice webhooks.
+- Final voice settlement adjustment billing transactions for provider-final
+  call duration deltas.
+- Automatic due-delivery worker for customer webhook retries.
 
 Exit criteria:
 
+- Real outbound SMS, inbound SMS, outbound call, and inbound call work in a
+  live-dev/staging environment.
+- Every call/message produces a correct record, event, usage row, and visible
+  timeline.
 - Agent detail can answer: what numbers does this agent own, what happened
   recently, what calls/messages occurred, what webhooks failed, and what did it
   cost?
 
 Remaining:
 
-- Add cursor/limits for summary subsections once data volume grows.
-- Persist normalized provider issue state on first-class call/message records if
-  the derived raw-event view becomes too expensive.
+- Staging/live-dev smoke script for SMS, voice, transcript, usage, and webhooks.
+- Customer-facing number import/provision explanations for trial and paid
+  account constraints.
+- Persist normalized provider issue state on first-class call/message records
+  if the derived raw-event view becomes too expensive.
 
 ## Next Implementation Phase: P6B Usage Evidence, Settlement, And Stripe Metering
 

@@ -448,30 +448,16 @@ export class WebhooksService {
   }
 
   async processDueDeliveries(context: RequestContext, limit: number) {
-    const now = new Date();
-    const deliveries = await this.prisma.webhookDelivery.findMany({
-      where: {
-        workspaceId: context.workspaceId,
-        projectId: context.projectId,
-        status: { in: ['pending', 'failed', 'retrying'] },
-        endpoint: { status: 'active' },
-        OR: [
-          { nextAttemptAt: { lte: now } },
-          { nextAttemptAt: null, status: { in: ['pending', 'retrying'] } },
-        ],
-      },
-      include: { endpoint: true },
-      orderBy: { createdAt: 'asc' },
-      take: limit,
+    const processed = await this.processDueDeliveriesWithScope(limit, {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
     });
 
-    const processed = await Promise.all(
-      deliveries.map((delivery) =>
-        this.deliver(delivery.endpoint, delivery.id, delivery.payload as Record<string, unknown>),
-      ),
-    );
-
     return list(processed.map(serializeWebhookDelivery), { limit, nextCursor: null });
+  }
+
+  async processDueDeliveriesForWorker(limit: number) {
+    return this.processDueDeliveriesWithScope(limit);
   }
 
   async exhaustDelivery(context: RequestContext, id: string) {
@@ -566,6 +552,34 @@ export class WebhooksService {
   private nextRetryDate(attemptCount: number) {
     const index = Math.min(Math.max(attemptCount - 1, 0), this.retryBackoffSeconds.length - 1);
     return new Date(Date.now() + this.retryBackoffSeconds[index] * 1000);
+  }
+
+  private async processDueDeliveriesWithScope(
+    limit: number,
+    scope?: { workspaceId: string; projectId: string },
+  ) {
+    const now = new Date();
+    const deliveries = await this.prisma.webhookDelivery.findMany({
+      where: {
+        workspaceId: scope?.workspaceId,
+        projectId: scope?.projectId,
+        status: { in: ['pending', 'failed', 'retrying'] },
+        endpoint: { status: 'active' },
+        OR: [
+          { nextAttemptAt: { lte: now } },
+          { nextAttemptAt: null, status: { in: ['pending', 'retrying'] } },
+        ],
+      },
+      include: { endpoint: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+
+    return Promise.all(
+      deliveries.map((delivery) =>
+        this.deliver(delivery.endpoint, delivery.id, delivery.payload as Record<string, unknown>),
+      ),
+    );
   }
 
   private async deliver(

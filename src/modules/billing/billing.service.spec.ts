@@ -2,6 +2,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { UsageSettlementMode, UsageSettlementStatus, type UsageEvent } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import type { BillingRateCardService } from './billing-rate-card.service';
 import { BillingService } from './billing.service';
 import type { StripeClientService } from './stripe-client.service';
 
@@ -61,11 +62,31 @@ describe('BillingService', () => {
     const audit = {
       record: jest.fn().mockResolvedValue({}),
     } as unknown as AuditService;
+    const rateCards = {
+      getActiveRateCard: jest.fn().mockResolvedValue({
+        version: '2026-05-17',
+        currency: 'USD',
+        source: 'database',
+        rates: [
+          {
+            key: 'voice_minute',
+            resourceType: 'call',
+            channel: 'voice',
+            unit: 'minute',
+            unitCostCents: 3,
+            formula: 'ceil(duration_seconds / 60) * voice_minute',
+            pricingVersion: '2026-05-17',
+            source: 'database',
+          },
+        ],
+      }),
+    } as unknown as BillingRateCardService;
 
     return {
-      service: new BillingService(prisma, stripe, audit),
+      service: new BillingService(prisma, stripe, audit, rateCards),
       stripe,
       audit,
+      rateCards,
     };
   }
 
@@ -83,7 +104,7 @@ describe('BillingService', () => {
       unit: 'minute',
       unitCost: new Decimal('0.0300'),
       totalCost: new Decimal('0.0600'),
-      pricingVersion: '2026-05-14',
+      pricingVersion: '2026-05-17',
       calculation: {},
       evidence: {},
       settlementMode: UsageSettlementMode.prepaid_balance,
@@ -221,6 +242,144 @@ describe('BillingService', () => {
       data: { consumedCents: { increment: 50 } },
     });
     expect(prisma.billingBalance.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('records a billing transaction when final voice settlement refunds preauthorized balance', async () => {
+    const prisma = {
+      billingBalance: {
+        findUnique: jest.fn().mockResolvedValue(balanceFixture()),
+        update: jest.fn().mockResolvedValue(balanceFixture({ balanceCents: 524 })),
+      },
+      billingTransaction: {
+        create: jest.fn().mockResolvedValue({
+          id: 'btxn_adjustment',
+          workspaceId: 'ws_123',
+          provider: 'agentline',
+          providerEventId: null,
+          type: 'usage.settlement_adjustment',
+          amountCents: -24,
+          currency: 'USD',
+          status: 'succeeded',
+          metadata: {},
+          createdAt: now,
+        }),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.adjustSettledUsageCharge(
+      usageEventFixture({
+        totalCost: new Decimal('0.3000'),
+        settlementMode: UsageSettlementMode.prepaid_balance,
+      }),
+      -24,
+    );
+
+    expect(result).toMatchObject({
+      settlementMode: UsageSettlementMode.prepaid_balance,
+      allowanceGrantId: null,
+      evidence: {
+        settlementReason: 'settlement_refund',
+        refundCents: 24,
+      },
+    });
+    expect(prisma.billingBalance.update).toHaveBeenCalledWith({
+      where: { workspaceId: 'ws_123' },
+      data: { balanceCents: { increment: 24 } },
+    });
+    expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: 'ws_123',
+        provider: 'agentline',
+        type: 'usage.settlement_adjustment',
+        amountCents: -24,
+        status: 'succeeded',
+        metadata: expect.objectContaining({
+          usageEventId: 'use_123',
+          resourceType: 'call',
+          resourceId: 'call_123',
+          channel: 'voice',
+          previousTotalCents: 30,
+          finalTotalCents: 6,
+          deltaCents: -24,
+          settlementMode: UsageSettlementMode.prepaid_balance,
+          settlementEvidence: expect.objectContaining({
+            settlementReason: 'settlement_refund',
+            refundCents: 24,
+          }),
+        }),
+      }),
+    });
+  });
+
+  it('records a billing transaction when final voice settlement adds allowance usage', async () => {
+    const prisma = {
+      billingAllowanceGrant: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'balg_trial',
+          workspaceId: 'ws_123',
+          amountCents: 500,
+          consumedCents: 100,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      billingTransaction: {
+        create: jest.fn().mockResolvedValue({
+          id: 'btxn_adjustment',
+          workspaceId: 'ws_123',
+          provider: 'agentline',
+          providerEventId: null,
+          type: 'usage.settlement_adjustment',
+          amountCents: 3,
+          currency: 'USD',
+          status: 'succeeded',
+          metadata: {},
+          createdAt: now,
+        }),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.adjustSettledUsageCharge(
+      usageEventFixture({
+        totalCost: new Decimal('0.0300'),
+        settlementMode: UsageSettlementMode.trial_allowance,
+        allowanceGrantId: 'balg_trial',
+      }),
+      3,
+    );
+
+    expect(result).toMatchObject({
+      settlementMode: UsageSettlementMode.trial_allowance,
+      allowanceGrantId: 'balg_trial',
+      evidence: {
+        settlementReason: 'allowance_delta',
+        allowanceGrantId: 'balg_trial',
+        deltaCents: 3,
+      },
+    });
+    expect(prisma.billingAllowanceGrant.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'balg_trial',
+        consumedCents: { lte: 497 },
+      },
+      data: { consumedCents: { increment: 3 } },
+    });
+    expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        provider: 'agentline',
+        type: 'usage.settlement_adjustment',
+        amountCents: 3,
+        metadata: expect.objectContaining({
+          usageEventId: 'use_123',
+          previousTotalCents: 3,
+          finalTotalCents: 6,
+          deltaCents: 3,
+          settlementMode: UsageSettlementMode.trial_allowance,
+          allowanceGrantId: 'balg_trial',
+        }),
+      }),
+    });
   });
 
   it('creates Stripe checkout session and pending transaction', async () => {
@@ -600,13 +759,15 @@ describe('BillingService', () => {
     expect(stripe.createUsageMeterEvent).not.toHaveBeenCalled();
   });
 
-  it('returns pricing rules for cost calculation', () => {
+  it('returns pricing rules for cost calculation', async () => {
     const prisma = {} as unknown as PrismaService;
     const { service } = createService(prisma);
 
-    expect(service.getPricing()).toEqual(
+    await expect(service.getPricing()).resolves.toEqual(
       expect.objectContaining({
         currency: 'USD',
+        pricingVersion: '2026-05-17',
+        source: 'database',
         rates: expect.arrayContaining([
           expect.objectContaining({
             key: 'voice_minute',
