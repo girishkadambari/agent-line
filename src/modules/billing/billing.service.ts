@@ -118,7 +118,7 @@ export class BillingService {
         voiceRounding: 'Voice duration is rounded up to the next full minute.',
         smsUnits: 'Each inbound or outbound SMS message is 1 billable message unit.',
         numberUnits:
-          'Each provisioned/imported number records 1 number unit when AgentLine takes ownership.',
+          'Each provisioned/imported number records 1 number unit when Vukho takes ownership.',
         stripeUsageMetering:
           'When STRIPE_USAGE_METER_EVENT_NAME is configured, finalized usage is also reported to Stripe Billing meter events.',
       },
@@ -640,7 +640,7 @@ export class BillingService {
       data: {
         id: createId('btxn'),
         workspaceId: event.workspaceId,
-        provider: 'agentline',
+        provider: 'vukho',
         type: 'usage.settlement_adjustment',
         amountCents: deltaCents,
         currency: 'USD',

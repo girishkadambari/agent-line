@@ -1,28 +1,28 @@
-# AgentLine Project Documentation
+# Vukho Project Documentation
 
 ## Purpose
 
-This document is the engineering source of truth for how AgentLine should be implemented. Product decisions belong in `PRODUCT_SPEC.md`. Build sequencing belongs in `ROADMAP.md`. Backend route and service requirements belong in `BACKEND_SPEC.md`.
+This document is the engineering source of truth for how Vukho should be implemented. Product decisions belong in `PRODUCT_SPEC.md`. Build sequencing belongs in `ROADMAP.md`. Backend route and service requirements belong in `BACKEND_SPEC.md`.
 
-AgentLine should be built so human engineers and AI coding agents can work from clear contracts without inventing product behavior.
+Vukho should be built so human engineers and AI coding agents can work from clear contracts without inventing product behavior.
 
 ## Project Definition
 
-AgentLine is an API-first platform for AI-agent phone infrastructure. It lets developers create agents, assign phone numbers, send and receive SMS, make and receive calls, inspect transcripts, receive webhooks, track usage, and eventually run hosted AI conversations.
+Vukho is an API-first platform for AI-agent phone infrastructure. It lets developers create agents, assign phone numbers, send and receive SMS, make and receive calls, inspect transcripts, receive webhooks, track usage, and eventually run hosted AI conversations.
 
 ## Glossary
 
 | Term | Meaning |
 |---|---|
 | Agent | Configured AI persona or webhook-backed worker that handles calls/messages. |
-| Hosted mode | AgentLine runs AI conversation logic using prompt, model, STT, and TTS configuration. |
+| Hosted mode | Vukho runs AI conversation logic using prompt, model, STT, and TTS configuration. |
 | Webhook mode | Customer backend receives events and returns instructions/responses. |
 | Web mode | Browser-based calling/testing mode without PSTN dependency. |
 | Provider | Telecom vendor such as Twilio or Telnyx. |
 | Conversation | Thread of interaction between an agent and a contact across SMS and voice. |
 | Transcript turn | One speaker turn in a call transcript. |
 | Usage event | Internal metered record for billing and analytics. |
-| Webhook delivery | Attempt to send a signed AgentLine event to a customer endpoint. |
+| Webhook delivery | Attempt to send a signed Vukho event to a customer endpoint. |
 
 ## Product Hierarchy
 
@@ -46,7 +46,7 @@ Important Phase 1 rule:
 - Build mock mode first.
 - The app must run locally without telecom credentials.
 - Provider-specific behavior must sit behind provider adapters.
-- Domain records must use AgentLine IDs, not provider IDs as primary identifiers.
+- Domain records must use Vukho IDs, not provider IDs as primary identifiers.
 - Raw provider payloads must be stored separately from normalized domain records.
 - Every billable operation must create a usage event.
 - Every external event should be idempotent.
@@ -57,7 +57,7 @@ Use these subsystems:
 
 - API server: exposes `/v1` REST API and dashboard API.
 - Dashboard: web UI for product operation and inspection.
-- Datastore: stores normalized AgentLine objects.
+- Datastore: stores normalized Vukho objects.
 - Provider adapters: mock, Twilio, Telnyx.
 - Webhook worker: signs, sends, retries, and records webhook deliveries.
 - Usage ledger: records billable events and supports reporting.
@@ -113,7 +113,7 @@ Real providers must be added behind the same adapter interface used by mock mode
 
 Provider adapters must:
 
-- Normalize external states into AgentLine states.
+- Normalize external states into Vukho states.
 - Record raw payloads for debugging.
 - Return typed provider errors.
 - Avoid leaking provider-specific fields into public API responses unless placed under a clearly named `provider` object.
@@ -137,8 +137,8 @@ npm run test:e2e:db
 
 Ports:
 
-- app/dev database: `localhost:5432`, database `agentline`.
-- e2e database: `localhost:5433`, database `agentline_test`.
+- app/dev database: `localhost:5432`, database `vukho`.
+- e2e database: `localhost:5433`, database `vukho_test`.
 
 Keep `.env.test.example` aligned with `docker-compose.yml`.
 
@@ -148,7 +148,7 @@ Start simple for MVP, but keep the data model ready for production.
 
 Rules:
 
-- Use AgentLine IDs for all primary records.
+- Use Vukho IDs for all primary records.
 - Store provider IDs as secondary fields.
 - Use `workspaceId` and `projectId` on records that need tenant scoping.
 - Treat `User` as a global identity and `WorkspaceMember` as workspace access.
@@ -254,7 +254,7 @@ Track these fields even before full compliance automation exists:
 - BAA/HIPAA status for workspace.
 - Provider compliance status.
 
-AgentLine must not claim compliance until legal and provider setup support it.
+Vukho must not claim compliance until legal and provider setup support it.
 
 ## Documentation Rules
 

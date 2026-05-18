@@ -1,6 +1,6 @@
-# AgentLine Engineering Rules
+# Vukho Engineering Rules
 
-These rules are mandatory for all implementation work. AgentLine is intended to be open-source ready, easy to understand, and maintainable before funding.
+These rules are mandatory for all implementation work. Vukho is intended to be open-source ready, easy to understand, and maintainable before funding.
 
 ## Core Principles
 
@@ -56,7 +56,7 @@ Use this structure unless the module is tiny and a simpler shape is justified.
 
 ## Data Rules
 
-- Use AgentLine IDs as primary IDs.
+- Use Vukho IDs as primary IDs.
 - Store provider IDs as secondary fields.
 - Use workspace/project scoping.
 - Store timestamps in UTC.
@@ -68,7 +68,7 @@ Use this structure unless the module is tiny and a simpler shape is justified.
 - Mock provider is the first provider.
 - Twilio/Telnyx come later behind the same provider interface.
 - No controller should know which provider is being used.
-- Provider errors must be normalized into AgentLine errors.
+- Provider errors must be normalized into Vukho errors.
 
 ## Testing Rules
 

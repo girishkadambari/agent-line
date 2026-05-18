@@ -1,10 +1,10 @@
-# AgentLine AI Development Guide
+# Vukho AI Development Guide
 
 ## Purpose
 
-This guide tells human engineers and AI coding agents how to use the AgentLine documentation set during development.
+This guide tells human engineers and AI coding agents how to use the Vukho documentation set during development.
 
-AgentLine must be built from the docs. Do not invent product behavior when a documented rule exists.
+Vukho must be built from the docs. Do not invent product behavior when a documented rule exists.
 
 ## Development Order
 
@@ -33,7 +33,7 @@ Follow this order unless the roadmap is updated:
 - Read the relevant spec before editing code.
 - Do not create routes that are not in `BACKEND_SPEC.md` unless the docs are updated in the same task.
 - Do not build frontend code in the backend repository unless the docs are updated in the same task.
-- Use AgentLine domain names consistently.
+- Use Vukho domain names consistently.
 - Keep provider-specific logic behind provider adapters.
 - Keep public API responses provider-neutral.
 - Create usage events for billable actions.
@@ -104,7 +104,7 @@ No real telecom credentials should be required for this journey.
 Use this template when asking an AI agent to implement a feature:
 
 ```txt
-Implement [feature] for AgentLine.
+Implement [feature] for Vukho.
 
 Before coding, read:
 - docs/README.md

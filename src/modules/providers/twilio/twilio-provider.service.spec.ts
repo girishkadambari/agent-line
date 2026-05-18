@@ -40,7 +40,7 @@ describe('TwilioProviderService', () => {
       TWILIO_MODE: 'live-dev',
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
-      TWILIO_MESSAGE_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/sms/status',
+      TWILIO_MESSAGE_STATUS_CALLBACK_URL: 'https://api.vukho.dev/v1/providers/twilio/sms/status',
     });
     const fetchMock = mockFetch({ sid: 'SM123', status: 'delivered' });
 
@@ -62,7 +62,7 @@ describe('TwilioProviderService', () => {
       }),
     );
     const requestBody = fetchMock.mock.calls[0][1].body as URLSearchParams;
-    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/sms/status');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.vukho.dev/v1/providers/twilio/sms/status');
   });
 
   it('searches available numbers and normalizes capabilities', async () => {
@@ -100,9 +100,9 @@ describe('TwilioProviderService', () => {
       TWILIO_MODE: 'live-dev',
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
-      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
-      TWILIO_NUMBER_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/number/status',
-      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
+      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/sms/inbound',
+      TWILIO_NUMBER_STATUS_CALLBACK_URL: 'https://api.vukho.dev/v1/providers/twilio/number/status',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/voice/inbound',
     });
     const fetchMock = jest
       .fn()
@@ -139,11 +139,11 @@ describe('TwilioProviderService', () => {
     });
 
     const requestBody = fetchMock.mock.calls[1][1].body as URLSearchParams;
-    expect(requestBody.get('SmsUrl')).toBe('https://api.agentline.dev/v1/providers/twilio/sms/inbound');
+    expect(requestBody.get('SmsUrl')).toBe('https://api.vukho.dev/v1/providers/twilio/sms/inbound');
     expect(requestBody.get('SmsMethod')).toBe('POST');
-    expect(requestBody.get('VoiceUrl')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/inbound');
+    expect(requestBody.get('VoiceUrl')).toBe('https://api.vukho.dev/v1/providers/twilio/voice/inbound');
     expect(requestBody.get('VoiceMethod')).toBe('POST');
-    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/number/status');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.vukho.dev/v1/providers/twilio/number/status');
   });
 
   it('provisions a Twilio test-mode number without searching available numbers first', async () => {
@@ -186,14 +186,14 @@ describe('TwilioProviderService', () => {
     expect(requestBody.get('PhoneNumber')).toBe('+15005550006');
   });
 
-  it('imports an existing Twilio number and configures AgentLine callbacks', async () => {
+  it('imports an existing Twilio number and configures Vukho callbacks', async () => {
     const service = createService({
       TWILIO_MODE: 'live-dev',
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
-      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
-      TWILIO_NUMBER_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/number/status',
-      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
+      TWILIO_INBOUND_SMS_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/sms/inbound',
+      TWILIO_NUMBER_STATUS_CALLBACK_URL: 'https://api.vukho.dev/v1/providers/twilio/number/status',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/voice/inbound',
     });
     const fetchMock = jest
       .fn()
@@ -243,9 +243,9 @@ describe('TwilioProviderService', () => {
       'https://api.twilio.com/2010-04-01/Accounts/AC123/IncomingPhoneNumbers/PN123.json',
     );
     const requestBody = fetchMock.mock.calls[1][1].body as URLSearchParams;
-    expect(requestBody.get('SmsUrl')).toBe('https://api.agentline.dev/v1/providers/twilio/sms/inbound');
-    expect(requestBody.get('VoiceUrl')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/inbound');
-    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/number/status');
+    expect(requestBody.get('SmsUrl')).toBe('https://api.vukho.dev/v1/providers/twilio/sms/inbound');
+    expect(requestBody.get('VoiceUrl')).toBe('https://api.vukho.dev/v1/providers/twilio/voice/inbound');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.vukho.dev/v1/providers/twilio/number/status');
   });
 
   it('returns the Twilio test magic number for search in test mode', async () => {
@@ -327,8 +327,8 @@ describe('TwilioProviderService', () => {
       TWILIO_MODE: 'live-dev',
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
-      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
-      TWILIO_VOICE_STATUS_CALLBACK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/status',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/voice/inbound',
+      TWILIO_VOICE_STATUS_CALLBACK_URL: 'https://api.vukho.dev/v1/providers/twilio/voice/status',
     });
     const fetchMock = mockFetch({ sid: 'CA123', status: 'queued', duration: '0' });
 
@@ -344,8 +344,8 @@ describe('TwilioProviderService', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     const requestBody = fetchMock.mock.calls[0][1].body as URLSearchParams;
-    expect(requestBody.get('Url')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/inbound');
-    expect(requestBody.get('StatusCallback')).toBe('https://api.agentline.dev/v1/providers/twilio/voice/status');
+    expect(requestBody.get('Url')).toBe('https://api.vukho.dev/v1/providers/twilio/voice/inbound');
+    expect(requestBody.get('StatusCallback')).toBe('https://api.vukho.dev/v1/providers/twilio/voice/status');
     expect(requestBody.get('StatusCallbackMethod')).toBe('POST');
     expect(requestBody.getAll('StatusCallbackEvent')).toEqual([
       'initiated',
@@ -360,7 +360,7 @@ describe('TwilioProviderService', () => {
       TWILIO_MODE: 'live-dev',
       TWILIO_ACCOUNT_SID: 'AC123',
       TWILIO_AUTH_TOKEN: 'secret',
-      TWILIO_VOICE_WEBHOOK_URL: 'https://api.agentline.dev/v1/providers/twilio/voice/inbound',
+      TWILIO_VOICE_WEBHOOK_URL: 'https://api.vukho.dev/v1/providers/twilio/voice/inbound',
     });
 
     await expect(service.createCall({ from: '+19012316325', to: '+917799027234' })).rejects.toMatchObject({

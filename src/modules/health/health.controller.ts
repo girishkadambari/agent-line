@@ -10,7 +10,7 @@ export class HealthController {
   @Get()
   getHealth() {
     return success({
-      name: 'AgentLine',
+      name: 'Vukho',
       phase: 'production_backend_flows',
       status: 'ok',
     });

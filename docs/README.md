@@ -1,8 +1,8 @@
-# AgentLine Documentation Index
+# Vukho Documentation Index
 
-This folder is the source of truth for AgentLine.
+This folder is the source of truth for Vukho.
 
-AgentLine is an AI-agent-native phone infrastructure product. It gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
+Vukho is an AI-agent-native phone infrastructure product. It gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
 
 Implementation progress is tracked separately in `tracking/`.
 
@@ -23,13 +23,13 @@ Implementation progress is tracked separately in `tracking/`.
 | `PROJECT_COMPLETENESS_CHECK.md` | Phase 1 completeness audit and intentional deferrals.                                                      |
 | `FRONTEND_SPEC.md`              | Dashboard information architecture, workflows, screens, states, and UX requirements.                       |
 | `TECH_STACK.md`                 | Recommended stack, architecture shape, deployment path, scaling path, and what to avoid early.             |
-| `LOVABLE_FRONTEND_PROMPT.md`    | Detailed prompt for generating the AgentLine frontend shell in Lovable.                                    |
-| `AI_DEVELOPMENT_GUIDE.md`       | Rules for human engineers and AI agents implementing AgentLine from these docs.                            |
+| `LOVABLE_FRONTEND_PROMPT.md`    | Detailed prompt for generating the Vukho frontend shell in Lovable.                                    |
+| `AI_DEVELOPMENT_GUIDE.md`       | Rules for human engineers and AI agents implementing Vukho from these docs.                            |
 | `STRIPE_BILLING_PLAN.md`        | Stripe checkout, portal, webhook, and prepaid-credit billing plan.                                         |
 
 ## Reading Order
 
-1. Read `PRODUCT_SPEC.md` to understand what AgentLine is and why it exists.
+1. Read `PRODUCT_SPEC.md` to understand what Vukho is and why it exists.
 2. Read `ROADMAP.md` to understand what to build first.
 3. Read `SELLABLE_RELEASE_PLAN.md` before prioritizing launch work.
 4. Read `IMPLEMENTATION_PLAN.md` before starting Phase 1 work.

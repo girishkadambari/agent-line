@@ -14,7 +14,7 @@ export class BrevoEmailProvider {
   async send(input: SendEmailInput): Promise<SendEmailResult> {
     const apiKey = this.config.get<string>('BREVO_API_KEY');
     const senderEmail = this.config.get<string>('BREVO_FROM_EMAIL');
-    const senderName = this.config.get<string>('BREVO_FROM_NAME') || 'AgentLine';
+    const senderName = this.config.get<string>('BREVO_FROM_NAME') || 'Vukho';
 
     if (!apiKey || !senderEmail) {
       throw new Error('Brevo email provider is not configured.');

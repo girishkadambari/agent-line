@@ -13,6 +13,9 @@ export function serializeMessage(message: Message) {
     body: message.body,
     status: message.status,
     provider: message.provider,
+    providerStatus: message.providerStatus,
+    providerErrorCode: message.providerErrorCode,
+    providerErrorText: message.providerErrorText,
     createdAt: message.createdAt.toISOString(),
     updatedAt: message.updatedAt.toISOString(),
   };

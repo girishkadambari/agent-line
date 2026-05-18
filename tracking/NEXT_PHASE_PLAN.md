@@ -1,4 +1,4 @@
-# AgentLine Next Phase Plan
+# Vukho Next Phase Plan
 
 ## Current Focus
 
@@ -70,6 +70,8 @@ Checklist:
 
 ### D1: Core Twilio Operating Loop
 
+Status: active, nearly closed.
+
 Goal: real SMS and call operations create records, usage, cost, audit, and
 webhooks.
 
@@ -80,7 +82,7 @@ Checklist:
 - inbound call is signed, idempotent, and creates contact/conversation/call
 - outbound call checks balance before provider write
 - call status callbacks move calls through accurate terminal states
-- provider failures are visible on the first-class message/call record
+- [x] provider failures are visible on the first-class message/call record
 - all message/call lifecycle events dispatch signed webhooks
 
 ### D2: Billing, Balance, And Stripe
@@ -98,15 +100,18 @@ Checklist:
 
 ### D3: Email And Audit Trust Layer
 
+Status: partially implemented.
+
 Goal: important workspace and billing events are traceable and notify users.
 
 Checklist:
 
-- Brevo invite email works
-- low balance email works
-- payment failure email works
-- invite/member/API-key/billing/provider changes are audited
-- audit actor labels are understandable to customers
+- [x] Brevo invite email works
+- [x] low balance email works
+- [x] spend limit reached email works
+- [x] payment failure email works
+- [x] invite/member/API-key/billing/provider changes are audited
+- [ ] audit actor labels are understandable to customers in every dashboard row
 
 ### D4: Deployment Smoke
 
@@ -146,7 +151,7 @@ Implemented in this release phase:
 - Provider issue normalization from Twilio raw callback events.
 - Twilio outbound SMS, inbound SMS, outbound voice, voice gather transcript
   capture, and status callbacks.
-- Twilio inbound voice call record creation from the called AgentLine number.
+- Twilio inbound voice call record creation from the called Vukho number.
 - Inbound voice contact/conversation creation, usage preauthorization,
   `agent.call.started` webhook emission, and call audit evidence.
 - Idempotency for repeated inbound Twilio voice webhooks.
@@ -169,8 +174,16 @@ Remaining:
 - Staging/live-dev smoke script for SMS, voice, transcript, usage, and webhooks.
 - Customer-facing number import/provision explanations for trial and paid
   account constraints.
-- Persist normalized provider issue state on first-class call/message records
-  if the derived raw-event view becomes too expensive.
+- Recording consent and retention controls before recording support is enabled.
+
+Latest D1 hardening:
+
+- Twilio SMS delivery failures are persisted on the message record as normalized
+  provider status, error code, and error text.
+- Twilio voice status failures are persisted on the call record as normalized
+  provider status, error code, and error text.
+- Message/call serializers and lifecycle webhook payloads expose the normalized
+  provider diagnostics.
 
 ## Next Implementation Phase: P6B Usage Evidence, Settlement, And Stripe Metering
 
@@ -178,7 +191,7 @@ Status: implemented.
 
 Implemented:
 
-- `GET /v1/billing/pricing` for the canonical AgentLine rate card.
+- `GET /v1/billing/pricing` for the canonical Vukho rate card.
 - `GET /v1/billing/cost-summary` for workspace/project cost calculation
   by channel, resource type, and agent.
 - Cost summary returns:
@@ -207,7 +220,7 @@ Exit criteria:
   limit.
 - Workspace switchers can show real workspaces/projects and active role
   context.
-- Developers can receive signed usage/cost webhooks and reconcile AgentLine
+- Developers can receive signed usage/cost webhooks and reconcile Vukho
   usage rows with Stripe meter events.
 
 Implemented in this trust slice:
@@ -276,7 +289,7 @@ Remaining:
 - Implemented:
   - Twilio `initiated`, `ringing`, `answered`, `in-progress`,
     `completed`, `failed`, `busy`, `no-answer`, and `canceled` statuses now
-    normalize into AgentLine call states.
+    normalize into Vukho call states.
   - `answered` moves calls to `in_progress`.
   - Voice prompt callbacks can move a call to `in_progress` if the status
     callback is delayed or missing.
@@ -417,7 +430,7 @@ Remaining:
    - Status: in progress.
    - Implemented:
      - matching active webhook endpoints are delivered immediately over HTTP.
-     - delivery payloads are signed with AgentLine webhook headers.
+     - delivery payloads are signed with Vukho webhook headers.
      - delivery ledger records `succeeded` or `failed` with HTTP status/error.
      - stable webhook event envelope documented in
        `docs/WEBHOOK_EVENT_STANDARD.md`.
@@ -489,7 +502,7 @@ dashboard button.
 
 If step 4 is missed, `GET /v1/billing/subscription` now attempts to recover the
 latest Stripe subscription for the workspace customer and create the local
-subscription record. When that recovery succeeds, AgentLine also marks the
+subscription record. When that recovery succeeds, Vukho also marks the
 latest matching pending subscription Checkout transaction as `succeeded`.
 
 Next billing work:

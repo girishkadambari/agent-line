@@ -47,7 +47,7 @@ describe('BillingService', () => {
       isUsageMeteringConfigured: jest.fn().mockReturnValue(false),
       createUsageMeterEvent: jest.fn().mockResolvedValue({
         identifier: 'use_123',
-        event_name: 'agentline_usage',
+        event_name: 'vukho_usage',
       }),
       getConfigurationStatus: jest.fn().mockReturnValue({
         mode: 'test',
@@ -282,7 +282,7 @@ describe('BillingService', () => {
         create: jest.fn().mockResolvedValue({
           id: 'btxn_adjustment',
           workspaceId: 'ws_123',
-          provider: 'agentline',
+          provider: 'vukho',
           providerEventId: null,
           type: 'usage.settlement_adjustment',
           amountCents: -24,
@@ -318,7 +318,7 @@ describe('BillingService', () => {
     expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         workspaceId: 'ws_123',
-        provider: 'agentline',
+        provider: 'vukho',
         type: 'usage.settlement_adjustment',
         amountCents: -24,
         status: 'succeeded',
@@ -355,7 +355,7 @@ describe('BillingService', () => {
         create: jest.fn().mockResolvedValue({
           id: 'btxn_adjustment',
           workspaceId: 'ws_123',
-          provider: 'agentline',
+          provider: 'vukho',
           providerEventId: null,
           type: 'usage.settlement_adjustment',
           amountCents: 3,
@@ -395,7 +395,7 @@ describe('BillingService', () => {
     });
     expect(prisma.billingTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        provider: 'agentline',
+        provider: 'vukho',
         type: 'usage.settlement_adjustment',
         amountCents: 3,
         metadata: expect.objectContaining({
@@ -426,7 +426,7 @@ describe('BillingService', () => {
         }),
       },
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       billingTransaction: {
         create: jest.fn().mockResolvedValue({
@@ -449,15 +449,15 @@ describe('BillingService', () => {
       { workspaceId: 'ws_123', projectId: 'proj_123', apiKeyId: 'key_123' },
       {
         amountCents: 2000,
-        successUrl: 'https://app.agentline.dev/success',
-        cancelUrl: 'https://app.agentline.dev/cancel',
+        successUrl: 'https://app.vukho.dev/success',
+        cancelUrl: 'https://app.vukho.dev/cancel',
       },
     );
 
     expect(result.url).toBe('https://checkout.stripe.com/c/pay/cs_123');
     expect(stripe.createCustomer).toHaveBeenCalledWith({
       workspaceId: 'ws_123',
-      name: 'AgentLine Local',
+      name: 'Vukho Local',
     });
     expect(stripe.createCheckoutSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -507,8 +507,8 @@ describe('BillingService', () => {
         { workspaceId: 'ws_123', projectId: 'proj_123', apiKeyId: 'key_123' },
         {
           planKey: 'starter',
-          successUrl: 'https://app.agentline.dev/billing?subscription=success',
-          cancelUrl: 'https://app.agentline.dev/billing?subscription=cancelled',
+          successUrl: 'https://app.vukho.dev/billing?subscription=success',
+          cancelUrl: 'https://app.vukho.dev/billing?subscription=cancelled',
         },
       );
 
@@ -553,7 +553,7 @@ describe('BillingService', () => {
         }),
       },
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       billingAllowanceGrant: {
         findFirst: jest.fn().mockResolvedValue(null),

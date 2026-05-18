@@ -82,8 +82,8 @@ describe('SessionAuthService', () => {
     expect(response.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       expect.arrayContaining([
-        expect.stringContaining('agentline_session='),
-        expect.stringContaining('agentline_csrf='),
+        expect.stringContaining('vukho_session='),
+        expect.stringContaining('vukho_csrf='),
       ]),
     );
     expect(audit.record).toHaveBeenCalledWith(
@@ -113,7 +113,7 @@ describe('SessionAuthService', () => {
           userId: 'usr_123',
           activeWorkspaceId: 'ws_123',
           activeProjectId: 'proj_123',
-          activeWorkspace: { id: 'ws_123', name: 'AgentLine', createdAt: now, updatedAt: now },
+          activeWorkspace: { id: 'ws_123', name: 'Vukho', createdAt: now, updatedAt: now },
           activeProject: {
             id: 'proj_123',
             workspaceId: 'ws_123',
@@ -136,7 +136,7 @@ describe('SessionAuthService', () => {
             updatedAt: now,
             workspace: {
               id: 'ws_123',
-              name: 'AgentLine',
+              name: 'Vukho',
               createdAt: now,
               updatedAt: now,
               projects: [

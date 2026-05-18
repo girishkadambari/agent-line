@@ -48,7 +48,7 @@ export class EmailService {
     const dashboardUrl = this.config.get<string>('DASHBOARD_URL') || 'http://localhost:8080';
     const email = renderWorkspaceInviteEmail({
       dashboardUrl,
-      workspaceName: workspace?.name ?? 'AgentLine',
+      workspaceName: workspace?.name ?? 'Vukho',
       role: input.role,
       token: input.rawToken,
     });
@@ -78,7 +78,9 @@ export class EmailService {
         idempotencyKey,
         metadata,
         errorCode: this.brevo.isConfigured() ? null : 'provider_not_configured',
-        errorMessage: this.brevo.isConfigured() ? null : 'BREVO_API_KEY and BREVO_FROM_EMAIL are not configured.',
+        errorMessage: this.brevo.isConfigured()
+          ? null
+          : 'BREVO_API_KEY and BREVO_FROM_EMAIL are not configured.',
       },
     });
 
@@ -128,7 +130,7 @@ export class EmailService {
     const dashboardUrl = this.config.get<string>('DASHBOARD_URL') || 'http://localhost:8080';
     const email = renderWorkspaceBillingAlertEmail({
       dashboardUrl,
-      workspaceName: workspace?.name ?? 'AgentLine',
+      workspaceName: workspace?.name ?? 'Vukho',
       kind: input.kind,
       amountCents: input.amountCents,
       balanceCents: input.balanceCents,

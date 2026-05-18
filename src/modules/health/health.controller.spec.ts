@@ -10,12 +10,12 @@ describe('HealthController', () => {
     } as unknown as ConfigService);
   }
 
-  it('returns AgentLine health metadata', () => {
+  it('returns Vukho health metadata', () => {
     const controller = createController();
 
     expect(controller.getHealth()).toEqual({
       data: {
-        name: 'AgentLine',
+        name: 'Vukho',
         phase: 'production_backend_flows',
         status: 'ok',
       },

@@ -37,6 +37,9 @@ function callFixture(overrides = {}) {
     recordingId: null,
     provider: 'mock',
     providerCallId: 'mock_call_123',
+    providerStatus: 'completed',
+    providerErrorCode: null,
+    providerErrorText: null,
     startedAt: now,
     endedAt: now,
     createdAt: now,
@@ -385,7 +388,7 @@ describe('CallsService', () => {
     });
   });
 
-  it('creates a live inbound Twilio call from the called AgentLine number', async () => {
+  it('creates a live inbound Twilio call from the called Vukho number', async () => {
     const inboundCall = callFixture({
       id: 'call_inbound',
       provider: 'twilio',
@@ -558,7 +561,7 @@ describe('CallsService', () => {
           .mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
         update: jest
           .fn()
-          .mockResolvedValue(callFixture({ summary: 'Caller said: Hello AgentLine' })),
+          .mockResolvedValue(callFixture({ summary: 'Caller said: Hello Vukho' })),
       },
       transcriptTurn: {
         findFirst: jest
@@ -567,7 +570,7 @@ describe('CallsService', () => {
           .mockResolvedValueOnce(transcriptTurnFixture({ endedAtMs: 5000 })),
         create: jest
           .fn()
-          .mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello AgentLine' })),
+          .mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello Vukho' })),
       },
     } as unknown as PrismaService;
     const { service, events } = createService(prisma);
@@ -575,7 +578,7 @@ describe('CallsService', () => {
     await service.receiveProviderVoiceSpeech({
       provider: 'twilio',
       providerCallId: 'CA123',
-      speechResult: 'Hello AgentLine',
+      speechResult: 'Hello Vukho',
       confidence: 0.92,
     });
 
@@ -583,14 +586,14 @@ describe('CallsService', () => {
       data: expect.objectContaining({
         callId: 'call_123',
         speaker: 'user',
-        text: 'Hello AgentLine',
+        text: 'Hello Vukho',
         confidence: 0.92,
       }),
     });
     expect(prisma.call.update).toHaveBeenCalledWith({
       where: { id: 'call_123' },
       data: expect.objectContaining({
-        summary: 'Caller said: Hello AgentLine',
+        summary: 'Caller said: Hello Vukho',
       }),
     });
     expect(events.create).toHaveBeenCalledWith(
@@ -699,6 +702,86 @@ describe('CallsService', () => {
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'agent.call.completed',
+      }),
+    );
+  });
+
+  it('stores provider failure details from Twilio call status callbacks', async () => {
+    const prisma = {
+      call: {
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'in_progress',
+            durationSeconds: 0,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'failed',
+            durationSeconds: 3,
+            outcome: 'failed',
+            providerStatus: 'failed',
+            providerErrorCode: '13224',
+            providerErrorText: 'Call could not be completed.',
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events, usage } = createService(prisma);
+
+    const result = await service.receiveProviderCallStatus({
+      provider: 'twilio',
+      providerCallId: 'CA123',
+      status: 'failed',
+      durationSeconds: 3,
+      providerErrorCode: '13224',
+      providerErrorText: 'Call could not be completed.',
+      rawPayload: {
+        CallSid: 'CA123',
+        CallStatus: 'failed',
+        CallDuration: '3',
+        ErrorCode: '13224',
+        ErrorMessage: 'Call could not be completed.',
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      providerStatus: 'failed',
+      providerErrorCode: '13224',
+      providerErrorText: 'Call could not be completed.',
+    });
+    expect(prisma.call.update).toHaveBeenCalledWith({
+      where: { id: 'call_123' },
+      data: expect.objectContaining({
+        status: 'failed',
+        durationSeconds: 3,
+        outcome: 'failed',
+        providerStatus: 'failed',
+        providerErrorCode: '13224',
+        providerErrorText: 'Call could not be completed.',
+      }),
+    });
+    expect(usage.finalizeVoiceCall).toHaveBeenCalledWith({
+      workspaceId: context.workspaceId,
+      callId: 'call_123',
+      durationSeconds: 3,
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.failed',
+        payload: expect.objectContaining({
+          providerStatus: 'failed',
+          providerErrorCode: '13224',
+          providerErrorText: 'Call could not be completed.',
+        }),
       }),
     );
   });

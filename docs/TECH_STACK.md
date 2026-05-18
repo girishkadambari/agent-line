@@ -1,8 +1,8 @@
-# AgentLine Tech Stack Decision
+# Vukho Tech Stack Decision
 
 ## Decision
 
-AgentLine is now **backend-first**.
+Vukho is now **backend-first**.
 
 Use a **NestJS + TypeScript backend** for Phase 1. The React frontend will be created separately later and integrated through the documented REST API.
 
@@ -32,9 +32,9 @@ Recommended default backend stack:
 
 ## Why NestJS For Backend
 
-NestJS is the right backend choice for AgentLine now because the product needs a clean, open-source-ready API service with durable module boundaries.
+NestJS is the right backend choice for Vukho now because the product needs a clean, open-source-ready API service with durable module boundaries.
 
-AgentLine is backend-heavy:
+Vukho is backend-heavy:
 
 - API-key authentication
 - provider adapters
@@ -213,4 +213,4 @@ Add later:
 Redis/BullMQ + Twilio/Telnyx + hosted AI provider adapters + Stripe
 ```
 
-This gives AgentLine a clean backend foundation, fast implementation path, and open-source-ready architecture while keeping costs low before funding.
+This gives Vukho a clean backend foundation, fast implementation path, and open-source-ready architecture while keeping costs low before funding.

@@ -1,12 +1,12 @@
-# AgentLine Frontend And Dashboard Specification
+# Vukho Frontend And Dashboard Specification
 
 ## Purpose
 
-This document defines the AgentLine dashboard requirements. The dashboard must help developers create, test, inspect, and operate AI phone agents. It is not a marketing site.
+This document defines the Vukho dashboard requirements. The dashboard must help developers create, test, inspect, and operate AI phone agents. It is not a marketing site.
 
 ## UX Principle
 
-AgentLine is an operational developer product. The UI should be quiet, dense, clear, and built for repeated use.
+Vukho is an operational developer product. The UI should be quiet, dense, clear, and built for repeated use.
 
 Prioritize:
 
@@ -334,7 +334,7 @@ Security rule:
 
 ## Playground
 
-Purpose: make AgentLine usable before real telecom exists.
+Purpose: make Vukho usable before real telecom exists.
 
 Playground workflows:
 

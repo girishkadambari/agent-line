@@ -142,7 +142,7 @@ describe('WebhooksService', () => {
     });
 
     expect(result.delivery.status).toBe('failed');
-    expect(result.headers['agentline-signature']).toMatch(/^v1=/);
+    expect(result.headers['vukho-signature']).toMatch(/^v1=/);
     expect(prisma.webhookDelivery.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         status: 'pending',
@@ -225,8 +225,8 @@ describe('WebhooksService', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'content-type': 'application/json',
-          'agentline-signature': expect.stringMatching(/^v1=/),
-          'agentline-timestamp': expect.any(String),
+          'vukho-signature': expect.stringMatching(/^v1=/),
+          'vukho-timestamp': expect.any(String),
         }),
         body: expect.any(String),
       }),

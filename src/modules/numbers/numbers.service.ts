@@ -5,7 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, AuditAction, EventResourceType } from '../../domain/events';
+import { VukhoEvent, AuditAction, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
 import type { CreateNumberInput, ImportNumberInput, UpdateNumberInput } from '../../domain/schemas';
 import { EventsService } from '../events/events.service';
@@ -91,9 +91,9 @@ export class NumbersService {
           providerNumberId: provisioned.providerNumberId,
         },
       });
-      await this.emitNumberEvent(context, AgentLineEvent.NumberProvisioned, number);
+      await this.emitNumberEvent(context, VukhoEvent.NumberProvisioned, number);
       if (input.agentId) {
-        await this.emitNumberEvent(context, AgentLineEvent.NumberAttached, number);
+        await this.emitNumberEvent(context, VukhoEvent.NumberAttached, number);
       }
       await this.recordNumberAudit(context, AuditAction.NumberProvisioned, number, {
         attachedAgentId: input.agentId ?? null,
@@ -110,7 +110,7 @@ export class NumbersService {
         })
         .catch(() => undefined);
       if (failedNumber) {
-        await this.emitNumberEvent(context, AgentLineEvent.NumberFailed, failedNumber, {
+        await this.emitNumberEvent(context, VukhoEvent.NumberFailed, failedNumber, {
           failureReason: error instanceof Error ? error.message : 'Number provisioning failed.',
         });
       }
@@ -159,9 +159,9 @@ export class NumbersService {
           providerNumberId: imported.providerNumberId,
         },
       });
-      await this.emitNumberEvent(context, AgentLineEvent.NumberImported, updated);
+      await this.emitNumberEvent(context, VukhoEvent.NumberImported, updated);
       if (input.agentId) {
-        await this.emitNumberEvent(context, AgentLineEvent.NumberAttached, updated);
+        await this.emitNumberEvent(context, VukhoEvent.NumberAttached, updated);
       }
       await this.recordNumberAudit(context, AuditAction.NumberImported, updated, {
         attachedAgentId: input.agentId ?? null,
@@ -186,9 +186,9 @@ export class NumbersService {
       },
     });
 
-    await this.emitNumberEvent(context, AgentLineEvent.NumberImported, number);
+    await this.emitNumberEvent(context, VukhoEvent.NumberImported, number);
     if (input.agentId) {
-      await this.emitNumberEvent(context, AgentLineEvent.NumberAttached, number);
+      await this.emitNumberEvent(context, VukhoEvent.NumberAttached, number);
     }
     await this.recordNumberAudit(context, AuditAction.NumberImported, number, {
       attachedAgentId: input.agentId ?? null,
@@ -220,7 +220,7 @@ export class NumbersService {
     if (existing.agentId !== number.agentId) {
       await this.emitNumberEvent(
         context,
-        number.agentId ? AgentLineEvent.NumberAttached : AgentLineEvent.NumberDetached,
+        number.agentId ? VukhoEvent.NumberAttached : VukhoEvent.NumberDetached,
         number,
         { previousAgentId: existing.agentId },
       );
@@ -259,7 +259,7 @@ export class NumbersService {
       data: { agentId: null },
     });
 
-    await this.emitNumberEvent(context, AgentLineEvent.NumberDetached, updated, {
+    await this.emitNumberEvent(context, VukhoEvent.NumberDetached, updated, {
       previousAgentId: agentId,
     });
     await this.recordNumberAudit(context, AuditAction.NumberDetached, updated, {
@@ -288,7 +288,7 @@ export class NumbersService {
       },
     });
 
-    await this.emitNumberEvent(context, AgentLineEvent.NumberReleased, released, {
+    await this.emitNumberEvent(context, VukhoEvent.NumberReleased, released, {
       previousAgentId: number.agentId,
     });
     await this.recordNumberAudit(context, AuditAction.NumberReleased, released, {

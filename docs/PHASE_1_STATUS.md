@@ -1,10 +1,10 @@
-# AgentLine Phase 1 Status
+# Vukho Phase 1 Status
 
 ## Current Phase
 
 **Phase 1: Mock Core Product**
 
-Goal: make AgentLine usable locally without Twilio, Telnyx, OpenAI, STT, TTS, Stripe, or real phone credentials.
+Goal: make Vukho usable locally without Twilio, Telnyx, OpenAI, STT, TTS, Stripe, or real phone credentials.
 
 ## Status Legend
 

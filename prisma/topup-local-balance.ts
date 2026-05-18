@@ -3,11 +3,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const workspaceId = process.env.AGENTLINE_LOCAL_WORKSPACE_ID ?? 'ws_local';
-  const amountCents = Number.parseInt(process.env.AGENTLINE_LOCAL_TOPUP_CENTS ?? '5000', 10);
+  const workspaceId = process.env.VUKHO_LOCAL_WORKSPACE_ID ?? 'ws_local';
+  const amountCents = Number.parseInt(process.env.VUKHO_LOCAL_TOPUP_CENTS ?? '5000', 10);
 
   if (Number.isNaN(amountCents) || amountCents <= 0) {
-    throw new Error('AGENTLINE_LOCAL_TOPUP_CENTS must be a positive integer.');
+    throw new Error('VUKHO_LOCAL_TOPUP_CENTS must be a positive integer.');
   }
 
   const balance = await prisma.billingBalance.upsert({

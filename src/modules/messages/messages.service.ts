@@ -5,7 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, EventResourceType } from '../../domain/events';
+import { VukhoEvent, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
 import type { SendMessageInput, SimulateInboundSmsInput } from '../../domain/schemas';
 import { ContactsService } from '../contacts/contacts.service';
@@ -78,13 +78,16 @@ export class MessagesService {
           status: sent.status,
           provider: sent.provider,
           providerMessageId: sent.providerMessageId,
+          providerStatus: sent.status,
+          providerErrorCode: null,
+          providerErrorText: null,
         },
       });
 
       const event = await this.events.create({
         workspaceId: context.workspaceId,
         projectId: context.projectId,
-        type: AgentLineEvent.MessageSent,
+        type: VukhoEvent.MessageSent,
         resourceType: EventResourceType.Message,
         resourceId: message.id,
         payload: this.buildMessageEventPayload(message),
@@ -103,7 +106,10 @@ export class MessagesService {
       await this.prisma.message
         .update({
           where: { id: messageId },
-          data: { status: 'failed' },
+          data: {
+            status: 'failed',
+            ...this.providerFailureUpdate(error),
+          },
         })
         .catch(() => undefined);
       throw error;
@@ -149,7 +155,7 @@ export class MessagesService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: AgentLineEvent.MessageReceived,
+      type: VukhoEvent.MessageReceived,
       resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(message),
@@ -241,13 +247,14 @@ export class MessagesService {
         status: 'received',
         provider: input.provider,
         providerMessageId: input.providerEventId,
+        providerStatus: 'received',
       },
     });
 
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: AgentLineEvent.MessageReceived,
+      type: VukhoEvent.MessageReceived,
       resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(message),
@@ -261,6 +268,8 @@ export class MessagesService {
     provider: 'twilio';
     providerMessageId: string;
     status: string;
+    providerErrorCode?: string;
+    providerErrorText?: string;
     rawPayload: Record<string, unknown>;
   }) {
     const message = await this.prisma.message.findFirst({
@@ -292,13 +301,18 @@ export class MessagesService {
 
     const updated = await this.prisma.message.update({
       where: { id: message.id },
-      data: { status: this.normalizeProviderMessageStatus(input.status) },
+      data: {
+        status: this.normalizeProviderMessageStatus(input.status),
+        providerStatus: input.status,
+        providerErrorCode: input.providerErrorCode ?? null,
+        providerErrorText: input.providerErrorText ?? null,
+      },
     });
 
     const event = await this.events.create({
       workspaceId: message.workspaceId,
       projectId: message.projectId,
-      type: AgentLineEvent.MessageDeliveryUpdated,
+      type: VukhoEvent.MessageDeliveryUpdated,
       resourceType: EventResourceType.Message,
       resourceId: message.id,
       payload: this.buildMessageEventPayload(updated, { providerStatus: input.status }),
@@ -401,6 +415,9 @@ export class MessagesService {
       | 'status'
       | 'provider'
       | 'providerMessageId'
+      | 'providerStatus'
+      | 'providerErrorCode'
+      | 'providerErrorText'
       | 'createdAt'
       | 'updatedAt'
     >,
@@ -417,6 +434,9 @@ export class MessagesService {
       status: message.status,
       provider: message.provider,
       providerMessageId: message.providerMessageId,
+      providerStatus: message.providerStatus,
+      providerErrorCode: message.providerErrorCode,
+      providerErrorText: message.providerErrorText,
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
       ...extra,
@@ -450,5 +470,29 @@ export class MessagesService {
       }
       throw error;
     }
+  }
+
+  private providerFailureUpdate(error: unknown) {
+    if (error instanceof ApiException) {
+      return {
+        providerErrorCode: this.stringifyDetail(error.details.code),
+        providerErrorText: this.stringifyDetail(error.details.message) ?? error.message,
+      };
+    }
+
+    return {
+      providerErrorCode: null,
+      providerErrorText: error instanceof Error ? error.message : 'Provider request failed.',
+    };
+  }
+
+  private stringifyDetail(value: unknown) {
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return String(value);
+    }
+    return null;
   }
 }

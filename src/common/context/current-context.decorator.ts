@@ -8,7 +8,7 @@ export const CurrentContext = createParamDecorator((_data: unknown, ctx: Executi
   const request = ctx.switchToHttp().getRequest<RequestWithContext>();
 
   if (!request.agentLineContext) {
-    throw new ApiException('unauthorized', 'Missing AgentLine request context.', 401);
+    throw new ApiException('unauthorized', 'Missing Vukho request context.', 401);
   }
 
   return request.agentLineContext;

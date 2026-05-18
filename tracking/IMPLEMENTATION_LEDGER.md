@@ -1,6 +1,54 @@
-# AgentLine Implementation Ledger
+# Vukho Implementation Ledger
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
+
+## 2026-05-18: Provider Failure State On Calls And Messages
+
+**Status:** done
+
+Implemented:
+
+- Added first-class provider diagnostic fields to `Message` and `Call`:
+  - provider status
+  - provider error code
+  - provider error text
+- Twilio SMS delivery callbacks now persist failure details from `ErrorCode`
+  and `ErrorMessage` on the message record.
+- Twilio voice status callbacks now persist failure details from `ErrorCode`,
+  `ErrorMessage`, and `ErrorMessageText` on the call record.
+- Message and call serializers now expose provider diagnostic fields so the
+  dashboard and API consumers can show clear provider failure reasons without
+  parsing raw callback payloads.
+- Customer webhook payloads for message delivery updates and call lifecycle
+  events now include the normalized provider diagnostic fields.
+- Provider-create failures now leave the locally-created failed record with a
+  durable failure reason when one exists.
+- Late non-terminal callbacks still cannot regress completed calls, while late
+  terminal callbacks can settle final duration and diagnostics.
+
+Verification:
+
+- `npm test -- messages.service.spec.ts calls.service.spec.ts webhooks.service.spec.ts --runInBand`
+  passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `npm run db:push` applied the new nullable provider diagnostic fields to the
+  local Postgres database.
+
+Release impact:
+
+- Support and customers can see why a Twilio-backed message or call failed
+  directly on the first-class Vukho record.
+- Webhook consumers receive stable failure fields instead of depending on raw
+  provider payload shape.
+- This closes the D1 provider failure visibility blocker for production release.
+
+Next:
+
+- Add a live-dev smoke command/checklist that proves SMS, voice, transcript,
+  usage, billing, audit, and webhook delivery against the configured tunnel.
+- Add recording consent/data retention controls before exposing recording.
+- Keep dashboard cleanup focused on value-first views, not provider internals.
 
 ## 2026-05-17: Automatic Webhook Retry Worker
 
@@ -51,10 +99,10 @@ Implemented:
 
 - Added billing transaction evidence for nonzero final voice usage settlements.
 - When provider-final call duration is lower than the preauthorized amount,
-  AgentLine now records a visible settlement adjustment transaction for the
+  Vukho now records a visible settlement adjustment transaction for the
   returned balance or allowance.
 - When provider-final call duration is higher than the preauthorized amount,
-  AgentLine now records a visible settlement adjustment transaction for the
+  Vukho now records a visible settlement adjustment transaction for the
   additional allowance, Stripe-metered, or prepaid charge.
 - Settlement adjustment metadata captures:
   - usage event id
@@ -105,7 +153,7 @@ Implemented:
 
 - Added provider-backed inbound voice call creation from Twilio `voice/inbound`
   webhooks.
-- Inbound calls now route by the called AgentLine phone number and attached
+- Inbound calls now route by the called Vukho phone number and attached
   agent instead of requiring a pre-existing outbound call record.
 - Created or reused the caller contact and voice conversation for inbound calls.
 - Added idempotency for Twilio inbound webhook retries by `CallSid`.
@@ -123,7 +171,7 @@ Verification:
 
 Release impact:
 
-- A real customer can now call an AgentLine-managed Twilio number and get a
+- A real customer can now call a Vukho-managed Twilio number and get a
   first-class call record, transcript seed, usage evidence, webhook event, and
   audit trail.
 - This closes the largest missing piece in the real agent phone loop: inbound
@@ -149,7 +197,7 @@ Implemented:
 - Audit events now resolve actor context as:
   - workspace user name/email when the action came from a dashboard session
   - API key label/prefix when the action came from an API key
-  - AgentLine system when the action was automated or has no human/API actor
+  - Vukho system when the action was automated or has no human/API actor
 - Included `actorUser` on audit writes and list reads so newly created audit
   records serialize consistently.
 - Added API key lookup for audit rows that were created by API-key traffic.
@@ -462,7 +510,7 @@ Implemented source-of-truth documentation:
 
 Key decisions:
 
-- Product name is AgentLine.
+- Product name is Vukho.
 - Backend is NestJS-first.
 - Frontend will be separate React/Lovable frontend later.
 - Phase 1 is mock backend only.
@@ -528,7 +576,7 @@ Response:
 ```json
 {
   "data": {
-    "name": "AgentLine",
+    "name": "Vukho",
     "phase": "phase_1_mock_core_product",
     "status": "ok"
   }
@@ -1500,7 +1548,7 @@ Implemented:
 - Added `POST /v1/providers/twilio/voice/inbound` to return signed TwiML for a
   real Twilio outbound call.
 - Added `POST /v1/providers/twilio/voice/status` to accept signed Twilio call
-  status callbacks and update the AgentLine call record.
+  status callbacks and update the Vukho call record.
 - Twilio outbound calls now send voice status callback settings.
 - Twilio call statuses now preserve `queued`, `ringing`, and `in_progress`
   instead of forcing non-terminal calls to `completed`.
@@ -1523,25 +1571,25 @@ Operational note:
 Issue:
 
 - Twilio trial accounts can own only one Twilio number.
-- The AgentLine Numbers page previously treated the primary number action as
+- The Vukho Numbers page previously treated the primary number action as
   provisioning, which means buying a new Twilio number.
 - When a trial account already had a number, provisioning returned Twilio error
-  `21404` instead of attaching the existing number to an AgentLine agent.
+  `21404` instead of attaching the existing number to a Vukho agent.
 
 Implemented:
 
 - Added `TelecomProvider.importNumber` to the provider contract.
 - Added Twilio import support:
   - finds an existing `IncomingPhoneNumber` by E.164 phone number.
-  - configures AgentLine SMS and voice callback URLs on that Twilio number.
+  - configures Vukho SMS and voice callback URLs on that Twilio number.
   - returns the Twilio IncomingPhoneNumber SID as the provider number ID.
 - Added `POST /v1/numbers/import`.
 - Added Numbers service import behavior:
   - updates an existing local `PhoneNumber` row when the workspace already has
     the phone number.
-  - creates a local row when the Twilio number exists but AgentLine has not
+  - creates a local row when the Twilio number exists but Vukho has not
     recorded it yet.
-  - does not debit the AgentLine number-provision usage ledger because the
+  - does not debit the Vukho number-provision usage ledger because the
     number was already bought in Twilio.
 - Added tests for service-level import and Twilio provider import callback
   configuration.
@@ -1646,8 +1694,8 @@ Implemented:
 
 - Added CSRF double-submit cookie support for browser session mutations.
 - Google OAuth login now sets:
-  - HTTP-only `agentline_session`
-  - readable `agentline_csrf`
+  - HTTP-only `vukho_session`
+  - readable `vukho_csrf`
 - Logout expires both session and CSRF cookies.
 - Added `CsrfGuard`; it enforces `X-CSRF-Token` for session-authenticated
   `POST`, `PATCH`, and `DELETE` requests, while leaving API-key calls
@@ -1926,7 +1974,7 @@ Verification:
 Problem found:
 
 - Stripe had created a real trialing subscription for the workspace customer,
-  but `BillingSubscription` was still empty locally because AgentLine had only
+  but `BillingSubscription` was still empty locally because Vukho had only
   recorded the pending Checkout Session transaction.
 - This means the Stripe Checkout redirect can succeed while the local product
   still shows "Free trial" if the `checkout.session.completed` webhook is
@@ -2005,7 +2053,7 @@ Reason:
 
 - Product work was drifting across docs, UI polish, SDK ideas, billing
   strategy, and provider internals while the release target is deployment of
-  the real AgentLine operating loop.
+  the real Vukho operating loop.
 - The active phase tracker needed to point at production deployment only.
 
 Implemented:
@@ -2032,3 +2080,49 @@ Next:
 
 - Continue with D1/D2 only: real Twilio message/call flow, usage evidence,
   balance checks, Stripe settlement, Brevo notifications, and audit evidence.
+
+## 2026-05-18: Deployment Billing Alert Notifications
+
+**Status:** implemented
+
+Reason:
+
+- Production release needs users to know when billable operations are blocked
+  or at risk because of balance, spend limits, or Stripe payment failure.
+- These alerts are part of the release trust layer and should use the existing
+  Brevo email delivery ledger rather than a separate notification path.
+
+Implemented:
+
+- Added reusable billing-alert email rendering for:
+  - low balance
+  - spend limit reached
+  - Stripe payment failed
+- Added `EmailService.sendWorkspaceBillingAlertEmail`.
+- Billing alert recipients are active workspace `owner`, `admin`, and
+  `billing` members.
+- Billing alerts are idempotent by workspace, alert kind, scope, and recipient.
+- `BillingService.debitWorkspace` now sends:
+  - low-balance alerts after successful debits that leave balance at or below
+    the release threshold
+  - low-balance alerts when prepaid balance blocks a debit
+  - spend-limit alerts when cumulative usage would exceed the workspace cap
+- Stripe `invoice.payment_failed` webhook handling now schedules a payment
+  failure alert after the signed Stripe transaction commits successfully.
+- Email failures are swallowed by billing paths after being recorded in
+  `EmailDelivery`, so notification provider issues do not corrupt billing
+  state.
+
+Verification:
+
+- `npm test -- billing.service.spec.ts email.service.spec.ts --runInBand` passed.
+- `npm test -- billing.service.spec.ts usage.service.spec.ts calls.service.spec.ts messages.service.spec.ts webhooks.service.spec.ts audit.service.spec.ts email.service.spec.ts --runInBand` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+
+Next:
+
+- Continue with D1/D2 release blockers:
+  - Twilio callback smoke coverage
+  - visible provider failure state on message/call records
+  - final deployment smoke checklist

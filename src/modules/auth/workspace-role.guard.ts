@@ -28,7 +28,7 @@ export class WorkspaceRoleGuard implements CanActivate {
     const requestContext = request.agentLineContext;
 
     if (!requestContext) {
-      throw new ApiException('unauthorized', 'Missing AgentLine request context.', 401);
+      throw new ApiException('unauthorized', 'Missing Vukho request context.', 401);
     }
 
     if (requestContext.authType === 'api_key') {

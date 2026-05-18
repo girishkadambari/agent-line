@@ -1,6 +1,6 @@
-# AgentLine Webhook Event Standard
+# Vukho Webhook Event Standard
 
-This document defines the production webhook contract for AgentLine.
+This document defines the production webhook contract for Vukho.
 
 ## Goals
 
@@ -205,7 +205,7 @@ Usage payloads include a `usageEvent` object with:
 
 ## Delivery Rules
 
-- Webhooks are signed with AgentLine headers.
+- Webhooks are signed with Vukho headers.
 - Failed deliveries keep `lastStatusCode`, `lastError`, and `nextAttemptAt`.
 - Delivery attempts are claimed before dispatch so concurrent retry workers do
   not send the same attempt twice.

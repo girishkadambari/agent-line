@@ -1,6 +1,6 @@
-# AgentLine Production Backend Roadmap
+# Vukho Production Backend Roadmap
 
-This document is the production-readiness plan for moving AgentLine from a mock
+This document is the production-readiness plan for moving Vukho from a mock
 MVP into real backend flows.
 
 Goal:
@@ -379,10 +379,10 @@ Build:
 
 Exit criteria:
 
-- A staging Twilio number can be purchased, attached to an AgentLine agent, send
+- A staging Twilio number can be purchased, attached to a Vukho agent, send
   SMS, receive SMS, and show delivery status.
 - Duplicate Twilio callbacks do not duplicate webhooks or usage events.
-- Provider errors are normalized into AgentLine API errors.
+- Provider errors are normalized into Vukho API errors.
 
 ## Phase P5: Twilio Voice
 
@@ -434,7 +434,7 @@ Build:
 
 Exit criteria:
 
-- Real inbound and outbound calls create accurate AgentLine records.
+- Real inbound and outbound calls create accurate Vukho records.
 - Call status and billing settle from Twilio callbacks.
 - Customer webhooks receive clean call lifecycle events.
 
@@ -533,7 +533,7 @@ Build:
 
 Exit criteria:
 
-- Provider events and AgentLine domain events are delivered reliably.
+- Provider events and Vukho domain events are delivered reliably.
 - Failed customer endpoints do not block core product operations.
 - Dashboard can inspect and replay failed deliveries.
 
@@ -541,7 +541,7 @@ Current implementation status:
 
 - First real dispatch slice implemented:
   - active endpoints matching an event type are delivered immediately over HTTP.
-  - payloads are signed with AgentLine webhook headers.
+  - payloads are signed with Vukho webhook headers.
   - delivery records are updated to `succeeded` or `failed` with HTTP
     status/error details.
 - Remaining:

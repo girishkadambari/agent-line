@@ -1,11 +1,11 @@
-# Lovable Frontend Prompt For AgentLine
+# Lovable Frontend Prompt For Vukho
 
-Use this prompt in Lovable to generate the AgentLine frontend shell. This is for frontend/UI only. Backend integration will be done later by Codex.
+Use this prompt in Lovable to generate the Vukho frontend shell. This is for frontend/UI only. Backend integration will be done later by Codex.
 
 ```txt
-Build the frontend for AgentLine, an AI-agent-native phone infrastructure platform.
+Build the frontend for Vukho, an AI-agent-native phone infrastructure platform.
 
-AgentLine gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
+Vukho gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
 
 Important: build only the frontend layer. Use mock/static data where needed. Do not implement the real backend. Do not create a marketing landing page. This should be an operational SaaS dashboard for developers and AI-agent builders.
 
@@ -21,7 +21,7 @@ Use the attached reference image only for theme direction and layout feel:
 
 Do not hard-code the exact colors from the reference. Create a flexible design system with CSS variables/tokens so Codex can later tune the theme. The product should not feel like a generic AI startup landing page. It should feel like a serious AI infrastructure product built for agents, phone workflows, debugging, and integration.
 
-Product name: AgentLine
+Product name: Vukho
 
 Core UX goal:
 Make it easy for a developer to create an AI phone agent, attach a number, simulate SMS/calls, inspect transcripts, configure webhooks, and understand usage.
@@ -70,7 +70,7 @@ Use Google SSO only.
 
 Required auth screens:
 1. Login screen
-   - AgentLine logo/name
+   - Vukho logo/name
    - short value line: "Phone infrastructure for AI agents"
    - "Continue with Google" button
    - minimal legal text
@@ -86,7 +86,7 @@ Required auth screens:
 
 Required onboarding flow after first login:
 1. Welcome screen
-   - title: "Set up your AgentLine workspace"
+   - title: "Set up your Vukho workspace"
    - collect workspace name
    - show 3-step setup preview: Create agent, Attach number, Test call/SMS
 
@@ -105,7 +105,7 @@ Required onboarding flow after first login:
    - actions: "Open dashboard" and "Open playground"
 
 Main app shell:
-- left sidebar with AgentLine logo
+- left sidebar with Vukho logo
 - workspace switcher near top
 - primary nav
 - top-right feedback button, notifications icon, user avatar menu
@@ -326,7 +326,7 @@ Security rule:
 - Full API key should appear only in the create-key success modal.
 
 11. Playground
-Purpose: let users test AgentLine without real telecom.
+Purpose: let users test Vukho without real telecom.
 Workflows:
 - create/select test agent
 - provision mock number
@@ -376,7 +376,7 @@ Show:
 - latest incidents placeholder
 
 Mock data requirements:
-- Use realistic AgentLine data.
+- Use realistic Vukho data.
 - Include 3-5 agents.
 - Include a mix of hosted, webhook, and web modes.
 - Include active and failed webhooks.
@@ -414,7 +414,7 @@ Do not:
 - hard-code the exact reference image colors
 - hide operational failures
 
-Final output should be a polished, responsive SaaS dashboard frontend for AgentLine with Google SSO login screens, onboarding screens, dashboard pages, settings, integrations, playground, and realistic mock data.
+Final output should be a polished, responsive SaaS dashboard frontend for Vukho with Google SSO login screens, onboarding screens, dashboard pages, settings, integrations, playground, and realistic mock data.
 ```
 
 ## Notes For Codex After Lovable Generates The Frontend
@@ -424,6 +424,6 @@ After Lovable creates the frontend, Codex should:
 - Inspect the generated routing and component structure.
 - Preserve the theme and UI direction.
 - Move scattered mock data into a clear mock API/client layer if needed.
-- Connect pages to the AgentLine backend route contracts from `BACKEND_SPEC.md`.
+- Connect pages to the Vukho backend route contracts from `BACKEND_SPEC.md`.
 - Keep Google SSO only unless product docs change.
 - Keep dashboard behavior aligned with `FRONTEND_SPEC.md`.

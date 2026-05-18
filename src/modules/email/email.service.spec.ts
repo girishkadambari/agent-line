@@ -12,7 +12,7 @@ function deliveryFixture(overrides = {}) {
     workspaceId: 'ws_123',
     recipientEmail: 'new@example.com',
     template: 'workspace_invite',
-    subject: 'Join AgentLine Local on AgentLine',
+    subject: 'Join Vukho Local on Vukho',
     status: 'queued',
     provider: 'brevo',
     providerMessageId: null,
@@ -45,7 +45,7 @@ describe('EmailService', () => {
   it('logs skipped invite email when Brevo is not configured', async () => {
     const prisma = {
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       emailDelivery: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -81,12 +81,14 @@ describe('EmailService', () => {
     const delivery = deliveryFixture();
     const prisma = {
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       emailDelivery: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(delivery),
-        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
       },
     } as unknown as PrismaService;
     const brevo = {
@@ -106,7 +108,7 @@ describe('EmailService', () => {
     expect(brevo.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'new@example.com',
-        subject: 'Join AgentLine Local on AgentLine',
+        subject: 'Join Vukho Local on Vukho',
       }),
     );
     expect(result.status).toBe('sent');
@@ -117,7 +119,7 @@ describe('EmailService', () => {
     const existing = deliveryFixture({ status: 'sent' });
     const prisma = {
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       emailDelivery: {
         findUnique: jest.fn().mockResolvedValue(existing),
@@ -148,19 +150,23 @@ describe('EmailService', () => {
     });
     const prisma = {
       workspace: {
-        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
       },
       workspaceMember: {
-        findMany: jest.fn().mockResolvedValue([
-          { user: { email: 'owner@example.com' } },
-          { user: { email: 'owner@example.com' } },
-          { user: { email: 'billing@example.com' } },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { user: { email: 'owner@example.com' } },
+            { user: { email: 'owner@example.com' } },
+            { user: { email: 'billing@example.com' } },
+          ]),
       },
       emailDelivery: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve(deliveryFixture(data))),
-        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
       },
     } as unknown as PrismaService;
     const brevo = {

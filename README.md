@@ -1,6 +1,6 @@
-# AgentLine Backend
+# Vukho Backend
 
-AgentLine is AI-agent-native phone infrastructure. It gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
+Vukho is AI-agent-native phone infrastructure. It gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
 
 This repository is backend-first and uses **NestJS + TypeScript**. The React frontend will be built separately and integrated through the documented REST API.
 
@@ -45,7 +45,7 @@ Stripe is optional for local development. To test real checkout, set `STRIPE_MOD
 Use these commands for a fresh local setup:
 
 ```bash
-cd /Users/girish/girish-workspace/girish-own/agent-line
+cd /Users/girish/girish-workspace/girish-own/vukho
 
 npm install
 cp .env.example .env
@@ -67,7 +67,7 @@ http://localhost:3000/v1
 Seeded local API key:
 
 ```text
-sk_test_agentline_local
+sk_test_vukho_local
 ```
 
 Quick health check:
@@ -80,7 +80,7 @@ Quick authenticated check:
 
 ```bash
 curl http://localhost:3000/v1/workspaces/current \
-  -H "Authorization: Bearer sk_test_agentline_local"
+  -H "Authorization: Bearer sk_test_vukho_local"
 ```
 
 ### Bootstrap Commands
@@ -101,7 +101,7 @@ npm run db:topup
 You can change the top-up amount in cents:
 
 ```bash
-AGENTLINE_LOCAL_TOPUP_CENTS=10000 npm run db:topup
+VUKHO_LOCAL_TOPUP_CENTS=10000 npm run db:topup
 ```
 
 ### Frontend Connection
@@ -109,17 +109,17 @@ AGENTLINE_LOCAL_TOPUP_CENTS=10000 npm run db:topup
 For the separate dashboard repository, create:
 
 ```text
-/Users/girish/girish-workspace/girish-own/agentline-dashboard/.env
+/Users/girish/girish-workspace/girish-own/vukho-dashboard/.env
 ```
 
 with:
 
 ```bash
-VITE_AGENTLINE_API_URL=http://localhost:3000/v1
+VITE_VUKHO_API_URL=http://localhost:3000/v1
 ```
 
 Then sign in to the dashboard with:
 
 ```text
-sk_test_agentline_local
+sk_test_vukho_local
 ```

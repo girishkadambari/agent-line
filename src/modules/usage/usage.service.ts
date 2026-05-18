@@ -5,7 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, EventResourceType } from '../../domain/events';
+import { VukhoEvent, EventResourceType } from '../../domain/events';
 import type { UsageQueryInput } from '../../domain/schemas';
 import { BillingRateCardService } from '../billing/billing-rate-card.service';
 import { BillingService } from '../billing/billing.service';
@@ -111,14 +111,14 @@ export class UsageService {
     });
 
     if (!shouldReportToStripe) {
-      await this.emitUsageEvent(AgentLineEvent.UsageRecorded, usageEvent);
+      await this.emitUsageEvent(VukhoEvent.UsageRecorded, usageEvent);
       return usageEvent;
     }
 
     const stripeSettlement = await this.billing.reportUsageEventToStripe(usageEvent);
 
     if (stripeSettlement.status === 'internal_debited') {
-      await this.emitUsageEvent(AgentLineEvent.UsageRecorded, usageEvent);
+      await this.emitUsageEvent(VukhoEvent.UsageRecorded, usageEvent);
       return usageEvent;
     }
 
@@ -130,7 +130,7 @@ export class UsageService {
       },
     });
 
-    await this.emitUsageEvent(AgentLineEvent.UsageRecorded, settledEvent);
+    await this.emitUsageEvent(VukhoEvent.UsageRecorded, settledEvent);
 
     return settledEvent;
   }
@@ -173,7 +173,7 @@ export class UsageService {
 
     await Promise.all(
       events.map((event) =>
-        this.emitUsageEvent(AgentLineEvent.UsageVoided, {
+        this.emitUsageEvent(VukhoEvent.UsageVoided, {
           ...event,
           settlementStatus: 'voided',
         }),
@@ -248,7 +248,7 @@ export class UsageService {
       });
     }
 
-    await this.emitUsageEvent(AgentLineEvent.UsageFinalized, finalizedEvent);
+    await this.emitUsageEvent(VukhoEvent.UsageFinalized, finalizedEvent);
 
     return { finalized: true, deltaCents };
   }

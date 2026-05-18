@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 
-export const sessionCookieName = 'agentline_session';
-export const csrfCookieName = 'agentline_csrf';
+export const sessionCookieName = 'vukho_session';
+export const csrfCookieName = 'vukho_csrf';
 
 export function createSessionToken() {
   return `sess_${randomBytes(32).toString('base64url')}`;

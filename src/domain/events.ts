@@ -1,4 +1,4 @@
-export const AgentLineEvent = {
+export const VukhoEvent = {
   AgentCreated: 'agent.created',
   AgentUpdated: 'agent.updated',
   AgentDisabled: 'agent.disabled',
@@ -28,7 +28,7 @@ export const AgentLineEvent = {
   WebhookTest: 'webhook.test',
 } as const;
 
-export const AgentLineEventPattern = {
+export const VukhoEventPattern = {
   All: '*',
   Agents: 'agent.*',
   Calls: 'agent.call.*',

@@ -6,8 +6,8 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import {
-  AgentLineEvent,
-  AgentLineEventPattern,
+  VukhoEvent,
+  VukhoEventPattern,
   AuditAction,
   EventResourceType,
 } from '../../domain/events';
@@ -37,27 +37,27 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Wildcard',
     events: [
-      { name: AgentLineEventPattern.All, description: 'Receive every AgentLine event.' },
-      { name: AgentLineEventPattern.Agents, description: 'Receive every agent-scoped event.' },
+      { name: VukhoEventPattern.All, description: 'Receive every Vukho event.' },
+      { name: VukhoEventPattern.Agents, description: 'Receive every agent-scoped event.' },
       {
-        name: AgentLineEventPattern.Calls,
+        name: VukhoEventPattern.Calls,
         description: 'Receive all call lifecycle and transcript events.',
       },
-      { name: AgentLineEventPattern.Messages, description: 'Receive all SMS/message events.' },
+      { name: VukhoEventPattern.Messages, description: 'Receive all SMS/message events.' },
       {
-        name: AgentLineEventPattern.Numbers,
+        name: VukhoEventPattern.Numbers,
         description: 'Receive all phone number lifecycle events.',
       },
       {
-        name: AgentLineEventPattern.Conversations,
+        name: VukhoEventPattern.Conversations,
         description: 'Receive all conversation lifecycle events.',
       },
       {
-        name: AgentLineEventPattern.Contacts,
+        name: VukhoEventPattern.Contacts,
         description: 'Receive all contact lifecycle events.',
       },
       {
-        name: AgentLineEventPattern.Usage,
+        name: VukhoEventPattern.Usage,
         description: 'Receive all usage, cost, and settlement events.',
       },
     ],
@@ -65,38 +65,38 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Agents',
     events: [
-      { name: AgentLineEvent.AgentCreated, description: 'An agent was created.' },
-      { name: AgentLineEvent.AgentUpdated, description: 'An agent configuration changed.' },
-      { name: AgentLineEvent.AgentDisabled, description: 'An agent was disabled.' },
+      { name: VukhoEvent.AgentCreated, description: 'An agent was created.' },
+      { name: VukhoEvent.AgentUpdated, description: 'An agent configuration changed.' },
+      { name: VukhoEvent.AgentDisabled, description: 'An agent was disabled.' },
     ],
   },
   {
     group: 'Numbers',
     events: [
       {
-        name: AgentLineEvent.NumberProvisioned,
+        name: VukhoEvent.NumberProvisioned,
         description: 'A provider-backed number became active.',
       },
       {
-        name: AgentLineEvent.NumberImported,
+        name: VukhoEvent.NumberImported,
         description: 'An existing provider number was imported.',
       },
-      { name: AgentLineEvent.NumberAttached, description: 'A number was attached to an agent.' },
-      { name: AgentLineEvent.NumberDetached, description: 'A number was detached from an agent.' },
-      { name: AgentLineEvent.NumberReleased, description: 'A number was released.' },
-      { name: AgentLineEvent.NumberFailed, description: 'A number provisioning attempt failed.' },
+      { name: VukhoEvent.NumberAttached, description: 'A number was attached to an agent.' },
+      { name: VukhoEvent.NumberDetached, description: 'A number was detached from an agent.' },
+      { name: VukhoEvent.NumberReleased, description: 'A number was released.' },
+      { name: VukhoEvent.NumberFailed, description: 'A number provisioning attempt failed.' },
     ],
   },
   {
     group: 'Messages',
     events: [
       {
-        name: AgentLineEvent.MessageSent,
+        name: VukhoEvent.MessageSent,
         description: 'An outbound SMS was accepted by the provider.',
       },
-      { name: AgentLineEvent.MessageReceived, description: 'An inbound SMS was received.' },
+      { name: VukhoEvent.MessageReceived, description: 'An inbound SMS was received.' },
       {
-        name: AgentLineEvent.MessageDeliveryUpdated,
+        name: VukhoEvent.MessageDeliveryUpdated,
         description: 'A provider delivery status changed.',
       },
     ],
@@ -104,33 +104,33 @@ export const WEBHOOK_EVENT_CATALOG = [
   {
     group: 'Calls',
     events: [
-      { name: AgentLineEvent.CallStarted, description: 'A call entered active handling.' },
+      { name: VukhoEvent.CallStarted, description: 'A call entered active handling.' },
       {
-        name: AgentLineEvent.CallStatusUpdated,
+        name: VukhoEvent.CallStatusUpdated,
         description: 'A non-terminal provider call status changed.',
       },
       {
-        name: AgentLineEvent.CallTranscriptUpdated,
+        name: VukhoEvent.CallTranscriptUpdated,
         description: 'A call transcript turn was captured.',
       },
-      { name: AgentLineEvent.CallCompleted, description: 'A call completed successfully.' },
-      { name: AgentLineEvent.CallFailed, description: 'A call failed.' },
+      { name: VukhoEvent.CallCompleted, description: 'A call completed successfully.' },
+      { name: VukhoEvent.CallFailed, description: 'A call failed.' },
       {
-        name: AgentLineEvent.CallEnded,
+        name: VukhoEvent.CallEnded,
         description: 'A call reached a terminal non-completed state.',
       },
-      { name: AgentLineEvent.CallTransferred, description: 'A call was transferred.' },
+      { name: VukhoEvent.CallTransferred, description: 'A call was transferred.' },
     ],
   },
   {
     group: 'Conversations',
     events: [
       {
-        name: AgentLineEvent.ConversationCreated,
+        name: VukhoEvent.ConversationCreated,
         description: 'A new SMS or voice conversation started.',
       },
       {
-        name: AgentLineEvent.ConversationUpdated,
+        name: VukhoEvent.ConversationUpdated,
         description: 'A conversation status or metadata changed.',
       },
     ],
@@ -139,32 +139,32 @@ export const WEBHOOK_EVENT_CATALOG = [
     group: 'Contacts',
     events: [
       {
-        name: AgentLineEvent.ContactCreated,
+        name: VukhoEvent.ContactCreated,
         description: 'A contact was created from a phone number.',
       },
-      { name: AgentLineEvent.ContactUpdated, description: 'A contact profile changed.' },
+      { name: VukhoEvent.ContactUpdated, description: 'A contact profile changed.' },
     ],
   },
   {
     group: 'Usage And Billing',
     events: [
       {
-        name: AgentLineEvent.UsageRecorded,
+        name: VukhoEvent.UsageRecorded,
         description: 'A billable usage event was recorded with cost evidence.',
       },
       {
-        name: AgentLineEvent.UsageFinalized,
+        name: VukhoEvent.UsageFinalized,
         description: 'A previously estimated usage event was finalized.',
       },
       {
-        name: AgentLineEvent.UsageVoided,
+        name: VukhoEvent.UsageVoided,
         description: 'A usage event was voided and credited back.',
       },
     ],
   },
   {
     group: 'Testing',
-    events: [{ name: AgentLineEvent.WebhookTest, description: 'A signed test delivery.' }],
+    events: [{ name: VukhoEvent.WebhookTest, description: 'A signed test delivery.' }],
   },
 ];
 
@@ -261,7 +261,7 @@ export class WebhooksService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: AgentLineEvent.WebhookTest,
+      type: VukhoEvent.WebhookTest,
       resourceType: EventResourceType.WebhookEndpoint,
       resourceId: endpoint.id,
       payload: { endpointId: endpoint.id },

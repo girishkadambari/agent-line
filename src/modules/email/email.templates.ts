@@ -7,7 +7,7 @@ export function renderWorkspaceInviteEmail(input: {
   token: string;
 }): RenderedEmail {
   const inviteUrl = buildInviteUrl(input.dashboardUrl, input.token);
-  const subject = `Join ${input.workspaceName} on AgentLine`;
+  const subject = `Join ${input.workspaceName} on Vukho`;
   const escapedWorkspaceName = escapeHtml(input.workspaceName);
   const escapedRole = escapeHtml(input.role);
   const escapedInviteUrl = escapeHtml(inviteUrl);
@@ -19,15 +19,18 @@ export function renderWorkspaceInviteEmail(input: {
       '<html>',
       '<body style="font-family:Arial,sans-serif;color:#111;line-height:1.5">',
       `<h1 style="font-size:20px;margin:0 0 16px">Join ${escapedWorkspaceName}</h1>`,
-      `<p>You have been invited to AgentLine as <strong>${escapedRole}</strong>.</p>`,
+      `<p>You have been invited to Vukho as <strong>${escapedRole}</strong>.</p>`,
       `<p><a href="${escapedInviteUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px">Accept invite</a></p>`,
       `<p style="color:#666;font-size:13px">If the button does not work, open this link: ${escapedInviteUrl}</p>`,
       '</body>',
       '</html>',
     ].join(''),
-    text: [`Join ${input.workspaceName} on AgentLine`, '', `Role: ${input.role}`, `Accept invite: ${inviteUrl}`].join(
-      '\n',
-    ),
+    text: [
+      `Join ${input.workspaceName} on Vukho`,
+      '',
+      `Role: ${input.role}`,
+      `Accept invite: ${inviteUrl}`,
+    ].join('\n'),
   };
 }
 
@@ -80,24 +83,24 @@ function billingAlertContent(input: {
 }) {
   if (input.kind === 'payment_failed') {
     return {
-      subject: 'AgentLine payment needs attention',
+      subject: 'Vukho payment needs attention',
       heading: 'Payment needs attention',
-      body: `A Stripe invoice payment failed${input.invoiceId ? ` for invoice ${input.invoiceId}` : ''}. Update the payment method to keep AgentLine actions running.`,
+      body: `A Stripe invoice payment failed${input.invoiceId ? ` for invoice ${input.invoiceId}` : ''}. Update the payment method to keep Vukho actions running.`,
     };
   }
 
   if (input.kind === 'spend_limit_reached') {
     return {
-      subject: 'AgentLine spend limit reached',
+      subject: 'Vukho spend limit reached',
       heading: 'Spend limit reached',
-      body: `A billable AgentLine action was blocked because the workspace reached its monthly spend limit of ${formatUsd(input.spendLimitCents ?? 0)}.`,
+      body: `A billable Vukho action was blocked because the workspace reached its monthly spend limit of ${formatUsd(input.spendLimitCents ?? 0)}.`,
     };
   }
 
   return {
-    subject: 'AgentLine balance is low',
+    subject: 'Vukho balance is low',
     heading: 'Balance is low',
-    body: `Your AgentLine available balance is ${formatUsd(input.balanceCents ?? 0)}. Add credits to avoid blocked SMS, calls, or number actions.`,
+    body: `Your Vukho available balance is ${formatUsd(input.balanceCents ?? 0)}. Add credits to avoid blocked SMS, calls, or number actions.`,
   };
 }
 

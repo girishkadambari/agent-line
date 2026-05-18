@@ -9,7 +9,7 @@ import { PrismaService } from '../src/modules/prisma/prisma.service';
 import { applyApiBehavior } from './apply-api-behavior';
 
 const describeWithDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-const apiKey = 'sk_test_agentline_e2e';
+const apiKey = 'sk_test_vukho_e2e';
 const twilioAuthToken = 'twilio_e2e_secret';
 const inboundCallbackUrl = 'http://localhost:3001/v1/providers/twilio/sms/inbound';
 const statusCallbackUrl = 'http://localhost:3001/v1/providers/twilio/sms/status';
@@ -164,13 +164,13 @@ async function seedE2eData(prisma: PrismaService) {
   await prisma.workspace.deleteMany({});
 
   await prisma.workspace.create({
-    data: { id: 'ws_e2e', name: 'AgentLine E2E' },
+    data: { id: 'ws_e2e', name: 'Vukho E2E' },
   });
   await prisma.project.create({
     data: { id: 'proj_e2e', workspaceId: 'ws_e2e', name: 'E2E Project' },
   });
   await prisma.user.create({
-    data: { id: 'usr_e2e', email: 'e2e@agentline.dev', name: 'E2E User' },
+    data: { id: 'usr_e2e', email: 'e2e@vukho.dev', name: 'E2E User' },
   });
   await prisma.workspaceMember.create({
     data: { id: 'mem_e2e', workspaceId: 'ws_e2e', userId: 'usr_e2e', role: 'owner' },

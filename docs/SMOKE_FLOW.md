@@ -1,4 +1,4 @@
-# AgentLine Phase 1 Smoke Flow
+# Vukho Phase 1 Smoke Flow
 
 This smoke flow proves the mock backend loop works end to end without Twilio, Telnyx, OpenAI, Stripe, STT, TTS, or real phone credentials.
 
@@ -16,7 +16,7 @@ npm run dev
 Default local values:
 
 - API URL: `http://localhost:3000/v1`
-- API key: `sk_test_agentline_local`
+- API key: `sk_test_vukho_local`
 - Workspace: `ws_local`
 - Project: `proj_local`
 - Seed agent: `agt_support`
@@ -29,8 +29,8 @@ npm run db:topup
 ```
 
 ```bash
-export AGENTLINE_API_URL="http://localhost:3000/v1"
-export AGENTLINE_API_KEY="sk_test_agentline_local"
+export VUKHO_API_URL="http://localhost:3000/v1"
+export VUKHO_API_KEY="sk_test_vukho_local"
 ```
 
 ## Golden Path
@@ -38,7 +38,7 @@ export AGENTLINE_API_KEY="sk_test_agentline_local"
 ### 1. Check Health
 
 ```bash
-curl "$AGENTLINE_API_URL/health"
+curl "$VUKHO_API_URL/health"
 ```
 
 Expected: `status` is `ok`.
@@ -46,8 +46,8 @@ Expected: `status` is `ok`.
 ### 2. Confirm Workspace Scope
 
 ```bash
-curl "$AGENTLINE_API_URL/workspaces/current" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/workspaces/current" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Expected: workspace is `ws_local`.
@@ -57,8 +57,8 @@ Expected: workspace is `ws_local`.
 Seed data includes `agt_support`. To create another agent:
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/agents" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/agents" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name":"Smoke Test Agent","mode":"webhook","voice":"alloy","systemPrompt":"You are a helpful phone agent."}'
 ```
@@ -68,8 +68,8 @@ Expected: returned object has an `id` beginning with `agt_`.
 ### 4. Provision A Mock Number
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/numbers" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/numbers" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"agentId":"agt_support","country":"US","areaCode":"415","capabilities":["sms","voice"]}'
 ```
@@ -84,10 +84,10 @@ Expected:
 ### 5. Send Outbound SMS
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/messages" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/messages" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"agt_support","to":"+14155550123","body":"Hello from AgentLine smoke test."}'
+  -d '{"agentId":"agt_support","to":"+14155550123","body":"Hello from Vukho smoke test."}'
 ```
 
 Expected:
@@ -100,7 +100,7 @@ Expected:
 
 ### 6. Receive Inbound SMS Through Twilio Callback
 
-Inbound SMS must enter AgentLine through the Twilio callback route:
+Inbound SMS must enter Vukho through the Twilio callback route:
 
 ```http
 POST /v1/providers/twilio/sms/inbound
@@ -120,15 +120,15 @@ Expected:
 ### 7. Inspect Conversations
 
 ```bash
-curl "$AGENTLINE_API_URL/conversations" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/conversations" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Use the returned conversation id:
 
 ```bash
-curl "$AGENTLINE_API_URL/conversations/CONVERSATION_ID/messages" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/conversations/CONVERSATION_ID/messages" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Expected: outbound and inbound SMS messages are visible.
@@ -136,8 +136,8 @@ Expected: outbound and inbound SMS messages are visible.
 ### 8. Create Mock Call
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/calls" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/calls" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"agentId":"agt_support","to":"+14155550123"}'
 ```
@@ -153,8 +153,8 @@ Expected:
 ### 9. Inspect Transcript
 
 ```bash
-curl "$AGENTLINE_API_URL/calls/CALL_ID/transcript" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/calls/CALL_ID/transcript" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Expected: transcript turns are ordered by `startedAtMs`.
@@ -162,17 +162,17 @@ Expected: transcript turns are ordered by `startedAtMs`.
 ### 10. Create And Test Webhook
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/webhooks" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/webhooks" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/webhooks/agentline","events":["webhook.test","agent.message.sent","agent.call.completed"]}'
+  -d '{"url":"https://example.com/webhooks/vukho","events":["webhook.test","agent.message.sent","agent.call.completed"]}'
 ```
 
 Then test it:
 
 ```bash
-curl -X POST "$AGENTLINE_API_URL/webhooks/WEBHOOK_ID/test" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY" \
+curl -X POST "$VUKHO_API_URL/webhooks/WEBHOOK_ID/test" \
+  -H "Authorization: Bearer $VUKHO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
@@ -180,19 +180,19 @@ curl -X POST "$AGENTLINE_API_URL/webhooks/WEBHOOK_ID/test" \
 Expected:
 
 - response includes delivery record.
-- response includes `agentline-signature` and `agentline-timestamp` headers in the returned JSON.
+- response includes `vukho-signature` and `vukho-timestamp` headers in the returned JSON.
 - no real HTTP request is sent in Phase 1.
 
 ### 11. Inspect Usage
 
 ```bash
-curl "$AGENTLINE_API_URL/usage" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/usage" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 ```bash
-curl "$AGENTLINE_API_URL/usage/daily" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/usage/daily" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Expected: usage events exist for number, SMS, and voice.
@@ -200,8 +200,8 @@ Expected: usage events exist for number, SMS, and voice.
 ### 12. Inspect Billing Balance
 
 ```bash
-curl "$AGENTLINE_API_URL/billing/balance" \
-  -H "Authorization: Bearer $AGENTLINE_API_KEY"
+curl "$VUKHO_API_URL/billing/balance" \
+  -H "Authorization: Bearer $VUKHO_API_KEY"
 ```
 
 Expected: balance reflects mock usage debits.

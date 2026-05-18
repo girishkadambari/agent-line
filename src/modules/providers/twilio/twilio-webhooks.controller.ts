@@ -19,12 +19,17 @@ interface TwilioSmsStatusWebhookBody {
   SmsSid?: string;
   MessageStatus?: string;
   SmsStatus?: string;
+  ErrorCode?: string;
+  ErrorMessage?: string;
 }
 
 interface TwilioVoiceStatusWebhookBody {
   CallSid?: string;
   CallStatus?: string;
   CallDuration?: string;
+  ErrorCode?: string;
+  ErrorMessage?: string;
+  ErrorMessageText?: string;
 }
 
 interface TwilioVoiceInboundWebhookBody {
@@ -99,6 +104,8 @@ export class TwilioWebhooksController {
         provider: 'twilio',
         providerMessageId,
         status,
+        providerErrorCode: body.ErrorCode,
+        providerErrorText: body.ErrorMessage,
         rawPayload: body as Record<string, unknown>,
       }),
     );
@@ -138,7 +145,7 @@ export class TwilioWebhooksController {
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
       `<Gather input="speech" action="${this.escapeXml(gatherUrl)}" method="POST" timeout="5" speechTimeout="auto">`,
-      '<Say voice="alice">Hello from AgentLine. This is your live phone agent. Please say a short reply after the tone.</Say>',
+      '<Say voice="alice">Hello from Vukho. This is your live phone agent. Please say a short reply after the tone.</Say>',
       '</Gather>',
       '<Say voice="alice">I did not receive a response. Goodbye.</Say>',
       '</Response>',
@@ -169,7 +176,7 @@ export class TwilioWebhooksController {
     return [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
-      '<Say voice="alice">Thanks. AgentLine captured your response and saved it to the call transcript.</Say>',
+      '<Say voice="alice">Thanks. Vukho captured your response and saved it to the call transcript.</Say>',
       '</Response>',
     ].join('');
   }
@@ -196,6 +203,8 @@ export class TwilioWebhooksController {
         providerCallId: body.CallSid,
         status: body.CallStatus,
         durationSeconds: Number.isNaN(durationSeconds) ? undefined : durationSeconds,
+        providerErrorCode: body.ErrorCode,
+        providerErrorText: body.ErrorMessage ?? body.ErrorMessageText,
         rawPayload: body as Record<string, unknown>,
       }),
     );
@@ -212,7 +221,7 @@ export class TwilioWebhooksController {
       return voiceUrl.replace(/\/voice\/inbound$/, '/voice/gather');
     }
 
-    return 'https://example.com/agentline/voice/gather';
+    return 'https://example.com/vukho/voice/gather';
   }
 
   private escapeXml(value: string) {

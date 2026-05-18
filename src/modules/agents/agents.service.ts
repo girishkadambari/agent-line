@@ -6,7 +6,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, EventResourceType } from '../../domain/events';
+import { VukhoEvent, EventResourceType } from '../../domain/events';
 import type { CreateAgentInput, UpdateAgentInput } from '../../domain/schemas';
 import { serializeCall } from '../calls/calls.serializer';
 import { serializeConversation } from '../conversations/conversations.serializer';
@@ -59,7 +59,7 @@ export class AgentsService {
       },
     });
 
-    await this.emitAgentEvent(context, AgentLineEvent.AgentCreated, agent);
+    await this.emitAgentEvent(context, VukhoEvent.AgentCreated, agent);
 
     return serializeAgent(agent);
   }
@@ -115,16 +115,16 @@ export class AgentsService {
           projectId: context.projectId,
           eventType: {
             in: [
-              AgentLineEvent.MessageSent,
-              AgentLineEvent.MessageReceived,
-              AgentLineEvent.MessageDeliveryUpdated,
-              AgentLineEvent.CallStarted,
-              AgentLineEvent.CallCompleted,
-              AgentLineEvent.CallEnded,
-              AgentLineEvent.CallFailed,
-              AgentLineEvent.CallStatusUpdated,
-              AgentLineEvent.CallTransferred,
-              AgentLineEvent.CallTranscriptUpdated,
+              VukhoEvent.MessageSent,
+              VukhoEvent.MessageReceived,
+              VukhoEvent.MessageDeliveryUpdated,
+              VukhoEvent.CallStarted,
+              VukhoEvent.CallCompleted,
+              VukhoEvent.CallEnded,
+              VukhoEvent.CallFailed,
+              VukhoEvent.CallStatusUpdated,
+              VukhoEvent.CallTransferred,
+              VukhoEvent.CallTranscriptUpdated,
             ],
           },
           OR: [
@@ -211,7 +211,7 @@ export class AgentsService {
       },
     });
 
-    await this.emitAgentEvent(context, AgentLineEvent.AgentUpdated, agent);
+    await this.emitAgentEvent(context, VukhoEvent.AgentUpdated, agent);
 
     return serializeAgent(agent);
   }
@@ -224,7 +224,7 @@ export class AgentsService {
       data: { status: 'disabled' },
     });
 
-    await this.emitAgentEvent(context, AgentLineEvent.AgentDisabled, agent);
+    await this.emitAgentEvent(context, VukhoEvent.AgentDisabled, agent);
 
     return serializeAgent(agent);
   }

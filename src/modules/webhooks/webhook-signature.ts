@@ -1,8 +1,8 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
 export interface WebhookSignatureHeaders {
-  'agentline-signature': string;
-  'agentline-timestamp': string;
+  'vukho-signature': string;
+  'vukho-timestamp': string;
 }
 
 export function createWebhookSecret() {
@@ -19,7 +19,7 @@ export function signWebhookPayload(
   const signature = createHmac('sha256', secret).update(signedContent).digest('hex');
 
   return {
-    'agentline-signature': `v1=${signature}`,
-    'agentline-timestamp': String(timestamp),
+    'vukho-signature': `v1=${signature}`,
+    'vukho-timestamp': String(timestamp),
   };
 }

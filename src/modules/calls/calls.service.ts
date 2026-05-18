@@ -5,7 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, AuditAction, EventResourceType } from '../../domain/events';
+import { VukhoEvent, AuditAction, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
 import type { CreateCallInput, CreateWebCallInput, TransferCallInput } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
@@ -105,6 +105,9 @@ export class CallsService {
           outcome: this.terminalCallStatuses.has(providerCall.status) ? providerCall.status : null,
           provider: providerCall.provider,
           providerCallId: providerCall.providerCallId,
+          providerStatus: providerCall.status,
+          providerErrorCode: null,
+          providerErrorText: null,
           endedAt: this.terminalCallStatuses.has(providerCall.status)
             ? new Date(now.getTime() + providerCall.durationSeconds * 1000)
             : null,
@@ -119,8 +122,8 @@ export class CallsService {
         projectId: context.projectId,
         type:
           providerCall.status === 'completed'
-            ? AgentLineEvent.CallCompleted
-            : AgentLineEvent.CallStarted,
+            ? VukhoEvent.CallCompleted
+            : VukhoEvent.CallStarted,
         resourceType: EventResourceType.Call,
         resourceId: call.id,
         payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
@@ -142,14 +145,18 @@ export class CallsService {
       const failedCall = await this.prisma.call
         .update({
           where: { id: callId },
-          data: { status: 'failed', endedAt: new Date() },
+          data: {
+            status: 'failed',
+            endedAt: new Date(),
+            ...this.providerFailureUpdate(error),
+          },
         })
         .catch(() => undefined);
       if (failedCall) {
         const event = await this.events.create({
           workspaceId: context.workspaceId,
           projectId: context.projectId,
-          type: AgentLineEvent.CallFailed,
+          type: VukhoEvent.CallFailed,
           resourceType: EventResourceType.Call,
           resourceId: failedCall.id,
           payload: this.buildCallEventPayload(failedCall, {
@@ -213,6 +220,7 @@ export class CallsService {
       where: { id },
       data: {
         status: providerCall.status,
+        providerStatus: providerCall.status,
         endedAt: existing.endedAt ?? new Date(),
       },
     });
@@ -220,7 +228,7 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: AgentLineEvent.CallEnded,
+      type: VukhoEvent.CallEnded,
       resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
@@ -238,6 +246,8 @@ export class CallsService {
     providerCallId: string;
     status: string;
     durationSeconds?: number;
+    providerErrorCode?: string;
+    providerErrorText?: string;
     rawPayload: Record<string, unknown>;
   }) {
     const status = this.normalizeProviderCallStatus(input.status);
@@ -269,6 +279,9 @@ export class CallsService {
       const settled = await this.settleTerminalCallbackWithoutLifecycleEvent(existing, {
         durationSeconds: input.durationSeconds,
         status,
+        providerStatus: isTerminal ? input.status : undefined,
+        providerErrorCode: isTerminal ? input.providerErrorCode : undefined,
+        providerErrorText: isTerminal ? input.providerErrorText : undefined,
       });
       return { received: true, duplicate: false, ignored: true, call: serializeCall(settled) };
     }
@@ -284,6 +297,9 @@ export class CallsService {
         durationSeconds: input.durationSeconds ?? existing.durationSeconds,
         outcome: isTerminal ? nextStatus : existing.outcome,
         endedAt: isTerminal ? (existing.endedAt ?? new Date()) : existing.endedAt,
+        providerStatus: input.status,
+        providerErrorCode: input.providerErrorCode ?? null,
+        providerErrorText: input.providerErrorText ?? null,
       },
     });
 
@@ -418,6 +434,7 @@ export class CallsService {
         durationSeconds: 0,
         provider: input.provider,
         providerCallId: input.providerCallId,
+        providerStatus: input.status ?? 'in-progress',
         startedAt,
       },
     });
@@ -427,7 +444,7 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: call.workspaceId,
       projectId: call.projectId,
-      type: AgentLineEvent.CallStarted,
+      type: VukhoEvent.CallStarted,
       resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: this.buildCallEventPayload(call, {
@@ -459,12 +476,16 @@ export class CallsService {
     if (!this.terminalCallStatuses.has(call.status) && call.status !== 'in_progress') {
       const updated = await this.prisma.call.update({
         where: { id: call.id },
-        data: { status: 'in_progress', startedAt: call.startedAt ?? new Date() },
+        data: {
+          status: 'in_progress',
+          startedAt: call.startedAt ?? new Date(),
+          providerStatus: 'in-progress',
+        },
       });
       const event = await this.events.create({
         workspaceId: updated.workspaceId,
         projectId: updated.projectId,
-        type: AgentLineEvent.CallStarted,
+        type: VukhoEvent.CallStarted,
         resourceType: EventResourceType.Call,
         resourceId: updated.id,
         payload: this.buildCallEventPayload(updated, { providerStatus: 'in-progress' }),
@@ -549,7 +570,7 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: call.workspaceId,
       projectId: call.projectId,
-      type: AgentLineEvent.CallTranscriptUpdated,
+      type: VukhoEvent.CallTranscriptUpdated,
       resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: {
@@ -585,6 +606,7 @@ export class CallsService {
       where: { id },
       data: {
         status: transfer.status,
+        providerStatus: transfer.status,
         outcome: 'transferred',
         endedAt: existing.endedAt ?? new Date(),
       },
@@ -593,7 +615,7 @@ export class CallsService {
     const event = await this.events.create({
       workspaceId: context.workspaceId,
       projectId: context.projectId,
-      type: AgentLineEvent.CallTransferred,
+      type: VukhoEvent.CallTransferred,
       resourceType: EventResourceType.Call,
       resourceId: call.id,
       payload: this.buildCallEventPayload(call, { transferTo: input.to }),
@@ -627,7 +649,7 @@ export class CallsService {
     const turns = [
       {
         speaker: 'agent' as const,
-        text: 'Hi, this is your AgentLine agent. I am calling to help with your request.',
+        text: 'Hi, this is your Vukho agent. I am calling to help with your request.',
         startedAtMs: 0,
         endedAtMs: 5200,
       },
@@ -684,7 +706,7 @@ export class CallsService {
         projectId: call.projectId,
         callId: call.id,
         speaker: 'agent',
-        text: 'Hello from AgentLine. This is your live phone agent. Please say a short reply after the tone.',
+        text: 'Hello from Vukho. This is your live phone agent. Please say a short reply after the tone.',
         startedAtMs: 0,
         endedAtMs: 5000,
         confidence: 1,
@@ -746,18 +768,18 @@ export class CallsService {
 
   private callLifecycleEventType(status: string) {
     if (status === 'completed') {
-      return AgentLineEvent.CallCompleted;
+      return VukhoEvent.CallCompleted;
     }
     if (status === 'failed') {
-      return AgentLineEvent.CallFailed;
+      return VukhoEvent.CallFailed;
     }
     if (this.terminalCallStatuses.has(status)) {
-      return AgentLineEvent.CallEnded;
+      return VukhoEvent.CallEnded;
     }
     if (status === 'in_progress') {
-      return AgentLineEvent.CallStarted;
+      return VukhoEvent.CallStarted;
     }
-    return AgentLineEvent.CallStatusUpdated;
+    return VukhoEvent.CallStatusUpdated;
   }
 
   private buildCallEventPayload(
@@ -777,6 +799,9 @@ export class CallsService {
       | 'durationSeconds'
       | 'provider'
       | 'providerCallId'
+      | 'providerStatus'
+      | 'providerErrorCode'
+      | 'providerErrorText'
       | 'startedAt'
       | 'endedAt'
     >,
@@ -797,6 +822,9 @@ export class CallsService {
       durationSeconds: call.durationSeconds,
       provider: call.provider,
       providerCallId: call.providerCallId,
+      providerStatus: call.providerStatus,
+      providerErrorCode: call.providerErrorCode,
+      providerErrorText: call.providerErrorText,
       startedAt: call.startedAt?.toISOString() ?? null,
       endedAt: call.endedAt?.toISOString() ?? null,
       ...extra,
@@ -947,7 +975,13 @@ export class CallsService {
 
   private async settleTerminalCallbackWithoutLifecycleEvent(
     existing: Call,
-    input: { durationSeconds?: number; status: CallStatus },
+    input: {
+      durationSeconds?: number;
+      status: CallStatus;
+      providerStatus?: string;
+      providerErrorCode?: string;
+      providerErrorText?: string;
+    },
   ) {
     const shouldSettleDuration =
       input.durationSeconds !== undefined && input.durationSeconds > existing.durationSeconds;
@@ -955,8 +989,19 @@ export class CallsService {
       this.terminalCallStatuses.has(input.status) && existing.status !== input.status;
     const shouldSetOutcome = !existing.outcome && this.terminalCallStatuses.has(input.status);
     const shouldSetEndedAt = !existing.endedAt && this.terminalCallStatuses.has(input.status);
+    const shouldSetProviderDiagnostics =
+      input.providerStatus !== undefined &&
+      (existing.providerStatus !== input.providerStatus ||
+        existing.providerErrorCode !== (input.providerErrorCode ?? null) ||
+        existing.providerErrorText !== (input.providerErrorText ?? null));
 
-    if (!shouldSettleDuration && !shouldSettleStatus && !shouldSetOutcome && !shouldSetEndedAt) {
+    if (
+      !shouldSettleDuration &&
+      !shouldSettleStatus &&
+      !shouldSetOutcome &&
+      !shouldSetEndedAt &&
+      !shouldSetProviderDiagnostics
+    ) {
       return existing;
     }
 
@@ -967,6 +1012,15 @@ export class CallsService {
         durationSeconds: shouldSettleDuration ? input.durationSeconds : existing.durationSeconds,
         outcome: shouldSetOutcome ? input.status : existing.outcome,
         endedAt: shouldSetEndedAt ? new Date() : existing.endedAt,
+        providerStatus: shouldSetProviderDiagnostics
+          ? input.providerStatus
+          : existing.providerStatus,
+        providerErrorCode: shouldSetProviderDiagnostics
+          ? (input.providerErrorCode ?? null)
+          : existing.providerErrorCode,
+        providerErrorText: shouldSetProviderDiagnostics
+          ? (input.providerErrorText ?? null)
+          : existing.providerErrorText,
       },
     });
 
@@ -979,6 +1033,30 @@ export class CallsService {
     }
 
     return call;
+  }
+
+  private providerFailureUpdate(error: unknown) {
+    if (error instanceof ApiException) {
+      return {
+        providerErrorCode: this.stringifyDetail(error.details.code),
+        providerErrorText: this.stringifyDetail(error.details.message) ?? error.message,
+      };
+    }
+
+    return {
+      providerErrorCode: null,
+      providerErrorText: error instanceof Error ? error.message : 'Provider request failed.',
+    };
+  }
+
+  private stringifyDetail(value: unknown) {
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return String(value);
+    }
+    return null;
   }
 
   private async findAgentOrThrow(context: RequestContext, agentId: string) {

@@ -1,13 +1,13 @@
-# AgentLine Sellable Release Plan
+# Vukho Sellable Release Plan
 
 ## Purpose
 
-This document turns the current AgentLine codebase into a market-release plan.
+This document turns the current Vukho codebase into a market-release plan.
 It is written for development execution, product prioritization, and launch
 readiness. The goal is not to build every possible platform feature. The goal is
 to ship a product that a real developer can understand, trust, test, and pay for.
 
-AgentLine's sellable promise is:
+Vukho's sellable promise is:
 
 > Give an AI agent a real phone line, let it send and receive SMS/calls, capture
 > transcript and outcome evidence, deliver signed webhooks, and show exactly what
@@ -92,7 +92,7 @@ The first sellable version should make this demo real:
 10. Deliver signed webhook events.
 11. Show cost, usage evidence, audit trail, and billing state.
 
-If this loop is reliable, AgentLine is sellable even before hosted AI is
+If this loop is reliable, Vukho is sellable even before hosted AI is
 complete.
 
 ## Pending Items By Area
@@ -107,7 +107,7 @@ Implemented:
 - Twilio outbound SMS and outbound call paths.
 - Twilio SMS status callbacks.
 - Twilio voice gather/transcript capture.
-- Inbound Twilio voice call record creation from attached AgentLine numbers.
+- Inbound Twilio voice call record creation from attached Vukho numbers.
 - Agent detail summary and timeline.
 
 Pending:
@@ -261,7 +261,7 @@ Pending:
 
 Launch requirement:
 
-- The dashboard must sell the value of AgentLine while being operationally
+- The dashboard must sell the value of Vukho while being operationally
   useful. It should not feel like a raw developer console.
 
 ### SDK, MCP, Docs, And Examples
@@ -382,7 +382,7 @@ Build:
 Exit criteria:
 
 - Customers can answer "why was I charged?" from the dashboard.
-- Support can reconcile AgentLine usage with Stripe and Twilio evidence.
+- Support can reconcile Vukho usage with Stripe and Twilio evidence.
 
 ## Phase R3: Workspace, Team, And Safety Controls
 
@@ -410,7 +410,7 @@ Exit criteria:
 
 Goal:
 
-Make AgentLine easy to integrate and reliable when customer systems fail.
+Make Vukho easy to integrate and reliable when customer systems fail.
 
 Build:
 
@@ -492,7 +492,7 @@ Build:
 
 Exit criteria:
 
-- Customers choose AgentLine because it improves agent outcomes, not only
+- Customers choose Vukho because it improves agent outcomes, not only
   because it wraps Twilio.
 
 ## Launch Blockers
@@ -513,7 +513,7 @@ orchestration is complete.
 
 Sell this first:
 
-> AgentLine is the phone operations layer for AI agents. Bring your own agent
+> Vukho is the phone operations layer for AI agents. Bring your own agent
 > backend, attach a real number, handle SMS/calls through webhooks, and get
 > transcripts, outcomes, usage, billing, retries, and audit logs out of the box.
 
@@ -523,7 +523,7 @@ This is narrower, clearer, and closer to the current codebase.
 
 Setup:
 
-- Prepare a live demo with one real AgentLine number.
+- Prepare a live demo with one real Vukho number.
 - Show SMS send/receive, outbound call, transcript/outcome, webhook delivery,
   usage evidence, and billing activity.
 - Offer 5 pilot slots with a hard usage cap.

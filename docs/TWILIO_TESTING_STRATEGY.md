@@ -1,6 +1,6 @@
-# AgentLine Twilio Testing Strategy
+# Vukho Twilio Testing Strategy
 
-This document defines how AgentLine should use Twilio for local development,
+This document defines how Vukho should use Twilio for local development,
 staging, automated tests, and production.
 
 Goal:
@@ -32,7 +32,7 @@ Important limitation:
   test credentials against `GET /AvailablePhoneNumbers` returns `403`.
 - Requests to unsupported resources with test credentials return `403`.
 
-Therefore, AgentLine needs two real-provider development modes:
+Therefore, Vukho needs two real-provider development modes:
 
 1. `twilio-test`: Twilio test credentials and magic numbers for REST API success
    and failure cases.
@@ -58,7 +58,7 @@ Use Twilio test credentials for local REST-provider flows:
 - outbound call success/failure
 - provider error normalization
 - billing authorization before provider writes
-- local persistence of normalized AgentLine records
+- local persistence of normalized Vukho records
 
 Use Twilio live-dev credentials plus a tunnel for local webhook flows:
 
@@ -128,11 +128,11 @@ Implementation rule:
 - When `TWILIO_MODE=test`, the Twilio adapter must use
   `TWILIO_TEST_ACCOUNT_SID` and `TWILIO_TEST_AUTH_TOKEN`.
 - Magic numbers should be used to create predictable success/failure scenarios.
-- Local records should still be real AgentLine database records.
+- Local records should still be real Vukho database records.
 
 ## Twilio Magic Number Coverage
 
-AgentLine should support local test cases using Twilio magic values.
+Vukho should support local test cases using Twilio magic values.
 
 Number provisioning:
 
@@ -142,7 +142,7 @@ Number provisioning:
 - area code `500`: at least one number available
 - area code `533`: no available numbers
 
-AgentLine local `TWILIO_MODE=test` provisions the configured magic
+Vukho local `TWILIO_MODE=test` provisions the configured magic
 `TWILIO_FROM_NUMBER` directly with `POST /IncomingPhoneNumbers`. It must not
 call `GET /AvailablePhoneNumbers` in test mode.
 
@@ -178,7 +178,7 @@ For inbound SMS, inbound calls, and real status callbacks:
 7. Verify:
    - Twilio signature validation passes.
    - raw provider event is stored.
-   - normalized AgentLine records are created.
+   - normalized Vukho records are created.
    - usage and billing are recorded.
    - webhook delivery is created.
 
@@ -209,12 +209,12 @@ Build:
 - number provisioning uses magic numbers/area codes
 - outbound SMS uses magic numbers
 - outbound calls use magic numbers
-- provider errors normalize into AgentLine errors
+- provider errors normalize into Vukho errors
 - no status callback expectation in test mode
 
 Exit criteria:
 
-- Local can create real AgentLine records from Twilio test credential responses
+- Local can create real Vukho records from Twilio test credential responses
   without charges.
 
 ### T2: Local Live-Dev Webhook Flow
@@ -231,7 +231,7 @@ Build:
 Exit criteria:
 
 - A local developer can receive a real inbound SMS/call through Twilio into the
-  local AgentLine backend.
+  local Vukho backend.
 
 ### T3: Remove Mock From Product Flows
 

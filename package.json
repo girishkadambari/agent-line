@@ -1,8 +1,8 @@
 {
-  "name": "agent-line",
+  "name": "vukho",
   "version": "0.1.0",
   "private": true,
-  "description": "AgentLine backend: phone infrastructure for AI agents.",
+  "description": "Vukho backend: phone infrastructure for AI agents.",
   "license": "MIT",
   "scripts": {
     "dev": "nest start --watch",
@@ -14,12 +14,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:db": "TEST_DATABASE_URL=postgresql://agentline:agentline@localhost:5433/agentline_test?schema=public DATABASE_URL=postgresql://agentline:agentline@localhost:5433/agentline_test?schema=public jest --config ./test/jest-e2e.json",
+    "test:e2e:db": "TEST_DATABASE_URL=postgresql://vukho:vukho@localhost:5433/vukho_test?schema=public DATABASE_URL=postgresql://vukho:vukho@localhost:5433/vukho_test?schema=public jest --config ./test/jest-e2e.json",
     "db:docker:up": "docker compose up -d postgres postgres-test",
     "db:docker:down": "docker compose down",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:test:push": "DATABASE_URL=postgresql://agentline:agentline@localhost:5433/agentline_test?schema=public prisma db push --accept-data-loss",
+    "db:test:push": "DATABASE_URL=postgresql://vukho:vukho@localhost:5433/vukho_test?schema=public prisma db push --accept-data-loss",
     "db:seed": "tsx prisma/seed.ts",
     "db:topup": "tsx prisma/topup-local-balance.ts",
     "verify": "npm run typecheck && npm run test"

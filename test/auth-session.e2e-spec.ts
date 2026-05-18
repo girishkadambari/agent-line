@@ -28,7 +28,7 @@ describeWithDatabase('Google OAuth sessions with Postgres', () => {
 
     google.exchangeCodeForUser.mockResolvedValue({
       sub: 'google_e2e_user',
-      email: 'session-user@agentline.dev',
+      email: 'session-user@vukho.dev',
       email_verified: true,
       name: 'Session User',
       picture: 'https://example.com/avatar.png',
@@ -64,7 +64,7 @@ describeWithDatabase('Google OAuth sessions with Postgres', () => {
     const callback = await request(app.getHttpServer())
       .get('/v1/auth/google/callback')
       .query({ code: 'google_code_e2e', state })
-      .set('Cookie', selectCookies(start.headers['set-cookie'], ['agentline_oauth_state']))
+      .set('Cookie', selectCookies(start.headers['set-cookie'], ['vukho_oauth_state']))
       .expect(302);
 
     expect(callback.headers.location).toBe('http://localhost:5173');
@@ -81,7 +81,7 @@ describeWithDatabase('Google OAuth sessions with Postgres', () => {
       .get('/v1/users/me')
       .set('Cookie', sessionCookies)
       .expect(200);
-    expect(me.body.data.email).toBe('session-user@agentline.dev');
+    expect(me.body.data.email).toBe('session-user@vukho.dev');
     expect(me.body.data.workspaces).toHaveLength(1);
 
     const createdWorkspace = await request(app.getHttpServer())
@@ -112,7 +112,7 @@ describeWithDatabase('Google OAuth sessions with Postgres', () => {
       .send({
         name: 'Session E2E Agent',
         mode: 'webhook',
-        webhookUrl: 'https://example.com/agentline/session-e2e',
+        webhookUrl: 'https://example.com/vukho/session-e2e',
       })
       .expect(201);
     expect(agent.body.data.name).toBe('Session E2E Agent');
@@ -134,7 +134,7 @@ describeWithDatabase('Google OAuth sessions with Postgres', () => {
     await request(app.getHttpServer())
       .get('/v1/auth/google/callback')
       .query({ code: 'google_code_e2e', state: 'bad_state' })
-      .set('Cookie', 'agentline_oauth_state=expected_state')
+      .set('Cookie', 'vukho_oauth_state=expected_state')
       .expect(400);
   });
 });

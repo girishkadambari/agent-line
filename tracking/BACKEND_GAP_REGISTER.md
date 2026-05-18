@@ -1,4 +1,4 @@
-# AgentLine Backend Gap Register
+# Vukho Backend Gap Register
 
 This file tracks backend gaps that are visible to the dashboard or required
 before production beta. Keep this in sync with the frontend gap register.
@@ -63,7 +63,7 @@ Remaining:
 
 ### Twilio Voice Status Callbacks
 
-Status: partially closed
+Status: closed except recording controls
 
 Implemented:
 
@@ -74,12 +74,15 @@ Implemented:
   settlement, and customer webhook delivery.
 - Calls already in a terminal state cannot be regressed by late provider
   callbacks.
+- Inbound call creation from Twilio voice webhooks.
+- Final billing settlement with explicit adjustment ledger.
+- First-class provider status, provider error code, and provider error text on
+  call and message records.
+- Message/call webhook payloads include normalized provider diagnostics.
 
 Remaining:
 
-- Inbound call creation from Twilio voice webhooks.
 - Recording callbacks and recording consent controls.
-- Final billing settlement with explicit adjustment ledger.
 
 ## Open Gaps
 

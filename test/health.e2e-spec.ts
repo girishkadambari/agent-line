@@ -31,7 +31,7 @@ describe('Health route', () => {
       .expect(200)
       .expect({
         data: {
-          name: 'AgentLine',
+          name: 'Vukho',
           phase: 'production_backend_flows',
           status: 'ok',
         },

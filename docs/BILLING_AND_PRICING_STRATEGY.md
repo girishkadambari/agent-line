@@ -1,12 +1,12 @@
-# AgentLine Billing And Pricing Strategy
+# Vukho Billing And Pricing Strategy
 
 ## Purpose
 
-AgentLine billing must make telecom usage feel predictable. Customers should see a simple plan, clear available funds, transparent rates, and an auditable usage trail. Internally, AgentLine needs versioned price controls so phone number, SMS, voice, recording, hosted agent, and webhook costs can change without rewriting product code.
+Vukho billing must make telecom usage feel predictable. Customers should see a simple plan, clear available funds, transparent rates, and an auditable usage trail. Internally, Vukho needs versioned price controls so phone number, SMS, voice, recording, hosted agent, and webhook costs can change without rewriting product code.
 
 ## Customer-Facing Billing Model
 
-AgentLine should sell as a hybrid SaaS plus usage product:
+Vukho should sell as a hybrid SaaS plus usage product:
 
 - **Subscription plan**: pays for platform access and includes a monthly usage allowance.
 - **Included usage allowance**: consumed before prepaid credits or overage billing.
@@ -31,7 +31,7 @@ These are the current implementation defaults. They are intentionally simple whi
 
 | Usage item | Customer charge | Billing unit | Current trigger |
 | --- | ---: | --- | --- |
-| Phone number provision/import | $1.00 | event | Number is provisioned/imported into AgentLine |
+| Phone number provision/import | $1.00 | event | Number is provisioned/imported into Vukho |
 | Outbound SMS | $0.01 | message | Provider accepts outbound message |
 | Inbound SMS | $0.01 | message | Provider inbound webhook is processed |
 | Voice call | $0.03 | started minute | Final provider duration is settled |
@@ -95,7 +95,7 @@ Rules:
 
 ## Billing Opportunities
 
-AgentLine can monetize more than raw telecom pass-through:
+Vukho can monetize more than raw telecom pass-through:
 
 - **Phone number ownership**: monthly rental, setup/import fee, compliance review fee, reserved-number fee.
 - **SMS**: inbound/outbound markup, high-volume packages, compliance-supported messaging.
@@ -128,7 +128,7 @@ Stripe should own:
 - Webhooks as the payment/subscription source of truth.
 - Optional usage meter events for subscription overages.
 
-AgentLine should own:
+Vukho should own:
 
 - Usage detection.
 - Pricing calculation.

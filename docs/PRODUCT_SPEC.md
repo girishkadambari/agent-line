@@ -1,26 +1,26 @@
-# AgentLine Product Requirements Document
+# Vukho Product Requirements Document
 
 ## 1. Product Identity
 
-**Product name:** AgentLine
+**Product name:** Vukho
 
 **Category:** AI-agent-native phone infrastructure
 
-**One-line positioning:** AgentLine gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
+**One-line positioning:** Vukho gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
 
 **Core promise:** Developers can give any AI agent real phone presence without building telecom orchestration, speech pipelines, conversation storage, webhook retries, usage accounting, and call/message dashboards from scratch.
 
 **Primary wedge:** Developer API-first product.
 
-**Primary product principle:** AgentLine must be value-first. Every feature should help a developer create, operate, inspect, or improve a real AI phone agent. Avoid generic telecom features unless they make agent outcomes better.
+**Primary product principle:** Vukho must be value-first. Every feature should help a developer create, operate, inspect, or improve a real AI phone agent. Avoid generic telecom features unless they make agent outcomes better.
 
 ## 2. Product Thesis
 
-Twilio, Telnyx, and similar providers expose communication primitives: phone numbers, calls, SMS, call control, streams, and carrier plumbing. Voice AI platforms expose voice-agent orchestration. AgentLine should sit above raw telecom and below end-user vertical applications.
+Twilio, Telnyx, and similar providers expose communication primitives: phone numbers, calls, SMS, call control, streams, and carrier plumbing. Voice AI platforms expose voice-agent orchestration. Vukho should sit above raw telecom and below end-user vertical applications.
 
-AgentLine's core abstraction is not the phone call. It is the **agent**.
+Vukho's core abstraction is not the phone call. It is the **agent**.
 
-An agent owns numbers, receives SMS, answers calls, creates transcripts, triggers webhooks, accumulates context, tracks usage, and returns outcomes. This makes AgentLine an operating layer for AI agents that need to interact with the real world over phone and SMS.
+An agent owns numbers, receives SMS, answers calls, creates transcripts, triggers webhooks, accumulates context, tracks usage, and returns outcomes. This makes Vukho an operating layer for AI agents that need to interact with the real world over phone and SMS.
 
 The product wins when a developer can go from "I have an AI agent" to "my agent can call and text people safely" in minutes, then scale into real production with logs, retries, billing controls, provider integrations, and compliance workflows.
 
@@ -49,7 +49,7 @@ The product wins when a developer can go from "I have an AI agent" to "my agent 
 
 ### Painkiller Vs Vitamin
 
-AgentLine is a painkiller for AI builders who already need phone/SMS capabilities and do not want to stitch together multiple low-level systems. It is a vitamin for generic businesses that only need a normal phone system or a no-code receptionist.
+Vukho is a painkiller for AI builders who already need phone/SMS capabilities and do not want to stitch together multiple low-level systems. It is a vitamin for generic businesses that only need a normal phone system or a no-code receptionist.
 
 The strongest initial customer has an urgent job:
 
@@ -60,7 +60,7 @@ The strongest initial customer has an urgent job:
 
 The weakest customer only wants "AI phone calls" with no developer integration, no clear workflow, and no willingness to handle compliance or production details.
 
-## 4. Why AgentLine Is Not A Twilio Clone
+## 4. Why Vukho Is Not A Twilio Clone
 
 Twilio provides powerful communication infrastructure and now has AI voice capabilities such as ConversationRelay. Twilio's abstraction remains communication primitives:
 
@@ -73,7 +73,7 @@ Twilio provides powerful communication infrastructure and now has AI voice capab
 - media streams
 - provider-level logs
 
-AgentLine's abstraction is agent operations:
+Vukho's abstraction is agent operations:
 
 - agents
 - agent-owned phone numbers
@@ -89,7 +89,7 @@ AgentLine's abstraction is agent operations:
 
 ### Advantage Over Using Twilio Directly
 
-AgentLine should provide these concrete advantages:
+Vukho should provide these concrete advantages:
 
 - Faster first agent: create an agent, attach a number, simulate or place a call, and inspect the result.
 - Unified voice and SMS context: calls and messages from the same contact belong to one agent-readable conversation history.
@@ -99,22 +99,22 @@ AgentLine should provide these concrete advantages:
 - Usage by agent: cost and activity should be attributable to each agent, number, channel, and workspace.
 - AI development fit: API docs, SDKs, MCP server, examples, and local testing should be designed for AI-assisted development.
 
-AgentLine should use Twilio or Telnyx as infrastructure providers when useful. It should not make the provider the product identity.
+Vukho should use Twilio or Telnyx as infrastructure providers when useful. It should not make the provider the product identity.
 
 ## 5. Competitive Landscape
 
-| Product | What It Does | AgentLine Position |
+| Product | What It Does | Vukho Position |
 |---|---|---|
-| Twilio | Broad communication APIs for voice, messaging, numbers, streams, and contact-center infrastructure. | AgentLine packages communication around agents, state, transcripts, outcomes, and developer-first workflows. |
-| Twilio ConversationRelay | AI voice orchestration using STT, TTS, and WebSocket interaction with customer applications. | AgentLine should provide a broader agent object model across numbers, SMS, calls, webhooks, usage, hosted mode, dashboard, and SDKs. |
-| Vapi | Developer-first voice AI infrastructure. | AgentLine must differentiate through unified SMS plus voice, number ownership, conversation memory, MCP tools, and backend/provider neutrality. |
-| Retell AI | Voice and chat agents with testing, analytics, webhooks, and usage-based pricing. | AgentLine must compete on agent-native API simplicity, transparent data model, provider adapters, and developer ecosystem. |
-| Bland | AI phone calling platform focused on call automation and business workflows. | AgentLine should stay infrastructure-first and API-first, not campaign-first. |
-| AgentPhone | Closest reference category for phone numbers and communication for AI agents. | AgentLine must be legally distinct and improve through docs, architecture, implementation quality, and focused roadmap. |
+| Twilio | Broad communication APIs for voice, messaging, numbers, streams, and contact-center infrastructure. | Vukho packages communication around agents, state, transcripts, outcomes, and developer-first workflows. |
+| Twilio ConversationRelay | AI voice orchestration using STT, TTS, and WebSocket interaction with customer applications. | Vukho should provide a broader agent object model across numbers, SMS, calls, webhooks, usage, hosted mode, dashboard, and SDKs. |
+| Vapi | Developer-first voice AI infrastructure. | Vukho must differentiate through unified SMS plus voice, number ownership, conversation memory, MCP tools, and backend/provider neutrality. |
+| Retell AI | Voice and chat agents with testing, analytics, webhooks, and usage-based pricing. | Vukho must compete on agent-native API simplicity, transparent data model, provider adapters, and developer ecosystem. |
+| Bland | AI phone calling platform focused on call automation and business workflows. | Vukho should stay infrastructure-first and API-first, not campaign-first. |
+| AgentPhone | Closest reference category for phone numbers and communication for AI agents. | Vukho must be legally distinct and improve through docs, architecture, implementation quality, and focused roadmap. |
 
 ## 6. Business Outcomes
 
-AgentLine should optimize for these measurable business outcomes:
+Vukho should optimize for these measurable business outcomes:
 
 - Reduce time to first working phone agent to under 15 minutes for a developer.
 - Reduce the amount of custom telecom glue code needed for AI agent products.
@@ -125,7 +125,7 @@ AgentLine should optimize for these measurable business outcomes:
 
 ## 7. Product Objects
 
-These are the canonical domain objects for AgentLine.
+These are the canonical domain objects for Vukho.
 
 | Object | Purpose |
 |---|---|
@@ -140,7 +140,7 @@ These are the canonical domain objects for AgentLine.
 | Message | SMS/MMS or future chat message event. |
 | Call | Voice session with lifecycle, transcript, summary, and outcome. |
 | TranscriptTurn | A single speaker turn inside a call. |
-| WebhookEndpoint | Customer endpoint subscribed to AgentLine events. |
+| WebhookEndpoint | Customer endpoint subscribed to Vukho events. |
 | WebhookDelivery | Delivery attempt, retry, success, or failure record. |
 | UsageEvent | Billable or metered unit of usage. |
 | BillingBalance | Credit balance and billing status. |
@@ -172,13 +172,13 @@ Minimum agent fields:
 
 Valid agent modes:
 
-- `hosted`: AgentLine runs the LLM/STT/TTS conversation.
-- `webhook`: AgentLine sends events to the customer's backend and follows returned instructions.
+- `hosted`: Vukho runs the LLM/STT/TTS conversation.
+- `webhook`: Vukho sends events to the customer's backend and follows returned instructions.
 - `web`: Browser call mode for testing or embedded web calls.
 
 ## 9. Core Dashboard
 
-The dashboard must make AgentLine usable without requiring the user to read logs or inspect the database.
+The dashboard must make Vukho usable without requiring the user to read logs or inspect the database.
 
 Required areas:
 
@@ -290,10 +290,10 @@ webhook.delivery.failed
 Webhook headers:
 
 ```http
-X-AgentLine-Webhook-ID: whdel_123
-X-AgentLine-Event-ID: evt_123
-X-AgentLine-Timestamp: 2026-05-06T00:00:00Z
-X-AgentLine-Signature: hmac_sha256(timestamp.body)
+X-Vukho-Webhook-ID: whdel_123
+X-Vukho-Event-ID: evt_123
+X-Vukho-Timestamp: 2026-05-06T00:00:00Z
+X-Vukho-Signature: hmac_sha256(timestamp.body)
 ```
 
 Webhook delivery rules:
@@ -326,7 +326,7 @@ Pricing must be treated as a hypothesis until provider costs, failed call rates,
 
 - Commodity wrapper risk: competitors can copy basic API features.
 - Compliance risk: SMS, 10DLC, consent, call recording, spam, TCPA, HIPAA, and BAA requirements can slow launch.
-- Provider dependency: Twilio/Telnyx errors can become AgentLine customer pain.
+- Provider dependency: Twilio/Telnyx errors can become Vukho customer pain.
 - Thin margin risk: LLM, TTS, STT, telephony, recording, and support costs stack quickly.
 - Demo churn: developers may test once and never move to production.
 

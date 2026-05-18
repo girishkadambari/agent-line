@@ -1,8 +1,8 @@
-# AgentLine Backend Specification
+# Vukho Backend Specification
 
 ## Purpose
 
-This document defines the backend requirements for AgentLine. It should be used by engineers and AI coding agents to implement the API, services, data model, provider adapters, webhooks, usage ledger, and backend behavior without ambiguity.
+This document defines the backend requirements for Vukho. It should be used by engineers and AI coding agents to implement the API, services, data model, provider adapters, webhooks, usage ledger, and backend behavior without ambiguity.
 
 ## Backend Goals
 
@@ -11,7 +11,7 @@ The backend must:
 - Expose a versioned REST API under `/v1`.
 - Support mock mode without external credentials.
 - Keep all public API objects provider-neutral.
-- Normalize provider events into AgentLine domain records.
+- Normalize provider events into Vukho domain records.
 - Create usage events for every billable action.
 - Sign and retry customer webhooks.
 - Support dashboard operations and playground simulations.
@@ -660,7 +660,7 @@ Usage endpoints must support filtering by:
 
 Phase 1 usage creates mock billable events for number provisioning, inbound/outbound SMS, and outbound calls. Billing balance is debited in cents while usage events persist decimal cost fields for future provider reconciliation.
 
-Stripe checkout and portal endpoints require `STRIPE_SECRET_KEY`. The Stripe webhook endpoint requires raw body signature verification with `STRIPE_WEBHOOK_SECRET`; AgentLine balance is credited only after a verified `checkout.session.completed` event.
+Stripe checkout and portal endpoints require `STRIPE_SECRET_KEY`. The Stripe webhook endpoint requires raw body signature verification with `STRIPE_WEBHOOK_SECRET`; Vukho balance is credited only after a verified `checkout.session.completed` event.
 
 ## Provider Adapter Interface
 
@@ -693,13 +693,13 @@ Valid values:
 - `mock`: automated tests and contract tests only.
 - `twilio`: real Twilio REST API adapter. In `TWILIO_MODE=test`, requires `TWILIO_TEST_ACCOUNT_SID` and `TWILIO_TEST_AUTH_TOKEN`. In `TWILIO_MODE=live-dev` or `live`, requires `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`; voice calls also require `TWILIO_VOICE_WEBHOOK_URL` before live use.
 
-Twilio is the first real provider target. The public AgentLine API must not change when switching from mock to Twilio. Provider-specific IDs may be stored internally as `providerNumberId`, `providerMessageId`, or `providerCallId`; public responses should stay normalized around AgentLine objects and statuses.
+Twilio is the first real provider target. The public Vukho API must not change when switching from mock to Twilio. Provider-specific IDs may be stored internally as `providerNumberId`, `providerMessageId`, or `providerCallId`; public responses should stay normalized around Vukho objects and statuses.
 
 Provider safety rules:
 
 - Billable live writes must authorize/debit usage before calling the provider.
 - If the provider fails before creating an external resource, the usage debit must be voided/refunded.
-- If a live phone number is provisioned but local persistence fails, AgentLine must attempt to release the provider number and void the local usage debit.
+- If a live phone number is provisioned but local persistence fails, Vukho must attempt to release the provider number and void the local usage debit.
 - Public serializers must not expose raw provider IDs as top-level API fields.
 
 Twilio SMS callback routes:
@@ -715,7 +715,7 @@ Twilio number provisioning should configure:
 - `TWILIO_MESSAGE_STATUS_CALLBACK_URL`
 - optional `TWILIO_NUMBER_STATUS_CALLBACK_URL`
 
-Inbound/status callbacks must store raw provider payloads in `ProviderRawEvent` and normalize them into AgentLine `Message`, `InternalEvent`, usage, and webhook delivery records.
+Inbound/status callbacks must store raw provider payloads in `ProviderRawEvent` and normalize them into Vukho `Message`, `InternalEvent`, usage, and webhook delivery records.
 
 Local database defaults:
 

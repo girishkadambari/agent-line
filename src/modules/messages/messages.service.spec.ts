@@ -29,6 +29,9 @@ function messageFixture(overrides = {}) {
     status: 'delivered',
     provider: 'mock',
     providerMessageId: 'mock_msg_123',
+    providerStatus: 'delivered',
+    providerErrorCode: null,
+    providerErrorText: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -56,7 +59,15 @@ function createService(prisma: PrismaService) {
   const provider = new MockProviderService();
 
   return {
-    service: new MessagesService(prisma, contacts, conversations, events, provider, usage, webhooks),
+    service: new MessagesService(
+      prisma,
+      contacts,
+      conversations,
+      events,
+      provider,
+      usage,
+      webhooks,
+    ),
     contacts,
     conversations,
     events,
@@ -78,7 +89,9 @@ describe('MessagesService', () => {
         }),
       },
       message: {
-        create: jest.fn().mockResolvedValue(messageFixture({ status: 'sending', providerMessageId: null })),
+        create: jest
+          .fn()
+          .mockResolvedValue(messageFixture({ status: 'sending', providerMessageId: null })),
         update: jest.fn().mockResolvedValue(messageFixture()),
       },
     } as unknown as PrismaService;
@@ -179,6 +192,74 @@ describe('MessagesService', () => {
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'agent.message.received',
+      }),
+    );
+  });
+
+  it('stores provider failure details from Twilio SMS status callbacks', async () => {
+    const prisma = {
+      message: {
+        findFirst: jest.fn().mockResolvedValue(
+          messageFixture({
+            provider: 'twilio',
+            providerMessageId: 'SM123',
+            status: 'sent',
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          messageFixture({
+            provider: 'twilio',
+            providerMessageId: 'SM123',
+            status: 'failed',
+            providerStatus: 'undelivered',
+            providerErrorCode: '30007',
+            providerErrorText: 'Carrier violation.',
+          }),
+        ),
+      },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service, events } = createService(prisma);
+
+    const result = await service.receiveProviderSmsStatus({
+      provider: 'twilio',
+      providerMessageId: 'SM123',
+      status: 'undelivered',
+      providerErrorCode: '30007',
+      providerErrorText: 'Carrier violation.',
+      rawPayload: {
+        MessageSid: 'SM123',
+        MessageStatus: 'undelivered',
+        ErrorCode: '30007',
+        ErrorMessage: 'Carrier violation.',
+      },
+    });
+
+    expect(result.message).toMatchObject({
+      status: 'failed',
+      providerStatus: 'undelivered',
+      providerErrorCode: '30007',
+      providerErrorText: 'Carrier violation.',
+    });
+    expect(prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg_123' },
+      data: expect.objectContaining({
+        status: 'failed',
+        providerStatus: 'undelivered',
+        providerErrorCode: '30007',
+        providerErrorText: 'Carrier violation.',
+      }),
+    });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.message.delivery_updated',
+        payload: expect.objectContaining({
+          providerStatus: 'undelivered',
+          providerErrorCode: '30007',
+          providerErrorText: 'Carrier violation.',
+        }),
       }),
     );
   });

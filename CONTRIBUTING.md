@@ -1,6 +1,6 @@
-# Contributing To AgentLine
+# Contributing To Vukho
 
-AgentLine is docs-first. Before changing behavior, read the relevant document in `docs/`.
+Vukho is docs-first. Before changing behavior, read the relevant document in `docs/`.
 
 ## Development Rules
 

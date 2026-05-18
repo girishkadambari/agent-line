@@ -1,10 +1,10 @@
-# AgentLine Product Roadmap
+# Vukho Product Roadmap
 
 ## Roadmap Principle
 
-AgentLine should be built from the inside out: documentation, domain model, mock product, real providers, hosted AI, developer ecosystem, production safety, then differentiation.
+Vukho should be built from the inside out: documentation, domain model, mock product, real providers, hosted AI, developer ecosystem, production safety, then differentiation.
 
-Do not start with a landing page. Do not start with carrier integrations. The first goal is a usable core product that proves the AgentLine abstraction before real telecom complexity is introduced.
+Do not start with a landing page. Do not start with carrier integrations. The first goal is a usable core product that proves the Vukho abstraction before real telecom complexity is introduced.
 
 ## Phase 0: Product Foundation And Documentation
 
@@ -23,12 +23,12 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 
 **Exit criteria:**
 
-- Another engineer or AI coding agent can understand what AgentLine is, why it exists, who it serves, and what to build first.
+- Another engineer or AI coding agent can understand what Vukho is, why it exists, who it serves, and what to build first.
 - No major product ambiguity remains around core objects, API boundaries, roadmap phases, or initial implementation order.
 
 ## Phase 1: Mock Core Product
 
-**Goal:** Make AgentLine usable without real telecom.
+**Goal:** Make Vukho usable without real telecom.
 
 **Core build:**
 
@@ -84,8 +84,8 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 
 **Exit criteria:**
 
-- A real phone number can be provisioned, attached to an AgentLine agent, and used to send and receive SMS.
-- Provider-specific errors are visible in normalized AgentLine language.
+- A real phone number can be provisioned, attached to a Vukho agent, and used to send and receive SMS.
+- Provider-specific errors are visible in normalized Vukho language.
 - Raw provider events are retained for debugging.
 
 ## Phase 3: Real Voice Infrastructure
@@ -134,7 +134,7 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 
 ## Phase 5: Developer Ecosystem
 
-**Goal:** Make AgentLine easy to integrate and useful for AI-assisted development.
+**Goal:** Make Vukho easy to integrate and useful for AI-assisted development.
 
 **Build:**
 
@@ -151,12 +151,12 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 
 **Exit criteria:**
 
-- Developer can integrate AgentLine from docs and complete a first agent call/SMS flow in under 15 minutes.
+- Developer can integrate Vukho from docs and complete a first agent call/SMS flow in under 15 minutes.
 - AI coding agents can use docs and MCP tools without guessing route shapes or object meanings.
 
 ## Phase 6: Production Safety
 
-**Goal:** Make AgentLine safe for bounded paying beta usage.
+**Goal:** Make Vukho safe for bounded paying beta usage.
 
 **Build:**
 
@@ -196,7 +196,7 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 
 **Exit criteria:**
 
-- Customers choose AgentLine because it improves agent outcomes, not only because setup is easier.
+- Customers choose Vukho because it improves agent outcomes, not only because setup is easier.
 - The product has defensible workflow data, developer integrations, and operational reliability.
 
 ## Phase Dependencies
@@ -217,7 +217,7 @@ Do not start with a landing page. Do not start with carrier integrations. The fi
 - **Milestone B:** Real SMS validates provider integration and billing events.
 - **Milestone C:** Real voice validates full phone-agent lifecycle.
 - **Milestone D:** Hosted mode expands beyond backend-heavy developers.
-- **Milestone E:** SDK/MCP ecosystem makes AgentLine native to AI development workflows.
+- **Milestone E:** SDK/MCP ecosystem makes Vukho native to AI development workflows.
 - **Milestone F:** Production safety enables paying beta.
 - **Milestone G:** Agent memory, outcomes, and templates create long-term defensibility.
 

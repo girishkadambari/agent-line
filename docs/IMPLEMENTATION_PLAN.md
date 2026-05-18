@@ -1,8 +1,8 @@
-# AgentLine Implementation Plan
+# Vukho Implementation Plan
 
 ## Current Phase
 
-AgentLine is in **Phase 1: Mock Core Product**.
+Vukho is in **Phase 1: Mock Core Product**.
 
 The implementation direction is now **backend-only NestJS first**. The React frontend will be built separately later and integrated through the REST API.
 
@@ -25,7 +25,7 @@ Phase 1 must not require Twilio, Telnyx, OpenAI, STT, TTS, Stripe, Redis, or rea
 
 ## Phase 1 Goal
 
-Build a usable mock AgentLine backend where a developer can:
+Build a usable mock Vukho backend where a developer can:
 
 1. Use a seeded workspace/project.
 2. Use a seeded API key.
@@ -88,7 +88,7 @@ Implement Prisma schema for:
 
 Rules:
 
-- Use AgentLine IDs as primary IDs.
+- Use Vukho IDs as primary IDs.
 - Store provider IDs as secondary fields.
 - Use workspace/project scoping.
 - Use UTC timestamps.

@@ -19,14 +19,14 @@ describe('TwilioSignatureService', () => {
       To: '+14155559999',
     };
     const signature = service.createSignature(
-      'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
+      'https://api.vukho.dev/v1/providers/twilio/sms/inbound',
       params,
       'secret',
     );
 
     expect(() =>
       service.verifyCallback({
-        configuredUrl: 'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
+        configuredUrl: 'https://api.vukho.dev/v1/providers/twilio/sms/inbound',
         params,
         signature,
       }),
@@ -38,7 +38,7 @@ describe('TwilioSignatureService', () => {
 
     expect(() =>
       service.verifyCallback({
-        configuredUrl: 'https://api.agentline.dev/v1/providers/twilio/sms/inbound',
+        configuredUrl: 'https://api.vukho.dev/v1/providers/twilio/sms/inbound',
         params: { MessageSid: 'SM123' },
         signature: 'bad-signature',
       }),

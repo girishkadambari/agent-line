@@ -127,7 +127,7 @@ export class StripeClientService {
             product_data: {
               name: this.config.get<string>(
                 'STRIPE_CREDIT_PRODUCT_NAME',
-                'AgentLine prepaid credits',
+                'Vukho prepaid credits',
               ),
             },
           },

@@ -1,8 +1,8 @@
-# AgentLine Stripe Billing Plan
+# Vukho Stripe Billing Plan
 
 ## Purpose
 
-Stripe will handle payment collection, customer payment methods, invoices, receipts, hosted checkout, and customer portal. AgentLine remains the source of truth for telecom usage events, mock/real provider usage, workspace entitlements, and product-level spend controls.
+Stripe will handle payment collection, customer payment methods, invoices, receipts, hosted checkout, and customer portal. Vukho remains the source of truth for telecom usage events, mock/real provider usage, workspace entitlements, and product-level spend controls.
 
 See [`BILLING_AND_PRICING_STRATEGY.md`](BILLING_AND_PRICING_STRATEGY.md) for the customer-facing billing model, rate-card strategy, settlement order, and future internal pricing controls.
 
@@ -13,9 +13,9 @@ Use Stripe in this order:
 1. **Stripe Checkout** for adding credits or starting a paid plan.
 2. **Stripe Customer Portal** for payment method management, invoices, cancellation, and plan changes.
 3. **Stripe webhooks** as the only trusted source for payment lifecycle updates.
-4. **AgentLine usage ledger** as the product usage source of truth.
-5. **AgentLine trial and included-usage allowance grants** for free trial credits and plan credits.
-6. **AgentLine billing balance** as the prepaid credit ledger for top-ups and non-subscription accounts.
+4. **Vukho usage ledger** as the product usage source of truth.
+5. **Vukho trial and included-usage allowance grants** for free trial credits and plan credits.
+6. **Vukho billing balance** as the prepaid credit ledger for top-ups and non-subscription accounts.
 7. **Stripe Billing meter events** as the usage-based subscription settlement layer for overages.
 
 This keeps early implementation fast while still supporting the production path:
@@ -49,7 +49,7 @@ Add Stripe without changing product usage semantics.
 
 ## Current Implementation Contract
 
-AgentLine supports Stripe as the billing provider for signup billing identity,
+Vukho supports Stripe as the billing provider for signup billing identity,
 subscription checkout, prepaid credit top-ups, customer portal, webhooks, usage
 allowances, and optional Stripe meter reporting.
 
@@ -61,15 +61,15 @@ allowances, and optional Stripe meter reporting.
 - Usage settlement order is: trial/included allowance, Stripe metering for active subscriptions, then prepaid balance.
 - Checkout sessions collect one-time payments for balance credits.
 - Checkout `successUrl` and `cancelUrl` are only browser navigation URLs.
-- AgentLine credits balance only from verified Stripe webhooks.
-- AgentLine records usage first with calculation evidence, then optionally reports finalized usage to Stripe meter events.
+- Vukho credits balance only from verified Stripe webhooks.
+- Vukho records usage first with calculation evidence, then optionally reports finalized usage to Stripe meter events.
 - Voice call usage is preauthorized internally and exported to Stripe only after final duration settlement.
 - SMS and number usage are exported immediately after the provider-backed action is accepted.
 - `checkout.session.completed` is the first required production event.
 - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed` are required for subscription plans.
 - All Stripe event ids are stored for idempotency before balance is credited.
 - Duplicate Stripe webhook deliveries return success without crediting twice.
-- Stripe meter event identifiers use the AgentLine `UsageEvent.id` for idempotency and traceability.
+- Stripe meter event identifiers use the Vukho `UsageEvent.id` for idempotency and traceability.
 - Test mode and live mode are explicit through `STRIPE_MODE`.
 - Test mode requires an `sk_test_...` secret key or `rk_test_...` restricted key.
 - Live mode requires an `sk_live_...` secret key or `rk_live_...` restricted key.
@@ -85,12 +85,12 @@ STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
 STRIPE_STARTER_PRICE_ID="price_..."
 STRIPE_GROWTH_PRICE_ID="price_..."
-STRIPE_USAGE_METER_EVENT_NAME="agentline_usage"
+STRIPE_USAGE_METER_EVENT_NAME="vukho_usage"
 ```
 
 ### Current Plan Catalog
 
-AgentLine currently exposes this backend plan catalog from `GET /v1/billing/pricing`
+Vukho currently exposes this backend plan catalog from `GET /v1/billing/pricing`
 and `GET /v1/billing/plans`:
 
 - `free`: 14-day trial, $0/month, $5.00 included usage allowance.
@@ -163,7 +163,7 @@ Customer webhooks are emitted for:
 - `agent.usage.voided`
 
 These events include the serialized `usageEvent` payload so customer systems can
-reconcile AgentLine charges with downstream workflow outcomes.
+reconcile Vukho charges with downstream workflow outcomes.
 
 ## Local Test Flow
 
@@ -300,7 +300,7 @@ Webhook handling rules:
 Start with prepaid credits because telecom has real variable costs:
 
 - Users add balance through Stripe Checkout.
-- Usage debits AgentLine balance.
+- Usage debits Vukho balance.
 - Spend limits prevent runaway agent loops.
 - Later, larger customers can move to invoiced monthly usage.
 
@@ -310,7 +310,7 @@ Avoid Stripe metered billing until:
 - usage categories are final.
 - customers want invoice-based postpaid plans.
 
-When postpaid billing is introduced, keep AgentLine usage rows as the source of
+When postpaid billing is introduced, keep Vukho usage rows as the source of
 truth and use Stripe meter events as the settlement sink. Do not let Stripe be
 the only place where product usage evidence exists.
 

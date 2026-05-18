@@ -8,14 +8,14 @@ const prisma = new PrismaClient();
 async function main() {
   const workspaceId = 'ws_local';
   const projectId = 'proj_local';
-  const seedApiKey = process.env.AGENTLINE_SEED_API_KEY ?? 'sk_test_agentline_local';
+  const seedApiKey = process.env.VUKHO_SEED_API_KEY ?? 'sk_test_vukho_local';
 
   await prisma.workspace.upsert({
     where: { id: workspaceId },
     update: {},
     create: {
       id: workspaceId,
-      name: 'AgentLine Local',
+      name: 'Vukho Local',
     },
   });
 
@@ -31,11 +31,11 @@ async function main() {
   });
 
   const user = await prisma.user.upsert({
-    where: { email: 'local@agentline.dev' },
+    where: { email: 'local@vukho.dev' },
     update: {},
     create: {
       id: 'usr_local',
-      email: 'local@agentline.dev',
+      email: 'local@vukho.dev',
       name: 'Local Developer',
     },
   });
@@ -76,7 +76,7 @@ async function main() {
     update: {
       status: 'active',
       currency: 'USD',
-      description: 'Default AgentLine launch pricing.',
+      description: 'Default Vukho launch pricing.',
       effectiveAt: new Date('2026-05-17T00:00:00.000Z'),
     },
     create: {
@@ -84,7 +84,7 @@ async function main() {
       version: USAGE_PRICING_VERSION,
       status: 'active',
       currency: 'USD',
-      description: 'Default AgentLine launch pricing.',
+      description: 'Default Vukho launch pricing.',
       effectiveAt: new Date('2026-05-17T00:00:00.000Z'),
     },
   });
@@ -146,8 +146,8 @@ async function main() {
       mode: 'webhook',
       systemPrompt: 'You are a concise support agent.',
       voice: 'alloy',
-      beginMessage: 'Hi, this is AgentLine support. How can I help?',
-      webhookUrl: 'https://example.com/agentline/webhook',
+      beginMessage: 'Hi, this is Vukho support. How can I help?',
+      webhookUrl: 'https://example.com/vukho/webhook',
     },
   });
 
@@ -174,13 +174,13 @@ async function main() {
       id: 'wh_local',
       workspaceId,
       projectId,
-      url: 'https://example.com/webhooks/agentline',
+      url: 'https://example.com/webhooks/vukho',
       secret: 'whsec_local',
       events: ['agent.message.*', 'agent.call.*', 'agent.number.*', 'webhook.test'],
     },
   });
 
-  console.log(`Seeded AgentLine local data. API key: ${seedApiKey}`);
+  console.log(`Seeded Vukho local data. API key: ${seedApiKey}`);
 }
 
 main()

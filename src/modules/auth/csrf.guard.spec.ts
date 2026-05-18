@@ -47,7 +47,7 @@ describe('CsrfGuard', () => {
     const { context } = createContext({
       method: 'POST',
       authType: 'session',
-      cookie: 'agentline_csrf=csrf_123',
+      cookie: 'vukho_csrf=csrf_123',
       csrfHeader: 'csrf_456',
     });
 
@@ -59,7 +59,7 @@ describe('CsrfGuard', () => {
     const { context } = createContext({
       method: 'POST',
       authType: 'session',
-      cookie: 'agentline_csrf=csrf_123',
+      cookie: 'vukho_csrf=csrf_123',
       csrfHeader: 'csrf_123',
     });
 

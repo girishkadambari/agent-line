@@ -1,4 +1,4 @@
-# AgentLine Phase Review Checklist
+# Vukho Phase Review Checklist
 
 Use this checklist after every implementation slice.
 
@@ -785,7 +785,7 @@ Status: review
 ### Architecture Review
 
 - [x] Provider-specific logic is isolated behind `TelecomProvider`.
-- [x] Public AgentLine API remains provider-neutral.
+- [x] Public Vukho API remains provider-neutral.
 - [x] mock mode requires no external credentials.
 - [x] Docker DB setup is explicit and repeatable.
 - [x] Frontend code remains outside this backend repo.

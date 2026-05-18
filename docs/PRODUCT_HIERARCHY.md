@@ -1,6 +1,6 @@
-# AgentLine Product Hierarchy
+# Vukho Product Hierarchy
 
-This document defines the ownership hierarchy for AgentLine. Use it when
+This document defines the ownership hierarchy for Vukho. Use it when
 building APIs, dashboard screens, permissions, billing, onboarding, and future
 multi-workspace flows.
 
@@ -183,7 +183,7 @@ A webhook endpoint belongs to a project.
 
 Rules:
 
-- It subscribes to AgentLine events.
+- It subscribes to Vukho events.
 - Deliveries are signed, retried, and logged.
 - Delivery attempts belong to the same workspace/project as the endpoint.
 

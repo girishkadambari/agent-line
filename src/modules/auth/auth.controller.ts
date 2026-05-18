@@ -13,7 +13,7 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { SessionAuthService } from './session-auth.service';
 import { SessionGuard, type SessionUser } from './session.guard';
 
-const oauthStateCookie = 'agentline_oauth_state';
+const oauthStateCookie = 'vukho_oauth_state';
 
 @Controller()
 export class AuthController {

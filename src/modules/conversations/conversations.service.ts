@@ -5,7 +5,7 @@ import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import { AgentLineEvent, EventResourceType } from '../../domain/events';
+import { VukhoEvent, EventResourceType } from '../../domain/events';
 import type { UpdateConversationInput } from '../../domain/schemas';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -61,7 +61,7 @@ export class ConversationsService {
         channel,
       },
     });
-    await this.emitConversationEvent(context, AgentLineEvent.ConversationCreated, conversation);
+    await this.emitConversationEvent(context, VukhoEvent.ConversationCreated, conversation);
 
     return conversation;
   }
@@ -95,7 +95,7 @@ export class ConversationsService {
       },
     });
 
-    await this.emitConversationEvent(context, AgentLineEvent.ConversationUpdated, conversation);
+    await this.emitConversationEvent(context, VukhoEvent.ConversationUpdated, conversation);
 
     return serializeConversation(conversation);
   }
