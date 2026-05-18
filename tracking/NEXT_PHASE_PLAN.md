@@ -2,15 +2,25 @@
 
 ## Current Focus
 
-**Production Backend Flows**
+**Deployment Release Track**
 
-Source of truth:
+Target: production-ready backend deployment today.
 
-- `docs/PRODUCTION_BACKEND_ROADMAP.md`
+Do not add broad platform features in this track. Work only on release blockers
+for the real operating loop:
 
-The backend is moving from mock-first MVP behavior to real production flows:
-Google OAuth/session auth, Twilio telecom, Stripe billing, Brevo transactional
-email, production configuration, provider readiness, security, and deployment.
+1. Twilio inbound/outbound SMS and calls.
+2. Usage evidence, balance checks, and billing settlement.
+3. Stripe subscription, credits, portal, and webhook sync.
+4. Brevo transactional notifications for invite, balance, and billing issues.
+5. Audit evidence for trust-sensitive actions.
+6. Health/readiness checks and deployment verification.
+
+The only active tracking files for release execution are:
+
+- `tracking/NEXT_PHASE_PLAN.md`
+- `tracking/IMPLEMENTATION_LEDGER.md`
+- `tracking/BACKEND_GAP_REGISTER.md`
 
 ## Production Rule
 
@@ -37,9 +47,98 @@ phone and SMS. Prioritize features that make this loop work end to end:
 
 Do not prioritize generic SaaS polish ahead of this operating loop.
 
-## Current Implementation Phase: R1 Real Agent Phone Loop
+## Deployment-Day Implementation Order
 
-Status: in progress.
+### D0: Verify Deployability
+
+Status: active.
+
+Goal: prove the backend can be built, started, configured, and monitored in a
+real environment without mock fallback.
+
+Checklist:
+
+- `npm run typecheck`
+- focused production-flow tests for billing, usage, Twilio callbacks, webhooks,
+  email, and audit
+- `npm run build`
+- Prisma schema generated and deployable
+- `/v1/health` returns ok
+- `/v1/health/providers` returns safe readiness without exposing provider
+  secrets
+- production/staging config rejects mock telecom
+
+### D1: Core Twilio Operating Loop
+
+Goal: real SMS and call operations create records, usage, cost, audit, and
+webhooks.
+
+Checklist:
+
+- inbound SMS is signed, idempotent, and creates contact/conversation/message
+- outbound SMS checks balance before provider write
+- inbound call is signed, idempotent, and creates contact/conversation/call
+- outbound call checks balance before provider write
+- call status callbacks move calls through accurate terminal states
+- provider failures are visible on the first-class message/call record
+- all message/call lifecycle events dispatch signed webhooks
+
+### D2: Billing, Balance, And Stripe
+
+Goal: customers can trust credit, subscription, usage, and payment state.
+
+Checklist:
+
+- one billing service owns allowance, prepaid balance, spend limits, and
+  settlement decisions
+- Stripe Checkout credits balance only from signed webhooks
+- Stripe subscription state syncs from webhooks and safe reconciliation
+- low balance and spend-limit states are detectable
+- usage evidence explains every charge
+
+### D3: Email And Audit Trust Layer
+
+Goal: important workspace and billing events are traceable and notify users.
+
+Checklist:
+
+- Brevo invite email works
+- low balance email works
+- payment failure email works
+- invite/member/API-key/billing/provider changes are audited
+- audit actor labels are understandable to customers
+
+### D4: Deployment Smoke
+
+Goal: one smoke flow proves the release promise.
+
+Checklist:
+
+- sign in
+- create/select workspace
+- create agent
+- import/attach real Twilio number
+- send SMS
+- receive SMS
+- place outbound call
+- receive inbound call
+- see transcript/outcome
+- receive signed webhook
+- see usage/cost/audit/billing evidence
+
+## Current Implementation Phase: D0 Verify Deployability
+
+Status: implemented.
+
+Verified on 2026-05-18:
+
+- `npm run typecheck` passed.
+- `npm test -- billing.service.spec.ts usage.service.spec.ts calls.service.spec.ts messages.service.spec.ts webhooks.service.spec.ts audit.service.spec.ts --runInBand` passed.
+- `npm run build` passed.
+
+Next action: continue with D1/D2 only.
+
+## Recent Completed Work: Real Agent Phone Loop
 
 Implemented in this release phase:
 

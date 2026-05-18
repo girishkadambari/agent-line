@@ -141,6 +141,54 @@ describe('EmailService', () => {
     expect(brevo.send).not.toHaveBeenCalled();
   });
 
+  it('sends billing alerts to workspace billing recipients with idempotency', async () => {
+    const delivery = deliveryFixture({
+      template: 'billing_low_balance',
+      recipientEmail: 'owner@example.com',
+    });
+    const prisma = {
+      workspace: {
+        findUnique: jest.fn().mockResolvedValue({ name: 'AgentLine Local' }),
+      },
+      workspaceMember: {
+        findMany: jest.fn().mockResolvedValue([
+          { user: { email: 'owner@example.com' } },
+          { user: { email: 'owner@example.com' } },
+          { user: { email: 'billing@example.com' } },
+        ]),
+      },
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve(deliveryFixture(data))),
+        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      send: jest.fn().mockResolvedValue({ providerMessageId: 'msg_123' }),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendWorkspaceBillingAlertEmail({
+      workspaceId: 'ws_123',
+      kind: 'low_balance',
+      balanceCents: 250,
+      idempotencyScope: 'balance_below_threshold:2026-05-18',
+    });
+
+    expect(result).toHaveLength(2);
+    expect(brevo.send).toHaveBeenCalledTimes(2);
+    expect(prisma.emailDelivery.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recipientEmail: 'owner@example.com',
+        template: 'billing_low_balance',
+        status: 'queued',
+        idempotencyKey:
+          'billing_alert:ws_123:low_balance:balance_below_threshold:2026-05-18:owner@example.com',
+      }),
+    });
+  });
+
   it('lists email deliveries for the current workspace', async () => {
     const prisma = {
       emailDelivery: {

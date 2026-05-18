@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   BillingAllowanceSource,
   Prisma,
@@ -20,6 +20,7 @@ import type {
   UpdateBillingControlsInput,
 } from '../../domain/schemas';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { serializeUsageEvent } from '../usage/usage.serializer';
 import { BillingRateCardService } from './billing-rate-card.service';
@@ -74,6 +75,19 @@ type UsageSettlementResult = {
   evidence: Record<string, unknown>;
 };
 
+type StripeWebhookResult = {
+  received: true;
+  duplicate: boolean;
+  ignored: boolean;
+  notification?: {
+    type: 'payment_failed';
+    workspaceId: string;
+    amountCents: number;
+    invoiceId?: string;
+    eventId: string;
+  };
+};
+
 @Injectable()
 export class BillingService {
   constructor(
@@ -81,6 +95,7 @@ export class BillingService {
     private readonly stripe: StripeClientService,
     private readonly audit: AuditService,
     private readonly rateCards: BillingRateCardService,
+    @Optional() private readonly email?: EmailService,
   ) {}
 
   async getBalance(context: RequestContext) {
@@ -404,6 +419,12 @@ export class BillingService {
     if (balance.spendLimitCents !== null) {
       const spentCents = await this.getWorkspaceSpentCents(workspaceId);
       if (spentCents + cents > balance.spendLimitCents) {
+        await this.notifySpendLimitReached({
+          workspaceId,
+          cents,
+          spentCents,
+          spendLimitCents: balance.spendLimitCents,
+        });
         throw new ApiException(
           'insufficient_balance',
           'Usage exceeds workspace spend limit.',
@@ -428,15 +449,29 @@ export class BillingService {
     });
 
     if (result.count !== 1) {
+      await this.notifyLowBalance({
+        workspaceId,
+        balanceCents: balance.balanceCents,
+        attemptedDebitCents: cents,
+        reason: 'insufficient_prepaid_balance',
+      });
       throw new ApiException('insufficient_balance', 'Usage exceeds workspace spend limit.', 402, {
         cents,
         balanceCents: balance.balanceCents,
       });
     }
 
-    return this.prisma.billingBalance.findUniqueOrThrow({
+    const updated = await this.prisma.billingBalance.findUniqueOrThrow({
       where: { workspaceId },
     });
+    await this.notifyLowBalance({
+      workspaceId,
+      balanceCents: updated.balanceCents,
+      attemptedDebitCents: cents,
+      reason: 'balance_below_threshold',
+    });
+
+    return updated;
   }
 
   async creditWorkspace(workspaceId: string, cents: number) {
@@ -793,7 +828,7 @@ export class BillingService {
     const event = this.stripe.constructWebhookEvent(rawBody, signature);
 
     try {
-      const result = await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx): Promise<StripeWebhookResult> => {
         const existing = await tx.billingTransaction.findFirst({
           where: {
             provider: 'stripe',
@@ -822,7 +857,12 @@ export class BillingService {
 
         if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
           const handled = await this.handleInvoiceEvent(tx, event);
-          return { received: true, duplicate: false, ignored: !handled };
+          return {
+            received: true,
+            duplicate: false,
+            ignored: !handled.handled,
+            notification: handled.notification,
+          };
         }
 
         const workspaceId = this.workspaceIdFromEvent(event);
@@ -847,7 +887,15 @@ export class BillingService {
         return { received: true, duplicate: false, ignored: true };
       });
 
-      return result;
+      if (result.notification?.type === 'payment_failed') {
+        await this.notifyPaymentFailed(result.notification);
+      }
+
+      return {
+        received: result.received,
+        duplicate: result.duplicate,
+        ignored: result.ignored,
+      };
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
         return { received: true, duplicate: true, ignored: false };
@@ -1209,7 +1257,7 @@ export class BillingService {
     const workspaceId = await this.workspaceIdFromEventOrCustomer(tx, event);
 
     if (!workspaceId) {
-      return false;
+      return { handled: false as const };
     }
 
     const amountCents = Number(stripeObject.amount_paid ?? stripeObject.amount_due ?? 0);
@@ -1245,17 +1293,26 @@ export class BillingService {
     });
 
     if (event.type !== 'invoice.paid') {
-      return true;
+      return {
+        handled: true as const,
+        notification: {
+          type: 'payment_failed' as const,
+          workspaceId,
+          amountCents,
+          invoiceId: String(stripeObject.id ?? ''),
+          eventId: event.id,
+        },
+      };
     }
 
     const subscription = await this.findSubscriptionForStripeObject(tx, workspaceId, stripeObject);
     if (!subscription) {
-      return true;
+      return { handled: true as const };
     }
 
     const plan = this.findPlan(subscription.planKey as BillingPlanKey);
     if (plan.includedUsageCents <= 0) {
-      return true;
+      return { handled: true as const };
     }
 
     const periodStart = this.dateFromUnix(stripeObject.period_start);
@@ -1279,7 +1336,75 @@ export class BillingService {
       },
     });
 
-    return true;
+    return { handled: true as const };
+  }
+
+  private async notifyLowBalance(input: {
+    workspaceId: string;
+    balanceCents: number;
+    attemptedDebitCents: number;
+    reason: string;
+  }) {
+    if (!this.email || input.balanceCents > 500) {
+      return;
+    }
+
+    await this.email
+      .sendWorkspaceBillingAlertEmail({
+        workspaceId: input.workspaceId,
+        kind: 'low_balance',
+        balanceCents: input.balanceCents,
+        amountCents: input.attemptedDebitCents,
+        idempotencyScope: this.dailyIdempotencyScope(input.reason),
+      })
+      .catch(() => undefined);
+  }
+
+  private async notifySpendLimitReached(input: {
+    workspaceId: string;
+    cents: number;
+    spentCents: number;
+    spendLimitCents: number;
+  }) {
+    if (!this.email) {
+      return;
+    }
+
+    await this.email
+      .sendWorkspaceBillingAlertEmail({
+        workspaceId: input.workspaceId,
+        kind: 'spend_limit_reached',
+        amountCents: input.cents,
+        balanceCents: input.spentCents,
+        spendLimitCents: input.spendLimitCents,
+        idempotencyScope: this.dailyIdempotencyScope('spend_limit_reached'),
+      })
+      .catch(() => undefined);
+  }
+
+  private async notifyPaymentFailed(input: {
+    workspaceId: string;
+    amountCents: number;
+    invoiceId?: string;
+    eventId: string;
+  }) {
+    if (!this.email) {
+      return;
+    }
+
+    await this.email
+      .sendWorkspaceBillingAlertEmail({
+        workspaceId: input.workspaceId,
+        kind: 'payment_failed',
+        amountCents: input.amountCents,
+        invoiceId: input.invoiceId,
+        idempotencyScope: input.eventId,
+      })
+      .catch(() => undefined);
+  }
+
+  private dailyIdempotencyScope(reason: string) {
+    return `${reason}:${new Date().toISOString().slice(0, 10)}`;
   }
 
   private async recordBillingAudit(

@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import type { EmailService } from '../email/email.service';
 import { UsageSettlementMode, UsageSettlementStatus, type UsageEvent } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { BillingRateCardService } from './billing-rate-card.service';
@@ -22,7 +23,7 @@ function balanceFixture(overrides = {}) {
 }
 
 describe('BillingService', () => {
-  function createService(prisma: PrismaService, stripeOverrides = {}) {
+  function createService(prisma: PrismaService, stripeOverrides = {}, emailOverrides = {}) {
     const stripe = {
       createCustomer: jest.fn().mockResolvedValue({ id: 'cus_123' }),
       createCheckoutSession: jest.fn().mockResolvedValue({
@@ -81,12 +82,17 @@ describe('BillingService', () => {
         ],
       }),
     } as unknown as BillingRateCardService;
+    const email = {
+      sendWorkspaceBillingAlertEmail: jest.fn().mockResolvedValue([]),
+      ...emailOverrides,
+    } as unknown as EmailService;
 
     return {
-      service: new BillingService(prisma, stripe, audit, rateCards),
+      service: new BillingService(prisma, stripe, audit, rateCards, email),
       stripe,
       audit,
       rateCards,
+      email,
     };
   }
 
@@ -140,7 +146,7 @@ describe('BillingService', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { totalCost: null } }),
       },
     } as unknown as PrismaService;
-    const { service } = createService(prisma);
+    const { service, email } = createService(prisma);
 
     const result = await service.debitWorkspace('ws_123', 25);
 
@@ -154,6 +160,13 @@ describe('BillingService', () => {
         balanceCents: { decrement: 25 },
       },
     });
+    expect(email.sendWorkspaceBillingAlertEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_123',
+        kind: 'low_balance',
+        balanceCents: 475,
+      }),
+    );
   });
 
   it('throws insufficient balance when debit is too high', async () => {
@@ -166,11 +179,18 @@ describe('BillingService', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { totalCost: null } }),
       },
     } as unknown as PrismaService;
-    const { service } = createService(prisma);
+    const { service, email } = createService(prisma);
 
     await expect(service.debitWorkspace('ws_123', 25)).rejects.toMatchObject({
       code: 'insufficient_balance',
     });
+    expect(email.sendWorkspaceBillingAlertEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_123',
+        kind: 'low_balance',
+        balanceCents: 5,
+      }),
+    );
   });
 
   it('checks spend limit against cumulative workspace usage', async () => {
@@ -184,11 +204,19 @@ describe('BillingService', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { totalCost: { toNumber: () => 0.9 } } }),
       },
     } as unknown as PrismaService;
-    const { service } = createService(prisma);
+    const { service, email } = createService(prisma);
 
     await expect(service.debitWorkspace('ws_123', 25)).rejects.toMatchObject({
       code: 'insufficient_balance',
     });
+    expect(email.sendWorkspaceBillingAlertEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_123',
+        kind: 'spend_limit_reached',
+        amountCents: 25,
+        spendLimitCents: 100,
+      }),
+    );
   });
 
   it('settles usage against active trial allowance before prepaid balance', async () => {

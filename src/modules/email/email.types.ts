@@ -22,3 +22,13 @@ export type WorkspaceInviteEmailInput = {
   role: string;
   rawToken: string;
 };
+
+export type WorkspaceBillingAlertEmailInput = {
+  workspaceId: string;
+  kind: 'low_balance' | 'spend_limit_reached' | 'payment_failed';
+  amountCents?: number;
+  balanceCents?: number;
+  spendLimitCents?: number;
+  invoiceId?: string;
+  idempotencyScope: string;
+};

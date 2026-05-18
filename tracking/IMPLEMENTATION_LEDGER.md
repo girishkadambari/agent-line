@@ -1996,3 +1996,39 @@ Verification:
 
 - `npm test -- api-keys.service.spec.ts billing.service.spec.ts workspaces.service.spec.ts --runInBand` passed.
 - `npm run build` passed.
+
+## 2026-05-18: Deployment Release Track Reset
+
+**Status:** implemented
+
+Reason:
+
+- Product work was drifting across docs, UI polish, SDK ideas, billing
+  strategy, and provider internals while the release target is deployment of
+  the real AgentLine operating loop.
+- The active phase tracker needed to point at production deployment only.
+
+Implemented:
+
+- Reframed `tracking/NEXT_PHASE_PLAN.md` around a deployment-day release track.
+- Set the implementation order to:
+  1. D0 verify deployability
+  2. D1 core Twilio operating loop
+  3. D2 billing, balance, and Stripe
+  4. D3 email and audit trust layer
+  5. D4 deployment smoke
+- Kept the active release tracking surface to:
+  - `tracking/NEXT_PHASE_PLAN.md`
+  - `tracking/IMPLEMENTATION_LEDGER.md`
+  - `tracking/BACKEND_GAP_REGISTER.md`
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm test -- billing.service.spec.ts usage.service.spec.ts calls.service.spec.ts messages.service.spec.ts webhooks.service.spec.ts audit.service.spec.ts --runInBand` passed.
+- `npm run build` passed.
+
+Next:
+
+- Continue with D1/D2 only: real Twilio message/call flow, usage evidence,
+  balance checks, Stripe settlement, Brevo notifications, and audit evidence.
