@@ -84,14 +84,35 @@ export class ContactsService {
       return existing;
     }
 
-    const contact = await this.prisma.contact.create({
-      data: {
-        id: createId('ctc'),
-        workspaceId: context.workspaceId,
-        projectId: context.projectId,
-        phoneNumber,
-      },
-    });
+    const contactId = createId('ctc');
+    const contact = await this.prisma.contact
+      .create({
+        data: {
+          id: contactId,
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          phoneNumber,
+        },
+      })
+      .catch(async (error) => {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        return this.prisma.contact.findUniqueOrThrow({
+          where: {
+            projectId_phoneNumber: {
+              projectId: context.projectId,
+              phoneNumber,
+            },
+          },
+        });
+      });
+
+    if (contact.id !== contactId) {
+      return contact;
+    }
+
     await this.emitContactEvent(context, VukhoEvent.ContactCreated, contact);
 
     return contact;
@@ -140,5 +161,9 @@ export class ContactsService {
     }
 
     return contact;
+  }
+
+  private isUniqueConstraintError(error: unknown) {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 }

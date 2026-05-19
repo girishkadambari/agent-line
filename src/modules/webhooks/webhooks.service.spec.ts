@@ -173,7 +173,7 @@ describe('WebhooksService', () => {
     );
   });
 
-  it('delivers matching active endpoint events immediately', async () => {
+  it('queues matching active endpoint events for the retry worker', async () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 204 });
     global.fetch = fetchMock as unknown as typeof fetch;
     const prisma = {
@@ -213,26 +213,26 @@ describe('WebhooksService', () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('succeeded');
+    expect(result[0].status).toBe('pending');
     expect(prisma.webhookEndpoint.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
         status: 'active',
       }),
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/webhooks',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'content-type': 'application/json',
-          'vukho-signature': expect.stringMatching(/^v1=/),
-          'vukho-timestamp': expect.any(String),
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prisma.webhookDelivery.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        status: 'pending',
+        attemptCount: 0,
+        payload: expect.objectContaining({
+          id: 'evt_123',
+          type: 'agent.message.sent',
+          data: { messageId: 'msg_123' },
         }),
-        body: expect.any(String),
       }),
-    );
-    const deliveredPayload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(deliveredPayload).toEqual(
+    });
+    const createDelivery = prisma.webhookDelivery.create as jest.Mock;
+    expect(createDelivery.mock.calls[0][0].data.payload).toEqual(
       expect.objectContaining({
         id: 'evt_123',
         type: 'agent.message.sent',
@@ -243,15 +243,6 @@ describe('WebhooksService', () => {
         data: { messageId: 'msg_123' },
       }),
     );
-    expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
-      where: { id: 'whdel_123' },
-      data: expect.objectContaining({
-        status: 'succeeded',
-        attemptCount: 1,
-        lastStatusCode: 204,
-        lastError: null,
-      }),
-    });
   });
 
   it('delivers events to wildcard endpoint subscriptions', async () => {
@@ -332,13 +323,14 @@ describe('WebhooksService', () => {
 
     expect(result).toHaveLength(2);
     expect(prisma.webhookDelivery.create).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const deliveredPayload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(deliveredPayload.resource).toEqual({ type: 'message', id: 'msg_123' });
-    expect(deliveredPayload.createdAt).toBe('2026-05-07T00:01:00.000Z');
+    expect(fetchMock).not.toHaveBeenCalled();
+    const createDelivery = prisma.webhookDelivery.create as jest.Mock;
+    const queuedPayload = createDelivery.mock.calls[0][0].data.payload;
+    expect(queuedPayload.resource).toEqual({ type: 'message', id: 'msg_123' });
+    expect(queuedPayload.createdAt).toBe('2026-05-07T00:01:00.000Z');
   });
 
-  it('marks real webhook delivery failed when endpoint returns an error', async () => {
+  it('leaves created deliveries pending until the worker sends them', async () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: false, status: 500 });
     global.fetch = fetchMock as unknown as typeof fetch;
     const prisma = {
@@ -376,17 +368,9 @@ describe('WebhooksService', () => {
       payload: { messageId: 'msg_123' },
     });
 
-    expect(result[0].status).toBe('failed');
-    expect(prisma.webhookDelivery.update).toHaveBeenCalledWith({
-      where: { id: 'whdel_123' },
-      data: expect.objectContaining({
-        status: 'failed',
-        attemptCount: 1,
-        lastStatusCode: 500,
-        lastError: 'Webhook endpoint returned HTTP 500.',
-        nextAttemptAt: expect.any(Date),
-      }),
-    });
+    expect(result[0].status).toBe('pending');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prisma.webhookDelivery.update).not.toHaveBeenCalled();
   });
 
   it('retries failed delivery and marks it succeeded', async () => {

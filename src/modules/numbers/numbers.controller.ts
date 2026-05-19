@@ -16,6 +16,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createNumberSchema, importNumberSchema, updateNumberSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
 import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
 import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
@@ -32,6 +33,7 @@ export class NumbersController {
   }
 
   @Post('numbers')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async provisionNumber(
     @CurrentContext() context: RequestContext,
@@ -41,6 +43,7 @@ export class NumbersController {
   }
 
   @Post('numbers/import')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async importNumber(
     @CurrentContext() context: RequestContext,
@@ -55,6 +58,7 @@ export class NumbersController {
   }
 
   @Patch('numbers/:id')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async updateNumber(
     @CurrentContext() context: RequestContext,
@@ -65,12 +69,14 @@ export class NumbersController {
   }
 
   @Delete('numbers/:id')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async releaseNumber(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.numbers.releaseNumber(context, id));
   }
 
   @Post('agents/:id/numbers')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async attachNewNumberToAgent(
     @CurrentContext() context: RequestContext,
@@ -83,6 +89,7 @@ export class NumbersController {
   }
 
   @Delete('agents/:id/numbers/:numberId')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async detachNumberFromAgent(
     @CurrentContext() context: RequestContext,

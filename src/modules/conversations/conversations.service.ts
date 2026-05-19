@@ -51,16 +51,40 @@ export class ConversationsService {
       });
     }
 
-    const conversation = await this.prisma.conversation.create({
-      data: {
-        id: createId('conv'),
-        workspaceId: context.workspaceId,
-        projectId: context.projectId,
-        agentId,
-        contactId,
-        channel,
-      },
-    });
+    const conversationId = createId('conv');
+    const conversation = await this.prisma.conversation
+      .create({
+        data: {
+          id: conversationId,
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          agentId,
+          contactId,
+          channel,
+        },
+      })
+      .catch(async (error) => {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        return this.prisma.conversation.update({
+          where: {
+            projectId_agentId_contactId_channel: {
+              projectId: context.projectId,
+              agentId,
+              contactId,
+              channel,
+            },
+          },
+          data: { lastActivityAt: new Date() },
+        });
+      });
+
+    if (conversation.id !== conversationId) {
+      return conversation;
+    }
+
     await this.emitConversationEvent(context, VukhoEvent.ConversationCreated, conversation);
 
     return conversation;
@@ -139,5 +163,9 @@ export class ConversationsService {
     }
 
     return conversation;
+  }
+
+  private isUniqueConstraintError(error: unknown) {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 }

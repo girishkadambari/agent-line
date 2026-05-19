@@ -5,6 +5,7 @@ import type { WorkspaceRole } from '@prisma/client';
 import type { RequestWithContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
+import { allowApiKeyAuthMetadataKey } from './api-key-auth.decorator';
 import { workspaceRolesMetadataKey } from './workspace-roles.decorator';
 
 @Injectable()
@@ -32,7 +33,20 @@ export class WorkspaceRoleGuard implements CanActivate {
     }
 
     if (requestContext.authType === 'api_key') {
-      return true;
+      const apiKeyAllowed = this.reflector.getAllAndOverride<boolean>(allowApiKeyAuthMetadataKey, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+      if (apiKeyAllowed) {
+        return true;
+      }
+
+      throw new ApiException(
+        'forbidden',
+        'API keys are not allowed for this workspace action.',
+        403,
+      );
     }
 
     if (!requestContext.userId) {

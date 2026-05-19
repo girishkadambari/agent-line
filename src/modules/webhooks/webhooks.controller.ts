@@ -29,6 +29,7 @@ import { WebhooksService } from './webhooks.service';
 
 @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('webhooks')
+@WorkspaceRoles('owner', 'admin', 'developer')
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}
 

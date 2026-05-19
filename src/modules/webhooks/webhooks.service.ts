@@ -1,16 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, type WebhookEndpoint } from '@prisma/client';
+import { isIP } from 'node:net';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
-import {
-  VukhoEvent,
-  VukhoEventPattern,
-  AuditAction,
-  EventResourceType,
-} from '../../domain/events';
+import { VukhoEvent, VukhoEventPattern, AuditAction, EventResourceType } from '../../domain/events';
 import type {
   CreateWebhookInput,
   RetryWebhookDeliveryInput,
@@ -198,6 +194,8 @@ export class WebhooksService {
   }
 
   async createEndpoint(context: RequestContext, input: CreateWebhookInput) {
+    this.assertSafeWebhookUrl(input.url);
+
     const endpoint = await this.prisma.webhookEndpoint.create({
       data: {
         id: createId('wh'),
@@ -219,6 +217,10 @@ export class WebhooksService {
 
   async updateEndpoint(context: RequestContext, id: string, input: UpdateWebhookInput) {
     const existing = await this.findEndpointOrThrow(context, id);
+    if (input.url) {
+      this.assertSafeWebhookUrl(input.url);
+    }
+
     const endpoint = await this.prisma.webhookEndpoint.update({
       where: { id },
       data: {
@@ -325,8 +327,8 @@ export class WebhooksService {
     const payload = this.createPayload(input);
 
     const deliveries = await Promise.all(
-      matchingEndpoints.map(async (endpoint) => {
-        const delivery = await this.prisma.webhookDelivery.create({
+      matchingEndpoints.map((endpoint) =>
+        this.prisma.webhookDelivery.create({
           data: {
             id: createId('whdel'),
             workspaceId: input.workspaceId,
@@ -338,10 +340,8 @@ export class WebhooksService {
             status: 'pending',
             attemptCount: 0,
           },
-        });
-
-        return this.deliver(endpoint, delivery.id, payload);
-      }),
+        }),
+      ),
     );
 
     return deliveries.map(serializeWebhookDelivery);
@@ -599,6 +599,7 @@ export class WebhooksService {
     }
 
     try {
+      this.assertSafeWebhookUrl(endpoint.url);
       const response = await fetch(endpoint.url, {
         method: 'POST',
         headers: {
@@ -735,5 +736,60 @@ export class WebhooksService {
     }
 
     return delivery;
+  }
+
+  private assertSafeWebhookUrl(value: string) {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new ApiException('invalid_request', 'Webhook URL is invalid.', 400);
+    }
+
+    if (parsed.protocol !== 'https:') {
+      throw new ApiException('invalid_request', 'Webhook URL must use HTTPS.', 400, {
+        url: value,
+      });
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      this.isPrivateOrLocalAddress(hostname)
+    ) {
+      throw new ApiException('invalid_request', 'Webhook URL host is not allowed.', 400, {
+        host: parsed.hostname,
+      });
+    }
+  }
+
+  private isPrivateOrLocalAddress(hostname: string) {
+    const normalized = hostname.replace(/^\[(.*)\]$/, '$1');
+    const version = isIP(normalized);
+
+    if (version === 4) {
+      const octets = normalized.split('.').map((part) => Number.parseInt(part, 10));
+      const [first, second] = octets;
+      return (
+        first === 10 ||
+        first === 127 ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168) ||
+        (first === 169 && second === 254) ||
+        first === 0
+      );
+    }
+
+    if (version === 6) {
+      return (
+        normalized === '::1' ||
+        normalized.startsWith('fc') ||
+        normalized.startsWith('fd') ||
+        normalized.startsWith('fe80:')
+      );
+    }
+
+    return false;
   }
 }

@@ -6,6 +6,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { updateConversationSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
 import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
 import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
@@ -27,6 +28,7 @@ export class ConversationsController {
   }
 
   @Patch(':id')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async updateConversation(
     @CurrentContext() context: RequestContext,

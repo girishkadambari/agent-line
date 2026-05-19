@@ -75,6 +75,14 @@ type UsageSettlementResult = {
   evidence: Record<string, unknown>;
 };
 
+type BillingDbClient = PrismaService | Prisma.TransactionClient;
+
+type AllowanceApplication = {
+  allowanceGrantId: string;
+  allowanceSource: BillingAllowanceSource;
+  consumedCents: number;
+};
+
 type StripeWebhookResult = {
   received: true;
   duplicate: boolean;
@@ -223,34 +231,7 @@ export class BillingService {
 
   async createSignupBillingState(workspaceId: string) {
     const account = await this.findOrCreateStripeBillingAccount(workspaceId);
-    const existingTrial = await this.prisma.billingAllowanceGrant.findFirst({
-      where: {
-        workspaceId,
-        source: 'trial',
-      },
-    });
-
-    if (!existingTrial) {
-      const trialPlan = this.findPlan('free');
-      const now = new Date();
-      await this.prisma.billingAllowanceGrant.create({
-        data: {
-          id: createId('balg'),
-          workspaceId,
-          source: 'trial',
-          amountCents: trialPlan.includedUsageCents,
-          currency: 'USD',
-          periodStart: now,
-          periodEnd: new Date(now.getTime() + trialPlan.trialDays * 24 * 60 * 60 * 1000),
-          expiresAt: new Date(now.getTime() + trialPlan.trialDays * 24 * 60 * 60 * 1000),
-          metadata: {
-            planKey: trialPlan.key,
-            providerCustomerId: account.providerCustomerId,
-          } as Prisma.InputJsonValue,
-        },
-      });
-    }
-
+    await this.ensureTrialAllowanceGrant(workspaceId, account.providerCustomerId);
     return account;
   }
 
@@ -409,15 +390,15 @@ export class BillingService {
     return this.stripe.getConfigurationStatus();
   }
 
-  async debitWorkspace(workspaceId: string, cents: number) {
+  async debitWorkspace(workspaceId: string, cents: number, db: BillingDbClient = this.prisma) {
     if (cents <= 0) {
-      return this.findOrCreateWorkspaceBalance(workspaceId);
+      return this.findOrCreateWorkspaceBalance(workspaceId, db);
     }
 
-    const balance = await this.findOrCreateWorkspaceBalance(workspaceId);
+    const balance = await this.findOrCreateWorkspaceBalance(workspaceId, db);
 
     if (balance.spendLimitCents !== null) {
-      const spentCents = await this.getWorkspaceSpentCents(workspaceId);
+      const spentCents = await this.getWorkspaceSpentCents(workspaceId, db);
       if (spentCents + cents > balance.spendLimitCents) {
         await this.notifySpendLimitReached({
           workspaceId,
@@ -438,7 +419,7 @@ export class BillingService {
       }
     }
 
-    const result = await this.prisma.billingBalance.updateMany({
+    const result = await db.billingBalance.updateMany({
       where: {
         workspaceId,
         balanceCents: { gte: cents },
@@ -461,7 +442,7 @@ export class BillingService {
       });
     }
 
-    const updated = await this.prisma.billingBalance.findUniqueOrThrow({
+    const updated = await db.billingBalance.findUniqueOrThrow({
       where: { workspaceId },
     });
     await this.notifyLowBalance({
@@ -474,19 +455,22 @@ export class BillingService {
     return updated;
   }
 
-  async creditWorkspace(workspaceId: string, cents: number) {
-    await this.findOrCreateWorkspaceBalance(workspaceId);
-    return this.prisma.billingBalance.update({
+  async creditWorkspace(workspaceId: string, cents: number, db: BillingDbClient = this.prisma) {
+    await this.findOrCreateWorkspaceBalance(workspaceId, db);
+    return db.billingBalance.update({
       where: { workspaceId },
       data: { balanceCents: { increment: cents } },
     });
   }
 
-  async settleUsageCharge(input: {
-    workspaceId: string;
-    cents: number;
-    occurredAt?: Date;
-  }): Promise<UsageSettlementResult> {
+  async settleUsageCharge(
+    input: {
+      workspaceId: string;
+      cents: number;
+      occurredAt?: Date;
+    },
+    db: BillingDbClient = this.prisma,
+  ): Promise<UsageSettlementResult> {
     if (input.cents <= 0) {
       return {
         settlementMode: UsageSettlementMode.prepaid_balance,
@@ -496,17 +480,25 @@ export class BillingService {
       };
     }
 
-    const allowance = await this.consumeAllowanceGrant({
-      workspaceId: input.workspaceId,
-      cents: input.cents,
-      occurredAt: input.occurredAt ?? new Date(),
-    });
+    const allowance = await this.consumeAllowanceGrants(
+      {
+        workspaceId: input.workspaceId,
+        cents: input.cents,
+        occurredAt: input.occurredAt ?? new Date(),
+      },
+      db,
+    );
 
-    if (allowance) {
-      return allowance;
+    if (allowance.remainingCents === 0) {
+      return {
+        settlementMode: allowance.settlementMode,
+        settlementStatus: 'internal_debited',
+        allowanceGrantId: allowance.allowanceGrantId,
+        evidence: allowance.evidence,
+      };
     }
 
-    const subscription = await this.prisma.billingSubscription.findFirst({
+    const subscription = await db.billingSubscription.findFirst({
       where: {
         workspaceId: input.workspaceId,
         status: { in: ['trialing', 'active'] },
@@ -518,9 +510,12 @@ export class BillingService {
       return {
         settlementMode: UsageSettlementMode.stripe_meter,
         settlementStatus: 'internal_debited',
-        allowanceGrantId: null,
+        allowanceGrantId: allowance.allowanceGrantId,
         evidence: {
           settlementReason: 'active_subscription_metered_overage',
+          allowanceApplications: allowance.applications,
+          allowanceConsumedCents: allowance.consumedCents,
+          remainderCents: allowance.remainingCents,
           subscriptionId: subscription.id,
           providerSubscriptionId: subscription.providerSubscriptionId,
           planKey: subscription.planKey,
@@ -528,12 +523,18 @@ export class BillingService {
       };
     }
 
-    await this.debitWorkspace(input.workspaceId, input.cents);
+    await this.debitWorkspace(input.workspaceId, allowance.remainingCents, db);
     return {
       settlementMode: UsageSettlementMode.prepaid_balance,
       settlementStatus: 'internal_debited',
-      allowanceGrantId: null,
-      evidence: { settlementReason: 'prepaid_balance' },
+      allowanceGrantId: allowance.allowanceGrantId,
+      evidence: {
+        settlementReason:
+          allowance.consumedCents > 0 ? 'allowance_then_prepaid_balance' : 'prepaid_balance',
+        allowanceApplications: allowance.applications,
+        allowanceConsumedCents: allowance.consumedCents,
+        remainderCents: allowance.remainingCents,
+      },
     };
   }
 
@@ -546,82 +547,48 @@ export class BillingService {
       };
     }
 
-    if (deltaCents < 0) {
-      const refundCents = Math.abs(deltaCents);
-      if (event.allowanceGrantId) {
-        await this.prisma.billingAllowanceGrant.update({
-          where: { id: event.allowanceGrantId },
-          data: { consumedCents: { decrement: refundCents } },
-        });
+    return this.runBillingTransaction(async (tx) => {
+      if (deltaCents < 0) {
+        const refundCents = Math.abs(deltaCents);
+        const allowanceRefundCents = await this.refundAllowanceApplications(event, refundCents, tx);
+        const remainingRefundCents = refundCents - allowanceRefundCents;
+
+        if (
+          remainingRefundCents > 0 &&
+          event.settlementMode === UsageSettlementMode.prepaid_balance
+        ) {
+          await this.creditWorkspace(event.workspaceId, remainingRefundCents, tx);
+        }
+
         const result = {
           settlementMode: event.settlementMode,
           allowanceGrantId: event.allowanceGrantId,
           evidence: {
-            settlementReason: 'allowance_refund',
-            allowanceGrantId: event.allowanceGrantId,
+            settlementReason:
+              allowanceRefundCents > 0 ? 'allowance_settlement_refund' : 'settlement_refund',
             refundCents,
+            allowanceRefundCents,
+            prepaidRefundCents:
+              event.settlementMode === UsageSettlementMode.prepaid_balance
+                ? remainingRefundCents
+                : 0,
           },
         };
-        await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+        await this.recordUsageSettlementAdjustment(event, deltaCents, result, tx);
         return result;
       }
 
-      if (event.settlementMode === UsageSettlementMode.prepaid_balance) {
-        await this.creditWorkspace(event.workspaceId, refundCents);
-      }
-
-      const result = {
-        settlementMode: event.settlementMode,
-        allowanceGrantId: event.allowanceGrantId,
-        evidence: { settlementReason: 'settlement_refund', refundCents },
-      };
-      await this.recordUsageSettlementAdjustment(event, deltaCents, result);
+      const result = await this.settleUsageCharge(
+        {
+          workspaceId: event.workspaceId,
+          cents: deltaCents,
+          occurredAt: event.occurredAt,
+        },
+        tx,
+      );
+      await this.recordUsageSettlementAdjustment(event, deltaCents, result, tx);
       return result;
-    }
-
-    if (event.allowanceGrantId) {
-      const grant = await this.prisma.billingAllowanceGrant.findUnique({
-        where: { id: event.allowanceGrantId },
-      });
-      if (grant && grant.amountCents - grant.consumedCents >= deltaCents) {
-        await this.prisma.billingAllowanceGrant.updateMany({
-          where: {
-            id: grant.id,
-            consumedCents: { lte: grant.amountCents - deltaCents },
-          },
-          data: { consumedCents: { increment: deltaCents } },
-        });
-        const result = {
-          settlementMode: event.settlementMode,
-          allowanceGrantId: event.allowanceGrantId,
-          evidence: {
-            settlementReason: 'allowance_delta',
-            allowanceGrantId: event.allowanceGrantId,
-            deltaCents,
-          },
-        };
-        await this.recordUsageSettlementAdjustment(event, deltaCents, result);
-        return result;
-      }
-    }
-
-    if (event.settlementMode === UsageSettlementMode.stripe_meter) {
-      const result = {
-        settlementMode: UsageSettlementMode.stripe_meter,
-        allowanceGrantId: null,
-        evidence: { settlementReason: 'stripe_meter_delta', deltaCents },
-      };
-      await this.recordUsageSettlementAdjustment(event, deltaCents, result);
-      return result;
-    }
-
-    const result = await this.settleUsageCharge({
-      workspaceId: event.workspaceId,
-      cents: deltaCents,
-      occurredAt: event.occurredAt,
     });
-    await this.recordUsageSettlementAdjustment(event, deltaCents, result);
-    return result;
   }
 
   private async recordUsageSettlementAdjustment(
@@ -632,11 +599,12 @@ export class BillingService {
       allowanceGrantId: string | null;
       evidence: Record<string, unknown>;
     },
+    db: BillingDbClient = this.prisma,
   ) {
     const previousTotalCents = this.decimalUsdToCents(event.totalCost);
     const finalTotalCents = previousTotalCents + deltaCents;
 
-    await this.prisma.billingTransaction.create({
+    await db.billingTransaction.create({
       data: {
         id: createId('btxn'),
         workspaceId: event.workspaceId,
@@ -905,8 +873,85 @@ export class BillingService {
     }
   }
 
-  private async getWorkspaceSpentCents(workspaceId: string) {
-    const aggregate = await this.prisma.usageEvent.aggregate({
+  private async runBillingTransaction<T>(
+    callback: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (typeof this.prisma.$transaction === 'function') {
+      return this.prisma.$transaction(callback);
+    }
+
+    return callback(this.prisma as unknown as Prisma.TransactionClient);
+  }
+
+  private async refundAllowanceApplications(
+    event: UsageEvent,
+    refundCents: number,
+    db: BillingDbClient,
+  ) {
+    const applications = this.allowanceApplicationsFromEvent(event);
+    let remainingRefundCents = refundCents;
+    let refundedAllowanceCents = 0;
+
+    for (const application of applications) {
+      if (remainingRefundCents <= 0) {
+        break;
+      }
+
+      const applicationRefundCents = Math.min(application.consumedCents, remainingRefundCents);
+      const result = await db.billingAllowanceGrant.updateMany({
+        where: {
+          id: application.allowanceGrantId,
+          consumedCents: { gte: applicationRefundCents },
+        },
+        data: { consumedCents: { decrement: applicationRefundCents } },
+      });
+
+      if (result.count !== 1) {
+        continue;
+      }
+
+      remainingRefundCents -= applicationRefundCents;
+      refundedAllowanceCents += applicationRefundCents;
+    }
+
+    return refundedAllowanceCents;
+  }
+
+  private allowanceApplicationsFromEvent(event: UsageEvent): AllowanceApplication[] {
+    const evidence = event.evidence as Record<string, unknown> | null;
+    const settlementEvidence = evidence?.settlement as Record<string, unknown> | undefined;
+    const applications =
+      (settlementEvidence?.allowanceApplications as AllowanceApplication[] | undefined) ??
+      (evidence?.allowanceApplications as AllowanceApplication[] | undefined);
+
+    if (Array.isArray(applications)) {
+      return applications
+        .map((application) => ({
+          allowanceGrantId: String(application.allowanceGrantId ?? ''),
+          allowanceSource: application.allowanceSource,
+          consumedCents: Number(application.consumedCents ?? 0),
+        }))
+        .filter((application) => application.allowanceGrantId && application.consumedCents > 0);
+    }
+
+    if (!event.allowanceGrantId) {
+      return [];
+    }
+
+    return [
+      {
+        allowanceGrantId: event.allowanceGrantId,
+        allowanceSource:
+          event.settlementMode === UsageSettlementMode.trial_allowance
+            ? BillingAllowanceSource.trial
+            : BillingAllowanceSource.subscription_included,
+        consumedCents: this.decimalUsdToCents(event.totalCost),
+      },
+    ];
+  }
+
+  private async getWorkspaceSpentCents(workspaceId: string, db: BillingDbClient = this.prisma) {
+    const aggregate = await db.usageEvent.aggregate({
       where: { workspaceId, settlementStatus: { not: 'voided' } },
       _sum: { totalCost: true },
     });
@@ -919,12 +964,22 @@ export class BillingService {
     return Math.round(totalCost.toNumber() * 100);
   }
 
-  private async consumeAllowanceGrant(input: {
-    workspaceId: string;
-    cents: number;
-    occurredAt: Date;
-  }): Promise<UsageSettlementResult | null> {
-    const grants = await this.prisma.billingAllowanceGrant.findMany({
+  private async consumeAllowanceGrants(
+    input: {
+      workspaceId: string;
+      cents: number;
+      occurredAt: Date;
+    },
+    db: BillingDbClient = this.prisma,
+  ): Promise<{
+    consumedCents: number;
+    remainingCents: number;
+    allowanceGrantId: string | null;
+    settlementMode: UsageSettlementMode;
+    applications: AllowanceApplication[];
+    evidence: Record<string, unknown>;
+  }> {
+    const grants = await db.billingAllowanceGrant.findMany({
       where: {
         workspaceId: input.workspaceId,
         source: {
@@ -939,46 +994,63 @@ export class BillingService {
       orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
     });
 
+    const applications: AllowanceApplication[] = [];
+    let remainingToSettleCents = input.cents;
+
     for (const grant of grants) {
       const remainingCents = grant.amountCents - grant.consumedCents;
-      if (remainingCents < input.cents) {
+      if (remainingCents <= 0) {
         continue;
       }
 
-      const result = await this.prisma.billingAllowanceGrant.updateMany({
+      const consumeCents = Math.min(remainingToSettleCents, remainingCents);
+      const result = await db.billingAllowanceGrant.updateMany({
         where: {
           id: grant.id,
-          consumedCents: { lte: grant.amountCents - input.cents },
+          consumedCents: { lte: grant.amountCents - consumeCents },
         },
-        data: { consumedCents: { increment: input.cents } },
+        data: { consumedCents: { increment: consumeCents } },
       });
 
       if (result.count !== 1) {
         continue;
       }
 
-      return {
-        settlementMode:
-          grant.source === BillingAllowanceSource.trial
-            ? UsageSettlementMode.trial_allowance
-            : UsageSettlementMode.included_allowance,
-        settlementStatus: 'internal_debited',
+      applications.push({
         allowanceGrantId: grant.id,
-        evidence: {
-          settlementReason:
-            grant.source === BillingAllowanceSource.trial
-              ? 'trial_allowance'
-              : 'subscription_included_allowance',
-          allowanceGrantId: grant.id,
-          allowanceSource: grant.source,
-          consumedCents: input.cents,
-          remainingBeforeCents: remainingCents,
-          remainingAfterCents: remainingCents - input.cents,
-        },
-      };
+        allowanceSource: grant.source,
+        consumedCents: consumeCents,
+      });
+      remainingToSettleCents -= consumeCents;
+
+      if (remainingToSettleCents <= 0) {
+        break;
+      }
     }
 
-    return null;
+    const consumedCents = input.cents - remainingToSettleCents;
+    const firstApplication = applications[0] ?? null;
+    const settlementMode =
+      firstApplication?.allowanceSource === BillingAllowanceSource.trial
+        ? UsageSettlementMode.trial_allowance
+        : UsageSettlementMode.included_allowance;
+
+    return {
+      consumedCents,
+      remainingCents: remainingToSettleCents,
+      allowanceGrantId: firstApplication?.allowanceGrantId ?? null,
+      settlementMode,
+      applications,
+      evidence: {
+        settlementReason:
+          settlementMode === UsageSettlementMode.trial_allowance
+            ? 'trial_allowance'
+            : 'subscription_included_allowance',
+        allowanceApplications: applications,
+        allowanceConsumedCents: consumedCents,
+        remainderCents: remainingToSettleCents,
+      },
+    };
   }
 
   private createCostWhere(
@@ -1022,8 +1094,11 @@ export class BillingService {
     return Math.round(value.toNumber() * 100);
   }
 
-  private async findOrCreateWorkspaceBalance(workspaceId: string) {
-    const existing = await this.prisma.billingBalance.findUnique({
+  private async findOrCreateWorkspaceBalance(
+    workspaceId: string,
+    db: BillingDbClient = this.prisma,
+  ) {
+    const existing = await db.billingBalance.findUnique({
       where: { workspaceId },
     });
 
@@ -1031,14 +1106,24 @@ export class BillingService {
       return existing;
     }
 
-    return this.prisma.billingBalance.create({
-      data: {
-        id: createId('bal'),
-        workspaceId,
-        currency: 'USD',
-        balanceCents: 500,
-      },
-    });
+    try {
+      return await db.billingBalance.create({
+        data: {
+          id: createId('bal'),
+          workspaceId,
+          currency: 'USD',
+          balanceCents: 500,
+        },
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      return db.billingBalance.findUniqueOrThrow({
+        where: { workspaceId },
+      });
+    }
   }
 
   private async findOrCreateStripeBillingAccount(workspaceId: string) {
@@ -1064,16 +1149,79 @@ export class BillingService {
       name: workspace?.name ?? workspaceId,
     });
 
-    return this.prisma.billingAccount.create({
-      data: {
-        id: createId('bacc'),
+    try {
+      return await this.prisma.billingAccount.create({
+        data: {
+          id: createId('bacc'),
+          workspaceId,
+          provider: 'stripe',
+          providerCustomerId: customer.id,
+          status: 'active',
+          defaultCurrency: 'USD',
+        },
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      return this.prisma.billingAccount.findUniqueOrThrow({
+        where: {
+          workspaceId_provider: {
+            workspaceId,
+            provider: 'stripe',
+          },
+        },
+      });
+    }
+  }
+
+  private async ensureTrialAllowanceGrant(workspaceId: string, providerCustomerId: string) {
+    const existingTrial = await this.prisma.billingAllowanceGrant.findFirst({
+      where: {
         workspaceId,
-        provider: 'stripe',
-        providerCustomerId: customer.id,
-        status: 'active',
-        defaultCurrency: 'USD',
+        source: 'trial',
       },
     });
+
+    if (existingTrial) {
+      return existingTrial;
+    }
+
+    const trialPlan = this.findPlan('free');
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + trialPlan.trialDays * 24 * 60 * 60 * 1000);
+
+    try {
+      return await this.prisma.billingAllowanceGrant.create({
+        data: {
+          id: createId('balg'),
+          workspaceId,
+          source: 'trial',
+          idempotencyKey: this.allowanceIdempotencyKey('trial', workspaceId),
+          amountCents: trialPlan.includedUsageCents,
+          currency: 'USD',
+          periodStart: now,
+          periodEnd,
+          expiresAt: periodEnd,
+          metadata: {
+            planKey: trialPlan.key,
+            providerCustomerId,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      return this.prisma.billingAllowanceGrant.findFirstOrThrow({
+        where: {
+          workspaceId,
+          source: 'trial',
+        },
+      });
+    }
   }
 
   private async handleCheckoutCompleted(tx: Prisma.TransactionClient, event: StripeWebhookEvent) {
@@ -1317,19 +1465,25 @@ export class BillingService {
 
     const periodStart = this.dateFromUnix(stripeObject.period_start);
     const periodEnd = this.dateFromUnix(stripeObject.period_end);
-    await tx.billingAllowanceGrant.create({
-      data: {
+    const invoiceId = String(stripeObject.id ?? '');
+    await tx.billingAllowanceGrant.upsert({
+      where: {
+        idempotencyKey: this.allowanceIdempotencyKey('stripe_invoice', invoiceId),
+      },
+      update: {},
+      create: {
         id: createId('balg'),
         workspaceId,
         subscriptionId: subscription.id,
         source: 'subscription_included',
+        idempotencyKey: this.allowanceIdempotencyKey('stripe_invoice', invoiceId),
         amountCents: plan.includedUsageCents,
         currency: String(stripeObject.currency ?? 'usd').toUpperCase(),
         periodStart,
         periodEnd,
         expiresAt: periodEnd,
         metadata: {
-          invoiceId: stripeObject.id,
+          invoiceId,
           planKey: plan.key,
           providerSubscriptionId: subscription.providerSubscriptionId,
         } as Prisma.InputJsonValue,
@@ -1405,6 +1559,10 @@ export class BillingService {
 
   private dailyIdempotencyScope(reason: string) {
     return `${reason}:${new Date().toISOString().slice(0, 10)}`;
+  }
+
+  private allowanceIdempotencyKey(source: string, key: string) {
+    return `${source}:${key}`;
   }
 
   private async recordBillingAudit(

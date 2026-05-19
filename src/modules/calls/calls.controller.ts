@@ -17,6 +17,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createCallSchema, createWebCallSchema, transferCallSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
 import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
 import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
@@ -28,6 +29,7 @@ export class CallsController {
   constructor(private readonly calls: CallsService) {}
 
   @Post()
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async createCall(
     @CurrentContext() context: RequestContext,
@@ -37,6 +39,7 @@ export class CallsController {
   }
 
   @Post('web')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async createWebCallToken(
     @CurrentContext() context: RequestContext,
@@ -56,12 +59,14 @@ export class CallsController {
   }
 
   @Post(':id/end')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async endCall(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.calls.endCall(context, id));
   }
 
   @Post(':id/transfer')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async transferCall(
     @CurrentContext() context: RequestContext,

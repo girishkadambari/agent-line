@@ -27,6 +27,7 @@ import { WorkspacesService } from './workspaces.service';
 
 @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('workspaces/current')
+@WorkspaceRoles('owner', 'admin', 'developer', 'billing', 'viewer', 'member')
 export class WorkspacesController {
   constructor(private readonly workspaces: WorkspacesService) {}
 

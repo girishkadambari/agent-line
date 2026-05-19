@@ -16,6 +16,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createAgentSchema, updateAgentSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
 import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
 import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
@@ -32,6 +33,7 @@ export class AgentsController {
   }
 
   @Post()
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async createAgent(
     @CurrentContext() context: RequestContext,
@@ -56,6 +58,7 @@ export class AgentsController {
   }
 
   @Patch(':id')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async updateAgent(
     @CurrentContext() context: RequestContext,
@@ -66,6 +69,7 @@ export class AgentsController {
   }
 
   @Delete(':id')
+  @AllowApiKeyAuth()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async disableAgent(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.agents.disableAgent(context, id));

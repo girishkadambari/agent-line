@@ -26,6 +26,7 @@ export type ApiErrorCode =
   | 'not_found'
   | 'invalid_request'
   | 'provider_error'
+  | 'internal_error'
   | 'insufficient_balance'
   | 'rate_limited'
   | 'conflict';

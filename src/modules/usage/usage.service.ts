@@ -59,56 +59,62 @@ export class UsageService {
     }
 
     const totalCents = Math.ceil(input.quantity * unitCostCents);
-    const settlement = await this.billing.settleUsageCharge({
-      workspaceId: input.workspaceId,
-      cents: totalCents,
-      occurredAt: input.occurredAt,
-    });
-    const shouldReportToStripe =
-      input.reportToStripe !== false && settlement.settlementMode === 'stripe_meter';
-
-    const usageEvent = await this.prisma.usageEvent.create({
-      data: {
-        id: createId('use'),
+    const usageEvent = await this.runUsageTransaction(async (tx) => {
+      const db = tx ?? this.prisma;
+      const settlementInput = {
         workspaceId: input.workspaceId,
-        projectId: input.projectId,
-        agentId: input.agentId,
-        resourceType: input.resourceType,
-        resourceId: input.resourceId,
-        channel: input.channel,
-        quantity: new Decimal(input.quantity),
-        billableQuantity: new Decimal(input.quantity),
-        unit: input.unit,
-        unitCost: new Decimal(centsToUsdDecimal(unitCostCents)),
-        totalCost: new Decimal(centsToUsdDecimal(totalCents)),
-        pricingVersion,
-        settlementMode: settlement.settlementMode,
-        settlementStatus: settlement.settlementStatus,
-        allowanceGrantId: settlement.allowanceGrantId,
-        calculation: {
-          pricingVersion,
-          pricingSource,
-          rateKey: input.rateKey ?? null,
-          formula,
-          quantity: input.quantity,
-          billableQuantity: input.quantity,
-          unit: input.unit,
-          unitCostCents,
-          totalCents,
-          settlementMode: settlement.settlementMode,
-          ...input.calculation,
-        } as Prisma.InputJsonValue,
-        evidence: {
-          detectedAt: (input.occurredAt ?? new Date()).toISOString(),
+        cents: totalCents,
+        occurredAt: input.occurredAt,
+      };
+      const settlement = tx
+        ? await this.billing.settleUsageCharge(settlementInput, tx)
+        : await this.billing.settleUsageCharge(settlementInput);
+
+      return db.usageEvent.create({
+        data: {
+          id: createId('use'),
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          agentId: input.agentId,
           resourceType: input.resourceType,
           resourceId: input.resourceId,
           channel: input.channel,
-          settlement: settlement.evidence,
-          ...input.evidence,
-        } as Prisma.InputJsonValue,
-        occurredAt: input.occurredAt ?? new Date(),
-      },
+          quantity: new Decimal(input.quantity),
+          billableQuantity: new Decimal(input.quantity),
+          unit: input.unit,
+          unitCost: new Decimal(centsToUsdDecimal(unitCostCents)),
+          totalCost: new Decimal(centsToUsdDecimal(totalCents)),
+          pricingVersion,
+          settlementMode: settlement.settlementMode,
+          settlementStatus: settlement.settlementStatus,
+          allowanceGrantId: settlement.allowanceGrantId,
+          calculation: {
+            pricingVersion,
+            pricingSource,
+            rateKey: input.rateKey ?? null,
+            formula,
+            quantity: input.quantity,
+            billableQuantity: input.quantity,
+            unit: input.unit,
+            unitCostCents,
+            totalCents,
+            settlementMode: settlement.settlementMode,
+            ...input.calculation,
+          } as Prisma.InputJsonValue,
+          evidence: {
+            detectedAt: (input.occurredAt ?? new Date()).toISOString(),
+            resourceType: input.resourceType,
+            resourceId: input.resourceId,
+            channel: input.channel,
+            settlement: settlement.evidence,
+            ...input.evidence,
+          } as Prisma.InputJsonValue,
+          occurredAt: input.occurredAt ?? new Date(),
+        },
+      });
     });
+    const shouldReportToStripe =
+      input.reportToStripe !== false && usageEvent.settlementMode === 'stripe_meter';
 
     if (!shouldReportToStripe) {
       await this.emitUsageEvent(VukhoEvent.UsageRecorded, usageEvent);
@@ -425,5 +431,15 @@ export class UsageService {
     });
 
     await this.webhooks.createDeliveriesForEvent(internalEvent);
+  }
+
+  private runUsageTransaction<T>(
+    callback: (tx?: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (typeof this.prisma.$transaction === 'function') {
+      return this.prisma.$transaction(callback);
+    }
+
+    return callback();
   }
 }

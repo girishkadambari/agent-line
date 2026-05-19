@@ -36,6 +36,7 @@ const rawEnvSchema = z
     STRIPE_STARTER_PRICE_ID: z.string().optional(),
     STRIPE_GROWTH_PRICE_ID: z.string().optional(),
     STRIPE_USAGE_METER_EVENT_NAME: z.string().optional(),
+    CORS_ORIGINS: z.string().optional(),
     WEBHOOK_RETRY_WORKER_ENABLED: z.string().optional(),
     WEBHOOK_RETRY_WORKER_INTERVAL_MS: z.string().optional(),
     WEBHOOK_RETRY_WORKER_BATCH_SIZE: z.string().optional(),

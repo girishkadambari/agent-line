@@ -252,6 +252,7 @@ model Conversation {
   messages       Message[]
   calls          Call[]
 
+  @@unique([projectId, agentId, contactId, channel])
   @@index([workspaceId, projectId])
   @@index([agentId, contactId])
 }
@@ -511,6 +512,7 @@ model BillingAllowanceGrant {
   workspaceId    String
   subscriptionId String?
   source         BillingAllowanceSource
+  idempotencyKey String?                @unique
   amountCents    Int
   consumedCents  Int                    @default(0)
   currency       String                 @default("USD")

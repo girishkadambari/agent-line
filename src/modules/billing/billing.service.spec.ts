@@ -343,12 +343,23 @@ describe('BillingService', () => {
   it('records a billing transaction when final voice settlement adds allowance usage', async () => {
     const prisma = {
       billingAllowanceGrant: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'balg_trial',
-          workspaceId: 'ws_123',
-          amountCents: 500,
-          consumedCents: 100,
-        }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'balg_trial',
+            workspaceId: 'ws_123',
+            subscriptionId: null,
+            source: 'trial',
+            amountCents: 500,
+            consumedCents: 100,
+            currency: 'USD',
+            periodStart: now,
+            periodEnd: new Date('2026-05-21T00:00:00.000Z'),
+            expiresAt: new Date('2026-05-21T00:00:00.000Z'),
+            metadata: {},
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       billingTransaction: {
@@ -381,9 +392,9 @@ describe('BillingService', () => {
       settlementMode: UsageSettlementMode.trial_allowance,
       allowanceGrantId: 'balg_trial',
       evidence: {
-        settlementReason: 'allowance_delta',
-        allowanceGrantId: 'balg_trial',
-        deltaCents: 3,
+        settlementReason: 'trial_allowance',
+        allowanceConsumedCents: 3,
+        remainderCents: 0,
       },
     });
     expect(prisma.billingAllowanceGrant.updateMany).toHaveBeenCalledWith({
