@@ -559,9 +559,7 @@ describe('CallsService', () => {
         findFirst: jest
           .fn()
           .mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
-        update: jest
-          .fn()
-          .mockResolvedValue(callFixture({ summary: 'Caller said: Hello Vukho' })),
+        update: jest.fn().mockResolvedValue(callFixture({ summary: 'Caller said: Hello Vukho' })),
       },
       transcriptTurn: {
         findFirst: jest
@@ -572,6 +570,9 @@ describe('CallsService', () => {
           .fn()
           .mockResolvedValue(transcriptTurnFixture({ speaker: 'user', text: 'Hello Vukho' })),
       },
+      providerRawEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'prevt_123' }),
+      },
     } as unknown as PrismaService;
     const { service, events } = createService(prisma);
 
@@ -580,8 +581,19 @@ describe('CallsService', () => {
       providerCallId: 'CA123',
       speechResult: 'Hello Vukho',
       confidence: 0.92,
+      rawPayload: { CallSid: 'CA123', SpeechResult: 'Hello Vukho', Confidence: '0.92' },
     });
 
+    expect(prisma.providerRawEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        provider: 'twilio',
+        providerEventId: expect.stringMatching(/^CA123:voice:gather:/),
+        eventType: 'twilio.voice.gather',
+        payload: { CallSid: 'CA123', SpeechResult: 'Hello Vukho', Confidence: '0.92' },
+      }),
+    });
     expect(prisma.transcriptTurn.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         callId: 'call_123',

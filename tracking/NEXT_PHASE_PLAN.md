@@ -111,7 +111,7 @@ Checklist:
 - [x] spend limit reached email works
 - [x] payment failure email works
 - [x] invite/member/API-key/billing/provider changes are audited
-- [ ] audit actor labels are understandable to customers in every dashboard row
+- [x] audit actor labels are understandable to customers in every dashboard row
 
 ### D4: Deployment Smoke
 
@@ -119,17 +119,20 @@ Goal: one smoke flow proves the release promise.
 
 Checklist:
 
-- sign in
-- create/select workspace
-- create agent
-- import/attach real Twilio number
-- send SMS
-- receive SMS
-- place outbound call
-- receive inbound call
-- see transcript/outcome
-- receive signed webhook
-- see usage/cost/audit/billing evidence
+- [x] smoke command exists for live backend verification
+- [x] `/v1/health/providers` exposes release blockers without secrets
+- [x] create agent
+- [x] import/attach real Twilio number
+- [x] send SMS
+- [x] place outbound call
+- [x] verify usage/cost/audit/billing evidence is readable
+- [x] verify webhook delivery records are readable
+- [x] verify provider callback records are readable
+- [x] persist voice gather callback evidence for transcript/outcome debugging
+- [ ] manually receive SMS through Twilio callback tunnel
+- [ ] manually receive inbound call through Twilio callback tunnel
+- [ ] manually verify transcript/outcome after live call gather
+- [ ] manually receive signed webhook at a customer endpoint
 
 ## Current Implementation Phase: D0 Verify Deployability
 
@@ -141,7 +144,59 @@ Verified on 2026-05-18:
 - `npm test -- billing.service.spec.ts usage.service.spec.ts calls.service.spec.ts messages.service.spec.ts webhooks.service.spec.ts audit.service.spec.ts --runInBand` passed.
 - `npm run build` passed.
 
-Next action: continue with D1/D2 only.
+Next action: run D4 smoke against the configured live-dev/staging environment.
+
+## Current Implementation Phase: D4 Deployment Smoke
+
+Status: implemented, pending live run.
+
+Implemented:
+
+- `npm run smoke:release` command.
+- `/v1/health/providers` release readiness gate with safe blockers for:
+  - mock provider outside tests
+  - missing Twilio credentials
+  - missing live callback URLs
+  - missing public HTTPS API URL
+  - missing Stripe webhook configuration
+  - missing Brevo transactional email configuration
+- The command verifies:
+  - backend health
+  - provider readiness and release blockers
+  - agent creation
+  - owned-number import and attachment
+  - outbound SMS when `VUKHO_SMOKE_TO_NUMBER` is set
+  - outbound call when `VUKHO_SMOKE_TO_NUMBER` is set
+  - agent, number, conversation, call, usage, billing, audit, and webhook
+    visibility
+- provider callback visibility through:
+  - `GET /v1/provider-events`
+  - `GET /v1/provider-events/summary`
+- voice gather callback evidence is stored as `twilio.voice.gather` before
+  transcript/outcome updates are emitted
+- The command fails closed for release sign-off if live smoke inputs are missing.
+- `VUKHO_SMOKE_ALLOW_PARTIAL=true` is available only for readiness runs.
+
+Required release-run environment:
+
+- `VUKHO_SMOKE_API_URL`
+- `VUKHO_SMOKE_API_KEY`
+- `VUKHO_SMOKE_IMPORT_NUMBER`
+- `VUKHO_SMOKE_TO_NUMBER`
+- `VUKHO_SMOKE_WEBHOOK_URL`
+
+Exit criteria:
+
+- The command passes against the deployment target without partial mode.
+- One manual inbound SMS is visible in the dashboard and usage ledger.
+- One manual inbound call is visible with transcript/outcome, usage, audit, and
+  webhook evidence.
+
+Next implementation:
+
+- Add a manual inbound smoke watcher that polls provider callback evidence,
+  conversations, calls, usage, and webhook deliveries while the tester sends an
+  inbound SMS and places an inbound call through the public tunnel.
 
 ## Recent Completed Work: Real Agent Phone Loop
 

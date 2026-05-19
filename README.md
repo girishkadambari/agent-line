@@ -2,7 +2,7 @@
 
 Vukho is AI-agent-native phone infrastructure. It gives AI agents phone numbers, SMS, calls, transcripts, webhooks, usage tracking, and structured outcomes through one developer-first API.
 
-This repository is backend-first and uses **NestJS + TypeScript**. The React frontend will be built separately and integrated through the documented REST API.
+This repository is backend-first and uses **NestJS + TypeScript**. The React frontend is maintained separately and integrates through the documented REST API.
 
 ## Documentation
 
@@ -17,12 +17,6 @@ Useful Phase 1 integration docs:
 - [Project completeness check](docs/PROJECT_COMPLETENESS_CHECK.md)
 - [Stripe billing plan](docs/STRIPE_BILLING_PLAN.md)
 
-## Phase
-
-Current work is **Phase 1: Mock Core Product**.
-
-Track implementation in [docs/PHASE_1_STATUS.md](docs/PHASE_1_STATUS.md).
-
 ## Local Development
 
 ```bash
@@ -34,18 +28,14 @@ npm run db:seed
 npm run dev
 ```
 
-Phase 1 must run without Twilio, Telnyx, OpenAI, STT, TTS, Stripe, or real phone credentials.
-
-Stripe is optional for local development. To test real checkout, set `STRIPE_MODE=test`,
-`STRIPE_SECRET_KEY=sk_test_...` or `rk_test_...`, and `STRIPE_WEBHOOK_SECRET=whsec_...`; then follow
-[the Stripe billing plan](docs/STRIPE_BILLING_PLAN.md).
+Local development uses the same real provider path as production. Mock providers are reserved for automated tests and explicit contract coverage.
 
 ## Backend Bootstrap
 
 Use these commands for a fresh local setup:
 
 ```bash
-cd /Users/girish/girish-workspace/girish-own/vukho
+cd /Users/girish/girish-workspace/girish-own/agent-line
 
 npm install
 cp .env.example .env
@@ -91,6 +81,7 @@ curl http://localhost:3000/v1/workspaces/current \
 - `npm run db:seed`: creates the local workspace, project, API key, billing balance, seed agents, and seed webhook.
 - `npm run db:topup`: adds local development credits to `ws_local` when mock calls/SMS/numbers exhaust the balance.
 - `npm run dev`: starts the NestJS backend in watch mode.
+- `npm run smoke:release`: runs the release smoke check against a live backend.
 
 If local testing returns `insufficient_balance`, run:
 
@@ -109,7 +100,7 @@ VUKHO_LOCAL_TOPUP_CENTS=10000 npm run db:topup
 For the separate dashboard repository, create:
 
 ```text
-/Users/girish/girish-workspace/girish-own/vukho-dashboard/.env
+/Users/girish/girish-workspace/girish-own/agentline-dashboard/.env
 ```
 
 with:
@@ -122,4 +113,33 @@ Then sign in to the dashboard with:
 
 ```text
 sk_test_vukho_local
+```
+
+## Release Smoke
+
+The release smoke command proves the customer promise against a running backend:
+agent creation, owned-number import, SMS/call actions, usage evidence, billing,
+audit, and webhook visibility.
+
+```bash
+VUKHO_SMOKE_API_URL=http://localhost:3000/v1 \
+VUKHO_SMOKE_API_KEY=sk_test_vukho_local \
+VUKHO_SMOKE_IMPORT_NUMBER=+19012316325 \
+VUKHO_SMOKE_TO_NUMBER=+917799027234 \
+VUKHO_SMOKE_WEBHOOK_URL=https://example.com/vukho/webhook \
+npm run smoke:release
+```
+
+Use an owned Twilio number for `VUKHO_SMOKE_IMPORT_NUMBER`; this command imports
+an existing number and does not buy a new one. Set
+`VUKHO_SMOKE_ALLOW_PARTIAL=true` only for readiness checks, not release sign-off.
+
+Callback evidence for inbound SMS/call smoke is available at:
+
+```bash
+curl http://localhost:3000/v1/provider-events/summary \
+  -H "Authorization: Bearer sk_test_vukho_local"
+
+curl "http://localhost:3000/v1/provider-events?limit=20" \
+  -H "Authorization: Bearer sk_test_vukho_local"
 ```

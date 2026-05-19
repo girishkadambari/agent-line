@@ -3,12 +3,18 @@ import { ConfigService } from '@nestjs/config';
 
 import type { TelecomProvider } from '../../domain/provider';
 import { ApiException } from '../../common/errors/api.exception';
+import { AuthModule } from '../auth/auth.module';
 import { MockProviderService } from './mock/mock-provider.service';
+import { ProviderEventsController } from './provider-events.controller';
+import { ProviderEventsService } from './provider-events.service';
 import { TELECOM_PROVIDER } from './providers.constants';
 import { TwilioProviderService } from './twilio/twilio-provider.service';
 
 @Module({
+  imports: [AuthModule],
+  controllers: [ProviderEventsController],
   providers: [
+    ProviderEventsService,
     MockProviderService,
     TwilioProviderService,
     {
@@ -33,6 +39,6 @@ import { TwilioProviderService } from './twilio/twilio-provider.service';
       },
     },
   ],
-  exports: [TELECOM_PROVIDER, MockProviderService, TwilioProviderService],
+  exports: [TELECOM_PROVIDER, MockProviderService, TwilioProviderService, ProviderEventsService],
 })
 export class ProvidersModule {}

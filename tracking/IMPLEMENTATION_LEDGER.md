@@ -2,6 +2,156 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-19: Voice Gather Callback Evidence
+
+**Status:** done
+
+Implemented:
+
+- Twilio `voice/gather` callbacks now persist a raw provider callback evidence
+  record with event type `twilio.voice.gather`.
+- Voice gather evidence is idempotent by provider call id, normalized speech,
+  and confidence score, so Twilio retries do not duplicate transcript turns or
+  webhook events.
+- Speech capture still updates the first-class call transcript, summary, and
+  structured outcome after the raw callback is recorded.
+- The Twilio gather controller now forwards the signed callback payload into the
+  call service so provider evidence, transcript, and webhook behavior are tied
+  to the same source event.
+- Added test coverage proving speech capture stores provider evidence and emits
+  the transcript update event.
+
+Verification:
+
+- `npm test -- calls.service.spec.ts provider-events.service.spec.ts --runInBand`
+  passed.
+
+Release impact:
+
+- Live call gather smoke can now prove that Twilio reached Vukho, what speech
+  payload was received, which call it affected, and whether downstream transcript
+  webhooks should have been emitted.
+
+Next:
+
+- Add a manual inbound smoke watcher for SMS, inbound call, voice gather,
+  customer webhook delivery, and usage evidence through the public tunnel.
+
+## 2026-05-19: Deployment Release Smoke Command
+
+**Status:** done
+
+Implemented:
+
+- Added `npm run smoke:release` as the D4 deployment smoke command.
+- Added `scripts/release-smoke.ts` to verify the live backend release loop:
+  - backend health
+  - provider readiness
+  - agent creation
+  - owned-number import and attachment
+  - outbound SMS
+  - outbound call
+  - agent, number, conversation, call, usage, billing, audit, and webhook
+    visibility
+- The smoke command fails closed when live release inputs are missing, so a
+  deployment cannot be accidentally signed off with partial coverage.
+- Added `VUKHO_SMOKE_ALLOW_PARTIAL=true` for readiness-only runs.
+- Updated `README.md` with the release smoke command and corrected current
+  Vukho backend/dashboard paths.
+- Updated `tracking/NEXT_PHASE_PLAN.md` to make D4 the active deployment smoke
+  phase with explicit manual inbound SMS/call gates.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Deployment verification now has a repeatable command instead of a loose
+  checklist.
+- The release gate is aligned to the customer promise: real agent, real number,
+  real SMS/call, visible evidence, and webhook/debug surfaces.
+
+Next:
+
+- Run the smoke command against live-dev/staging without partial mode.
+- Complete manual inbound SMS and inbound call callback verification through
+  the public tunnel.
+
+## 2026-05-19: Release Readiness Health Gate
+
+**Status:** done
+
+Implemented:
+
+- Added secret-safe release readiness to `/v1/health/providers`.
+- The endpoint now returns `releaseReady` and `releaseBlockers` so deployment
+  smoke can fail before billable flows run against unsafe configuration.
+- Readiness now checks:
+  - mock telecom provider outside tests
+  - Twilio provider selection
+  - Twilio credentials
+  - public HTTPS API URL for live callbacks
+  - inbound SMS, SMS status, voice, voice gather, and voice status callback URLs
+  - Stripe secret key and webhook secret
+  - Brevo API key and sender email
+- Added `voiceGather` and `publicApiConfigured` to Twilio readiness output.
+- Updated `npm run smoke:release` to fail on readiness blockers unless
+  `VUKHO_SMOKE_ALLOW_PARTIAL=true` is explicitly set for readiness-only runs.
+
+Verification:
+
+- `npm test -- health.controller.spec.ts --runInBand` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Deployment smoke now catches the exact configuration mistakes that previously
+  made callbacks, Stripe webhooks, or email flows silently fail at runtime.
+- The health surface remains safe for customer/admin UI because it exposes only
+  booleans and human-readable blockers, never provider secrets.
+
+## 2026-05-19: Provider Callback Evidence API
+
+**Status:** done
+
+Implemented:
+
+- Added authenticated provider callback evidence endpoints:
+  - `GET /v1/provider-events`
+  - `GET /v1/provider-events/summary`
+- Provider callback rows are serialized with:
+  - provider
+  - event type
+  - provider event id
+  - provider status
+  - provider error code/text
+  - received timestamp
+  - linked first-class Vukho resource when available
+- Callback resource linking resolves Twilio message/call ids from provider event
+  ids, including status callback ids like `CA...:status:completed`.
+- Summary endpoint returns total callback count, counts by callback type, and
+  recent provider errors.
+- `npm run smoke:release` now checks that provider callback summary is readable.
+- Updated the D4 tracker to include provider callback visibility as a completed
+  release smoke gate.
+
+Verification:
+
+- `npm test -- provider-events.service.spec.ts --runInBand` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+
+Release impact:
+
+- Inbound SMS and inbound call smoke now has a backend evidence surface beyond
+  raw ngrok logs.
+- Support can answer whether Twilio hit Vukho and which message/call record a
+  callback affected without exposing provider credentials or low-level settings
+  in the customer product UI.
+
 ## 2026-05-18: Provider Failure State On Calls And Messages
 
 **Status:** done
@@ -2126,3 +2276,53 @@ Next:
   - Twilio callback smoke coverage
   - visible provider failure state on message/call records
   - final deployment smoke checklist
+
+## 2026-05-18: Customer-Readable Audit Activity
+
+**Status:** implemented
+
+Reason:
+
+- The audit log is a trust surface for release. Customers should not see vague
+  actor labels or need to understand raw API internals to know who changed what.
+- The backend should own audit display semantics so the dashboard does not
+  duplicate or guess audit naming rules.
+
+Implemented:
+
+- Added customer-facing audit display fields from the backend:
+  - action label
+  - actor label
+  - actor detail
+  - category
+  - resource label
+  - metadata summary
+- Added clearer actor labels for workspace users, API keys, and Vukho
+  automation.
+- Added backend labels for auth login, workspace switching, billing, members,
+  invites, API keys, numbers, calls, and webhook actions.
+- Updated the dashboard audit mapper to prefer backend-provided display fields
+  while keeping the existing local fallback.
+- Marked D3 audit actor readability complete in
+  `tracking/NEXT_PHASE_PLAN.md`.
+
+Verification:
+
+- `npm test -- audit.service.spec.ts --runInBand` passed.
+- `npm run typecheck` passed.
+- Backend `npm run build` passed.
+- Dashboard `npm run build` completed; Wrangler emitted a local log-write
+  permission warning but still produced build output.
+
+Next:
+
+- D4 deployment smoke:
+  - sign in
+  - create/select workspace
+  - create agent
+  - import/attach real Twilio number
+  - send/receive SMS
+  - place/receive call
+  - verify transcript/outcome
+  - verify signed webhook delivery
+  - verify usage, cost, audit, and billing evidence

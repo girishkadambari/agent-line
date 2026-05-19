@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { CallStatus, Prisma, type Call } from '@prisma/client';
+import { createHash } from 'node:crypto';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -121,9 +122,7 @@ export class CallsService {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
         type:
-          providerCall.status === 'completed'
-            ? VukhoEvent.CallCompleted
-            : VukhoEvent.CallStarted,
+          providerCall.status === 'completed' ? VukhoEvent.CallCompleted : VukhoEvent.CallStarted,
         resourceType: EventResourceType.Call,
         resourceId: call.id,
         payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
@@ -503,6 +502,7 @@ export class CallsService {
     providerCallId: string;
     speechResult: string;
     confidence?: number;
+    rawPayload: Record<string, unknown>;
   }) {
     const text = input.speechResult.trim();
     if (!text) {
@@ -520,6 +520,18 @@ export class CallsService {
       return { received: true, ignored: true, reason: 'call_not_found' };
     }
 
+    const recorded = await this.recordProviderRawEvent({
+      workspaceId: call.workspaceId,
+      projectId: call.projectId,
+      provider: input.provider,
+      providerEventId: `${input.providerCallId}:voice:gather:${this.providerSpeechHash(
+        text,
+        input.confidence,
+      )}`,
+      eventType: 'twilio.voice.gather',
+      payload: input.rawPayload,
+    });
+
     const existingSpeech = await this.prisma.transcriptTurn.findFirst({
       where: {
         workspaceId: call.workspaceId,
@@ -530,7 +542,7 @@ export class CallsService {
       },
     });
 
-    if (existingSpeech) {
+    if (!recorded || existingSpeech) {
       return { received: true, duplicate: true, ignored: false };
     }
 
@@ -942,6 +954,13 @@ export class CallsService {
 
   private isProviderIssueStatus(status: string | null) {
     return ['failed', 'busy', 'no-answer', 'no_answer', 'canceled'].includes(status ?? '');
+  }
+
+  private providerSpeechHash(text: string, confidence?: number) {
+    return createHash('sha256')
+      .update(`${text}:${Number.isFinite(confidence) ? confidence : ''}`)
+      .digest('hex')
+      .slice(0, 16);
   }
 
   private async recordProviderRawEvent(input: {

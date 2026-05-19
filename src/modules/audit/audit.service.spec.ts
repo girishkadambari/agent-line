@@ -66,6 +66,16 @@ describe('AuditService', () => {
       email: null,
       apiKeyLabel: 'Local development key',
       apiKeyPrefix: 'sk_test',
+      displayName: 'Local development key',
+      detail: 'API key prefix sk_test',
+    });
+    expect(result.display).toEqual({
+      actionLabel: 'Agent Created',
+      actorLabel: 'Local development key',
+      actorDetail: 'API key prefix sk_test',
+      category: 'agent',
+      resourceLabel: 'Agent',
+      summary: 'Name: Support Agent',
     });
   });
 });

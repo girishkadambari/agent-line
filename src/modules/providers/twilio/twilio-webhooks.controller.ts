@@ -170,6 +170,7 @@ export class TwilioWebhooksController {
         providerCallId: body.CallSid,
         speechResult: body.SpeechResult,
         confidence: body.Confidence ? Number.parseFloat(body.Confidence) : undefined,
+        rawPayload: body as Record<string, unknown>,
       });
     }
 

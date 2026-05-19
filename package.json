@@ -22,6 +22,7 @@
     "db:test:push": "DATABASE_URL=postgresql://vukho:vukho@localhost:5433/vukho_test?schema=public prisma db push --accept-data-loss",
     "db:seed": "tsx prisma/seed.ts",
     "db:topup": "tsx prisma/topup-local-balance.ts",
+    "smoke:release": "tsx scripts/release-smoke.ts",
     "verify": "npm run typecheck && npm run test"
   },
   "dependencies": {
