@@ -74,6 +74,60 @@ export function renderWorkspaceBillingAlertEmail(input: {
   };
 }
 
+export function renderWorkspaceTeamEventEmail(input: {
+  dashboardUrl: string;
+  workspaceName: string;
+  kind: 'invite_accepted' | 'invite_revoked';
+  inviteEmail: string;
+  role: string;
+}): RenderedEmail {
+  const dashboardUrl = input.dashboardUrl.replace(/\/$/, '');
+  const membersUrl = `${dashboardUrl}/settings`;
+  const escapedWorkspaceName = escapeHtml(input.workspaceName);
+  const escapedMembersUrl = escapeHtml(membersUrl);
+  const escapedInviteEmail = escapeHtml(input.inviteEmail);
+  const escapedRole = escapeHtml(input.role);
+  const content =
+    input.kind === 'invite_accepted'
+      ? {
+          subject: `Invite accepted for ${input.workspaceName}`,
+          heading: 'Invite accepted',
+          body: `${input.inviteEmail} joined ${input.workspaceName} as ${input.role}.`,
+        }
+      : {
+          subject: `Invite revoked for ${input.workspaceName}`,
+          heading: 'Invite revoked',
+          body: `The invite for ${input.inviteEmail} to join ${input.workspaceName} as ${input.role} was revoked.`,
+        };
+
+  return {
+    subject: content.subject,
+    html: [
+      '<!doctype html>',
+      '<html>',
+      '<body style="font-family:Arial,sans-serif;color:#111;line-height:1.5">',
+      `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(content.heading)}</h1>`,
+      `<p>${escapeHtml(content.body)}</p>`,
+      `<p style="color:#666;font-size:13px">Workspace: ${escapedWorkspaceName}</p>`,
+      `<p style="color:#666;font-size:13px">Member: ${escapedInviteEmail} · Role: ${escapedRole}</p>`,
+      `<p><a href="${escapedMembersUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px">Open workspace settings</a></p>`,
+      `<p style="color:#666;font-size:13px">If the button does not work, open this link: ${escapedMembersUrl}</p>`,
+      '</body>',
+      '</html>',
+    ].join(''),
+    text: [
+      content.heading,
+      '',
+      content.body,
+      '',
+      `Workspace: ${input.workspaceName}`,
+      `Member: ${input.inviteEmail}`,
+      `Role: ${input.role}`,
+      `Open workspace settings: ${membersUrl}`,
+    ].join('\n'),
+  };
+}
+
 function billingAlertContent(input: {
   kind: 'low_balance' | 'spend_limit_reached' | 'payment_failed';
   amountCents?: number;
@@ -85,7 +139,7 @@ function billingAlertContent(input: {
     return {
       subject: 'Vukho payment needs attention',
       heading: 'Payment needs attention',
-      body: `A Stripe invoice payment failed${input.invoiceId ? ` for invoice ${input.invoiceId}` : ''}. Update the payment method to keep Vukho actions running.`,
+      body: `An invoice payment failed${input.invoiceId ? ` for invoice ${input.invoiceId}` : ''}. Update the payment method to keep Vukho actions running.`,
     };
   }
 

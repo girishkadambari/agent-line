@@ -7,14 +7,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { sendMessageSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { MessagesService } from './messages.service';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller()
 export class MessagesController {
   constructor(private readonly messages: MessagesService) {}
 
   @Post('messages')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async sendMessage(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(sendMessageSchema)) body: unknown,
@@ -32,6 +35,7 @@ export class MessagesController {
   }
 
   @Post('messages/:id/reactions')
+  @WorkspaceRoles('owner', 'admin', 'developer', 'member')
   async addReaction(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.messages.addReaction(context, id));
   }

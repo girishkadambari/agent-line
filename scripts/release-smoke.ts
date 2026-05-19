@@ -39,6 +39,14 @@ type SmokeUsageEvent = {
   totalCost: string;
 };
 
+type SmokeWebhookDelivery = {
+  id: string;
+  eventType: string;
+  status: string;
+  lastStatusCode?: number | null;
+  lastError?: string | null;
+};
+
 type ProviderHealth = {
   releaseReady?: boolean;
   releaseBlockers?: string[];
@@ -114,6 +122,13 @@ async function main() {
       ],
     });
     pass('Webhook endpoint created', `Endpoint ${endpoint.id} receives core release events.`);
+
+    const testDelivery = await post<{ delivery: SmokeWebhookDelivery }>(
+      `/webhooks/${endpoint.id}/test`,
+      {},
+    );
+    assertSucceededDelivery(testDelivery.delivery, 'Webhook test delivery did not succeed.');
+    pass('Webhook endpoint receives signed delivery', formatDelivery(testDelivery.delivery));
   } else {
     skipOrFail(
       'Webhook endpoint created',
@@ -206,7 +221,7 @@ async function main() {
   assert(auditEvents.length > 0, 'Audit log returned no events.');
   pass('Audit log readable', `${auditEvents.length} recent audit events returned.`);
 
-  const deliveries = await getList<{ id: string }>('/webhooks/deliveries?limit=50');
+  const deliveries = await getList<SmokeWebhookDelivery>('/webhooks/deliveries?limit=50');
   pass('Webhook deliveries readable', `${deliveries.length} recent delivery rows returned.`);
 
   await get<unknown>('/provider-events/summary');
@@ -303,6 +318,21 @@ function assertReleaseReady(health: ProviderHealth) {
   if (health.releaseReady === false && !allowPartial) {
     throw new Error(`Provider readiness failed: ${(health.releaseBlockers ?? []).join('; ')}`);
   }
+}
+
+function assertSucceededDelivery(
+  delivery: SmokeWebhookDelivery,
+  message: string,
+): asserts delivery is SmokeWebhookDelivery {
+  if (delivery.status !== 'succeeded') {
+    throw new Error(`${message} ${formatDelivery(delivery)}`);
+  }
+}
+
+function formatDelivery(delivery: SmokeWebhookDelivery) {
+  const statusCode = delivery.lastStatusCode ? ` statusCode=${delivery.lastStatusCode}` : '';
+  const error = delivery.lastError ? ` error=${delivery.lastError}` : '';
+  return `${delivery.id} ${delivery.eventType} status=${delivery.status}${statusCode}${error}`;
 }
 
 function summarizeProviderHealth(health: ProviderHealth) {

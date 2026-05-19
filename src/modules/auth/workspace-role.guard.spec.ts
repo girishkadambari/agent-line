@@ -25,7 +25,7 @@ function createContext(input: {
 }
 
 describe('WorkspaceRoleGuard', () => {
-  it('allows API key requests for backward compatibility', async () => {
+  it('allows API key requests through developer API routes', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(['owner']),
     } as unknown as Reflector;

@@ -13,13 +13,16 @@ import {
 } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { BillingService } from './billing.service';
 
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
 
-  @UseGuards(AuthContextGuard)
+  @UseGuards(AuthContextGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Get('balance')
   async getBalance(@CurrentContext() context: RequestContext) {
     return success(await this.billing.getBalance(context));
@@ -37,13 +40,15 @@ export class BillingController {
     return success(this.billing.getPlans());
   }
 
-  @UseGuards(AuthContextGuard)
+  @UseGuards(AuthContextGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Get('subscription')
   async getSubscription(@CurrentContext() context: RequestContext) {
     return success(await this.billing.getSubscription(context));
   }
 
-  @UseGuards(AuthContextGuard)
+  @UseGuards(AuthContextGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'developer', 'billing')
   @Get('cost-summary')
   async getCostSummary(
     @CurrentContext() context: RequestContext,
@@ -55,7 +60,8 @@ export class BillingController {
     );
   }
 
-  @UseGuards(AuthContextGuard, CsrfGuard)
+  @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Patch('controls')
   async updateControls(
     @CurrentContext() context: RequestContext,
@@ -66,13 +72,15 @@ export class BillingController {
     );
   }
 
-  @UseGuards(AuthContextGuard)
+  @UseGuards(AuthContextGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Get('stripe/status')
   getStripeStatus() {
     return success(this.billing.getStripeStatus());
   }
 
-  @UseGuards(AuthContextGuard, CsrfGuard)
+  @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Post('checkout-sessions')
   async createCheckoutSession(
     @CurrentContext() context: RequestContext,
@@ -83,7 +91,8 @@ export class BillingController {
     );
   }
 
-  @UseGuards(AuthContextGuard, CsrfGuard)
+  @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Post('subscription-checkout-sessions')
   async createSubscriptionCheckoutSession(
     @CurrentContext() context: RequestContext,
@@ -97,7 +106,8 @@ export class BillingController {
     );
   }
 
-  @UseGuards(AuthContextGuard, CsrfGuard)
+  @UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Post('portal-sessions')
   async createPortalSession(
     @CurrentContext() context: RequestContext,
@@ -108,7 +118,8 @@ export class BillingController {
     );
   }
 
-  @UseGuards(AuthContextGuard)
+  @UseGuards(AuthContextGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin', 'billing')
   @Get('transactions')
   listTransactions(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
     return this.billing.listTransactions(context, parseLimit(limit));

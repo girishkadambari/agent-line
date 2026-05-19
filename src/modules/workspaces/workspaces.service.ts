@@ -91,6 +91,12 @@ export class WorkspacesService {
       throw new ApiException('not_found', 'Workspace not found.', 404);
     }
 
+    const onboarding = this.getWorkspaceOnboardingState({
+      agents,
+      activeNumbers,
+      activeWebhooks,
+    });
+
     return {
       workspace: serializeWorkspace(workspace),
       currentUserRole: membership?.role ?? null,
@@ -109,6 +115,7 @@ export class WorkspacesService {
         activeNumbers,
         activeWebhooks,
       },
+      onboarding,
       billing: {
         currency: billingBalance?.currency ?? 'USD',
         balanceCents: billingBalance?.balanceCents ?? 0,
@@ -122,7 +129,47 @@ export class WorkspacesService {
         canManageBilling: ['owner', 'admin', 'billing'].includes(membership?.role ?? ''),
         canInviteMembers: ['owner', 'admin'].includes(membership?.role ?? ''),
         canManageApiKeys: ['owner', 'admin', 'developer'].includes(membership?.role ?? ''),
+        recording: {
+          enabled: false,
+          consentRequired: true,
+          status: 'disabled_until_policy_configured',
+        },
+        retention: {
+          transcriptsDays: 365,
+          recordingsDays: null,
+          rawEventsDays: 90,
+          configurable: false,
+        },
       },
+    };
+  }
+
+  private getWorkspaceOnboardingState(input: {
+    agents: number;
+    activeNumbers: number;
+    activeWebhooks: number;
+  }) {
+    const hasAgent = input.agents > 0;
+    const hasActiveNumber = input.activeNumbers > 0;
+    const hasWebhook = input.activeWebhooks > 0;
+
+    let nextAction: 'create_agent' | 'attach_number' | 'configure_webhook' | 'run_live_smoke' =
+      'run_live_smoke';
+
+    if (!hasAgent) {
+      nextAction = 'create_agent';
+    } else if (!hasActiveNumber) {
+      nextAction = 'attach_number';
+    } else if (!hasWebhook) {
+      nextAction = 'configure_webhook';
+    }
+
+    return {
+      hasAgent,
+      hasActiveNumber,
+      hasWebhook,
+      readyForLiveTraffic: hasAgent && hasActiveNumber && hasWebhook,
+      nextAction,
     };
   }
 
@@ -371,6 +418,15 @@ export class WorkspacesService {
       resourceId: invite.id,
     });
 
+    await this.email.sendWorkspaceTeamEventEmail({
+      workspaceId: context.workspaceId,
+      inviteId: invite.id,
+      inviteEmail: invite.email,
+      role: invite.role,
+      kind: 'invite_revoked',
+      idempotencyScope: `${invite.id}:${updated.revokedAt?.toISOString() ?? updated.updatedAt.toISOString()}`,
+    });
+
     return serializeInvite(updated);
   }
 
@@ -476,6 +532,15 @@ export class WorkspacesService {
       resourceType: EventResourceType.WorkspaceInvite,
       resourceId: invite.id,
       metadata: { email: invite.email, role: invite.role },
+    });
+
+    await this.email.sendWorkspaceTeamEventEmail({
+      workspaceId: invite.workspaceId,
+      inviteId: invite.id,
+      inviteEmail: invite.email,
+      role: invite.role,
+      kind: 'invite_accepted',
+      idempotencyScope: invite.id,
     });
 
     return serializeInvite(accepted);

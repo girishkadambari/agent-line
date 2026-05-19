@@ -7,9 +7,11 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { updateContactSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { ContactsService } from './contacts.service';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('contacts')
 export class ContactsController {
   constructor(private readonly contacts: ContactsService) {}
@@ -25,6 +27,7 @@ export class ContactsController {
   }
 
   @Patch(':id')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async updateContact(
     @CurrentContext() context: RequestContext,
     @Param('id') id: string,

@@ -6,12 +6,15 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { usageQuerySchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { UsageService } from './usage.service';
 
-@UseGuards(AuthContextGuard)
+@UseGuards(AuthContextGuard, WorkspaceRoleGuard)
 @Controller('usage')
+@WorkspaceRoles('owner', 'admin', 'developer', 'billing')
 export class UsageController {
-  constructor(private readonly usage: UsageService) { }
+  constructor(private readonly usage: UsageService) {}
 
   @Get()
   listUsage(

@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { list, parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -7,9 +17,11 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createAgentSchema, updateAgentSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { AgentsService } from './agents.service';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('agents')
 export class AgentsController {
   constructor(private readonly agents: AgentsService) {}
@@ -20,6 +32,7 @@ export class AgentsController {
   }
 
   @Post()
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async createAgent(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(createAgentSchema)) body: unknown,
@@ -43,6 +56,7 @@ export class AgentsController {
   }
 
   @Patch(':id')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async updateAgent(
     @CurrentContext() context: RequestContext,
     @Param('id') id: string,
@@ -52,6 +66,7 @@ export class AgentsController {
   }
 
   @Delete(':id')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async disableAgent(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.agents.disableAgent(context, id));
   }

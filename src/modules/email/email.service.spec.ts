@@ -195,6 +195,58 @@ describe('EmailService', () => {
     });
   });
 
+  it('sends team event emails to workspace owners and admins', async () => {
+    const delivery = deliveryFixture({
+      template: 'workspace_invite_accepted',
+      recipientEmail: 'owner@example.com',
+    });
+    const prisma = {
+      workspace: {
+        findUnique: jest.fn().mockResolvedValue({ name: 'Vukho Local' }),
+      },
+      workspaceMember: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { user: { email: 'owner@example.com' } },
+            { user: { email: 'admin@example.com' } },
+          ]),
+      },
+      emailDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve(deliveryFixture(data))),
+        update: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ ...delivery, ...data })),
+      },
+    } as unknown as PrismaService;
+    const brevo = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      send: jest.fn().mockResolvedValue({ providerMessageId: 'msg_123' }),
+    } as unknown as BrevoEmailProvider;
+    const service = new EmailService(prisma, config, brevo);
+
+    const result = await service.sendWorkspaceTeamEventEmail({
+      workspaceId: 'ws_123',
+      inviteId: 'inv_123',
+      inviteEmail: 'new@example.com',
+      role: 'developer',
+      kind: 'invite_accepted',
+      idempotencyScope: 'inv_123',
+    });
+
+    expect(result).toHaveLength(2);
+    expect(brevo.send).toHaveBeenCalledTimes(2);
+    expect(prisma.emailDelivery.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recipientEmail: 'owner@example.com',
+        template: 'workspace_invite_accepted',
+        status: 'queued',
+        idempotencyKey: 'team_event:ws_123:invite_accepted:inv_123:owner@example.com',
+      }),
+    });
+  });
+
   it('lists email deliveries for the current workspace', async () => {
     const prisma = {
       emailDelivery: {

@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -7,9 +17,11 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createNumberSchema, importNumberSchema, updateNumberSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { NumbersService } from './numbers.service';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller()
 export class NumbersController {
   constructor(private readonly numbers: NumbersService) {}
@@ -20,6 +32,7 @@ export class NumbersController {
   }
 
   @Post('numbers')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async provisionNumber(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(createNumberSchema)) body: unknown,
@@ -28,6 +41,7 @@ export class NumbersController {
   }
 
   @Post('numbers/import')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async importNumber(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(importNumberSchema)) body: unknown,
@@ -41,6 +55,7 @@ export class NumbersController {
   }
 
   @Patch('numbers/:id')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async updateNumber(
     @CurrentContext() context: RequestContext,
     @Param('id') id: string,
@@ -50,11 +65,13 @@ export class NumbersController {
   }
 
   @Delete('numbers/:id')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async releaseNumber(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.numbers.releaseNumber(context, id));
   }
 
   @Post('agents/:id/numbers')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async attachNewNumberToAgent(
     @CurrentContext() context: RequestContext,
     @Param('id') agentId: string,
@@ -66,6 +83,7 @@ export class NumbersController {
   }
 
   @Delete('agents/:id/numbers/:numberId')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async detachNumberFromAgent(
     @CurrentContext() context: RequestContext,
     @Param('id') agentId: string,

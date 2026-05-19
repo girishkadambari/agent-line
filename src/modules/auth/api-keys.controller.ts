@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -8,9 +18,12 @@ import { createApiKeySchema, updateApiKeySchema } from '../../domain/schemas';
 import { ApiKeysService } from './api-keys.service';
 import { AuthContextGuard } from './auth-context.guard';
 import { CsrfGuard } from './csrf.guard';
+import { WorkspaceRoleGuard } from './workspace-role.guard';
+import { WorkspaceRoles } from './workspace-roles.decorator';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('api-keys')
+@WorkspaceRoles('owner', 'admin', 'developer')
 export class ApiKeysController {
   constructor(private readonly apiKeys: ApiKeysService) {}
 

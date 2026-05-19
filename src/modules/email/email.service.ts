@@ -10,8 +10,16 @@ import { ApiException } from '../../common/errors/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { BrevoEmailError, BrevoEmailProvider } from './brevo-email.provider';
 import { serializeEmailDelivery } from './email.serializer';
-import { renderWorkspaceBillingAlertEmail, renderWorkspaceInviteEmail } from './email.templates';
-import type { WorkspaceBillingAlertEmailInput, WorkspaceInviteEmailInput } from './email.types';
+import {
+  renderWorkspaceBillingAlertEmail,
+  renderWorkspaceInviteEmail,
+  renderWorkspaceTeamEventEmail,
+} from './email.templates';
+import type {
+  WorkspaceBillingAlertEmailInput,
+  WorkspaceInviteEmailInput,
+  WorkspaceTeamEventEmailInput,
+} from './email.types';
 
 @Injectable()
 export class EmailService {
@@ -215,12 +223,130 @@ export class EmailService {
     return deliveries;
   }
 
+  async sendWorkspaceTeamEventEmail(input: WorkspaceTeamEventEmailInput) {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: input.workspaceId },
+      select: { name: true },
+    });
+    const recipients = await this.findAdminRecipients(input.workspaceId);
+    if (recipients.length === 0) {
+      return [];
+    }
+
+    const dashboardUrl = this.config.get<string>('DASHBOARD_URL') || 'http://localhost:8080';
+    const email = renderWorkspaceTeamEventEmail({
+      dashboardUrl,
+      workspaceName: workspace?.name ?? 'Vukho',
+      kind: input.kind,
+      inviteEmail: input.inviteEmail,
+      role: input.role,
+    });
+
+    const deliveries = [];
+    for (const recipientEmail of recipients) {
+      const idempotencyKey = `team_event:${input.workspaceId}:${input.kind}:${input.idempotencyScope}:${recipientEmail}`;
+      const existing = await this.prisma.emailDelivery.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        deliveries.push(existing);
+        continue;
+      }
+
+      const delivery = await this.prisma.emailDelivery.create({
+        data: {
+          id: createId('eml'),
+          workspaceId: input.workspaceId,
+          recipientEmail,
+          template: `workspace_${input.kind}`,
+          subject: email.subject,
+          status: this.brevo.isConfigured() ? 'queued' : 'skipped',
+          provider: this.brevo.isConfigured() ? 'brevo' : null,
+          idempotencyKey,
+          metadata: {
+            kind: input.kind,
+            inviteId: input.inviteId,
+            inviteEmail: input.inviteEmail,
+            role: input.role,
+            dashboardUrl,
+          },
+          errorCode: this.brevo.isConfigured() ? null : 'provider_not_configured',
+          errorMessage: this.brevo.isConfigured()
+            ? null
+            : 'BREVO_API_KEY and BREVO_FROM_EMAIL are not configured.',
+        },
+      });
+
+      if (!this.brevo.isConfigured()) {
+        deliveries.push(delivery);
+        continue;
+      }
+
+      try {
+        const result = await this.brevo.send({
+          to: recipientEmail,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+        });
+
+        deliveries.push(
+          await this.prisma.emailDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: 'sent',
+              providerMessageId: result.providerMessageId,
+              sentAt: new Date(),
+            },
+          }),
+        );
+      } catch (error) {
+        deliveries.push(
+          await this.prisma.emailDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: 'failed',
+              errorCode: this.getErrorCode(error),
+              errorMessage: error instanceof Error ? error.message : 'Email send failed.',
+              failedAt: new Date(),
+            },
+          }),
+        );
+      }
+    }
+
+    return deliveries;
+  }
+
   private async findBillingRecipients(workspaceId: string) {
     const members = await this.prisma.workspaceMember.findMany({
       where: {
         workspaceId,
         status: 'active',
         role: { in: ['owner', 'admin', 'billing'] },
+      },
+      include: {
+        user: {
+          select: { email: true },
+        },
+      },
+    });
+
+    return Array.from(
+      new Set(
+        members
+          .map((member) => member.user.email.toLowerCase())
+          .filter((email) => email.length > 0),
+      ),
+    );
+  }
+
+  private async findAdminRecipients(workspaceId: string) {
+    const members = await this.prisma.workspaceMember.findMany({
+      where: {
+        workspaceId,
+        status: 'active',
+        role: { in: ['owner', 'admin'] },
       },
       include: {
         user: {

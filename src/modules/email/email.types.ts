@@ -32,3 +32,12 @@ export type WorkspaceBillingAlertEmailInput = {
   invoiceId?: string;
   idempotencyScope: string;
 };
+
+export type WorkspaceTeamEventEmailInput = {
+  workspaceId: string;
+  inviteId: string;
+  inviteEmail: string;
+  role: string;
+  kind: 'invite_accepted' | 'invite_revoked';
+  idempotencyScope: string;
+};

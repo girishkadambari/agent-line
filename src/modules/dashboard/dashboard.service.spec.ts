@@ -80,6 +80,16 @@ describe('DashboardService', () => {
           .fn()
           .mockResolvedValueOnce({ _count: { _all: 2 }, _sum: { totalCost: new Decimal('0.04') } })
           .mockResolvedValueOnce({ _count: { _all: 7 }, _sum: { totalCost: new Decimal('0.19') } }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            occurredAt: new Date(),
+            quantity: new Decimal('2'),
+            totalCost: new Decimal('0.06'),
+          },
+        ]),
+      },
+      webhookDelivery: {
+        count: jest.fn().mockResolvedValue(1),
       },
       billingBalance: {
         findUnique: jest.fn().mockResolvedValue({
@@ -121,6 +131,13 @@ describe('DashboardService', () => {
       calls: 5,
       webhooks: 1,
     });
+    expect(result.onboarding).toEqual({
+      hasAgent: true,
+      hasActiveNumber: true,
+      hasWebhook: true,
+      readyForLiveTraffic: true,
+      nextAction: 'run_live_smoke',
+    });
     expect(result.recentCalls).toHaveLength(1);
     expect(result.recentConversations).toHaveLength(1);
     expect(result.usage).toEqual({
@@ -128,7 +145,15 @@ describe('DashboardService', () => {
       monthCost: '0.19',
       todayEvents: 2,
       monthEvents: 7,
+      daily: expect.arrayContaining([
+        expect.objectContaining({
+          quantity: '2',
+          totalCost: '0.06',
+        }),
+      ]),
     });
+    expect(result.usage.daily).toHaveLength(7);
+    expect(result.failedWebhookDeliveries).toBe(1);
     expect(result.provider).toEqual({
       telecomProvider: 'twilio',
       twilioMode: 'live-dev',

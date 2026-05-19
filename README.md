@@ -82,6 +82,7 @@ curl http://localhost:3000/v1/workspaces/current \
 - `npm run db:topup`: adds local development credits to `ws_local` when mock calls/SMS/numbers exhaust the balance.
 - `npm run dev`: starts the NestJS backend in watch mode.
 - `npm run smoke:release`: runs the release smoke check against a live backend.
+- `npm run smoke:inbound`: watches live inbound SMS/call callback evidence during manual tunnel testing.
 
 If local testing returns `insufficient_balance`, run:
 
@@ -143,3 +144,21 @@ curl http://localhost:3000/v1/provider-events/summary \
 curl "http://localhost:3000/v1/provider-events?limit=20" \
   -H "Authorization: Bearer sk_test_vukho_local"
 ```
+
+To verify manual inbound callbacks through ngrok, keep the backend and tunnel
+running, then start the watcher:
+
+```bash
+VUKHO_SMOKE_API_URL=http://localhost:3000/v1 \
+VUKHO_SMOKE_API_KEY=sk_test_vukho_local \
+VUKHO_SMOKE_NUMBER=+19012316325 \
+VUKHO_SMOKE_EXPECT_FROM=+917799027234 \
+VUKHO_SMOKE_WEBHOOK_URL=https://example.com/vukho/webhook \
+npm run smoke:inbound
+```
+
+While it runs, send an SMS to the Vukho number and place an inbound call to the
+same number. The watcher passes only when provider callbacks, first-class
+message/call records, transcript evidence, usage rows, and webhook delivery
+evidence for the specific inbound message, call, and transcript events are
+visible.

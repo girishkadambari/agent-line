@@ -1,4 +1,14 @@
-import { Body, Controller, Get, MessageEvent, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  MessageEvent,
+  Param,
+  Post,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import { from, map, mergeMap, Observable } from 'rxjs';
 
 import { parseLimit, success } from '../../common/api/api-response';
@@ -8,14 +18,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createCallSchema, createWebCallSchema, transferCallSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { CallsService } from './calls.service';
 
-@UseGuards(AuthContextGuard, CsrfGuard)
+@UseGuards(AuthContextGuard, CsrfGuard, WorkspaceRoleGuard)
 @Controller('calls')
 export class CallsController {
   constructor(private readonly calls: CallsService) {}
 
   @Post()
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async createCall(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(createCallSchema)) body: unknown,
@@ -24,6 +37,7 @@ export class CallsController {
   }
 
   @Post('web')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async createWebCallToken(
     @CurrentContext() context: RequestContext,
     @Body(new ZodValidationPipe(createWebCallSchema)) body: unknown,
@@ -42,11 +56,13 @@ export class CallsController {
   }
 
   @Post(':id/end')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async endCall(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.calls.endCall(context, id));
   }
 
   @Post(':id/transfer')
+  @WorkspaceRoles('owner', 'admin', 'developer')
   async transferCall(
     @CurrentContext() context: RequestContext,
     @Param('id') id: string,

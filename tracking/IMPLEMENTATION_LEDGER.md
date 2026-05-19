@@ -32,10 +32,70 @@ Release impact:
   payload was received, which call it affected, and whether downstream transcript
   webhooks should have been emitted.
 
-Next:
+## 2026-05-19: Manual Inbound Smoke Watcher
 
-- Add a manual inbound smoke watcher for SMS, inbound call, voice gather,
-  customer webhook delivery, and usage evidence through the public tunnel.
+**Status:** done
+
+Implemented:
+
+- Added `npm run smoke:inbound` for live manual tunnel verification.
+- Added `scripts/inbound-smoke-watch.ts` to poll release evidence while the
+  tester sends an inbound SMS and places an inbound call.
+- The watcher verifies:
+  - inbound SMS provider callback evidence
+  - inbound SMS usage evidence
+  - inbound voice provider callback evidence
+  - voice gather callback evidence
+  - user transcript turn capture
+  - inbound voice usage evidence
+  - customer webhook delivery evidence
+- The watcher supports optional phone-number filters through
+  `VUKHO_SMOKE_NUMBER`/`VUKHO_SMOKE_IMPORT_NUMBER` and
+  `VUKHO_SMOKE_EXPECT_FROM`.
+- Updated `README.md` with the manual inbound smoke command.
+
+Verification:
+
+- `npm test -- calls.service.spec.ts provider-events.service.spec.ts --runInBand`
+  passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Release impact:
+
+- The remaining manual D4 gates are now operational checks with clear PASS/WAIT
+  output instead of loose manual inspection across ngrok, dashboard, usage, and
+  webhook screens.
+
+## 2026-05-19: Strict Inbound Webhook Evidence
+
+**Status:** done
+
+Implemented:
+
+- Hardened `npm run smoke:inbound` so webhook evidence must match the actual
+  inbound message, inbound call, and transcript-update resources.
+- Added optional `VUKHO_SMOKE_WEBHOOK_URL` setup to create a real test webhook
+  endpoint for the inbound smoke run.
+- The watcher now checks distinct webhook deliveries for:
+  - `agent.message.received`
+  - `agent.call.started`
+  - `agent.call.transcript_updated`
+- Removed the previous broad “any webhook delivery exists” signal, which could
+  pass from stale unrelated delivery rows.
+- Updated `README.md` with the stricter inbound smoke command.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Release impact:
+
+- Customer webhook sign-off is now tied to the real resources produced by the
+  manual inbound SMS/call test, not a generic delivery table read.
 
 ## 2026-05-19: Deployment Release Smoke Command
 
@@ -2326,3 +2386,252 @@ Next:
   - verify transcript/outcome
   - verify signed webhook delivery
   - verify usage, cost, audit, and billing evidence
+
+## 2026-05-19: Production Role Gates And Live-Smoke Freshness
+
+**Status:** implemented
+
+Reason:
+
+- Sellable release needs role-safe workspace operations before real customers
+  touch billing, API keys, webhooks, and phone-number controls.
+- Live inbound smoke must prove the current Twilio/ngrok run, not stale callback
+  rows from an earlier test.
+
+Implemented:
+
+- Added workspace role enforcement to sensitive backend controllers:
+  - Agents, numbers, calls, messages, conversations, contacts, webhooks, API
+    keys, usage, billing, audit events, provider events, and email delivery
+    logs.
+- Kept API keys valid for developer API access while dashboard sessions are
+  gated by workspace membership role.
+- Billing and audit/admin surfaces are limited to owner/admin/billing or
+  owner/admin where appropriate.
+- Developer operating surfaces are limited to owner/admin/developer for writes.
+- Hardened `npm run smoke:inbound` to filter provider events, usage rows, and
+  webhook deliveries to records created after the current smoke run starts.
+- Customer-facing frontend copy now avoids exposing provider/vendor internals
+  on the main number, call, and billing surfaces.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm test -- workspace-role.guard.spec.ts --runInBand` passed.
+- Backend `npm run build` passed.
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+- `git diff --check` passed for backend and dashboard.
+
+Next:
+
+- Run the live inbound smoke against the current ngrok/Twilio environment and
+  fix the first failing evidence gap.
+- Continue customer-facing frontend cleanup for any remaining provider/internal
+  copy.
+
+## 2026-05-19: Team Notification And Customer-Safe Settings Cleanup
+
+**Status:** implemented
+
+Reason:
+
+- Release trust depends on workspace admins knowing when team access changes,
+  without forcing customers to understand Vukho's internal vendors or
+  infrastructure.
+- Settings should show product controls and guardrails, not provider-console
+  details.
+
+Implemented:
+
+- Added Brevo-backed team notification emails for invite accepted and invite
+  revoked events.
+- Team notifications are idempotent and recorded in `EmailDelivery` with sent,
+  failed, or skipped status.
+- Invite acceptance and revocation now notify active workspace owners/admins
+  after the audit event is recorded.
+- Workspace settings now expose explicit recording and retention guardrail
+  status:
+  - recording is disabled until a consent policy exists
+  - transcripts and raw event evidence have default retention windows
+- Dashboard settings show recording/retention as disabled guardrails instead of
+  unexplained pending implementation items.
+- Customer-facing dashboard copy was tightened to avoid provider/vendor wording
+  on agent issues, usage settlement labels, calls, and SMS send flows.
+
+Verification:
+
+- `npm test -- email.service.spec.ts workspaces.service.spec.ts --runInBand`
+  passed.
+- `npm run typecheck` passed.
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+
+Next:
+
+- Run the real live inbound smoke with current ngrok/Twilio credentials.
+- If smoke passes, the next code phase is frontend overview consolidation onto
+  `/v1/dashboard/summary` and a final customer-facing copy sweep.
+
+## 2026-05-19: Dashboard Summary Consolidation
+
+**Status:** implemented
+
+Reason:
+
+- The overview screen was stitching many independent API calls, which made the
+  first customer dashboard slower, more fragile, and easier to drift from
+  backend billing/usage truth.
+
+Implemented:
+
+- Extended `GET /v1/dashboard/summary` with a seven-day usage series and failed
+  webhook delivery count.
+- Added a frontend dashboard summary API mapper.
+- Updated the dashboard overview to read counts, spend trend, balance, recent
+  calls, and recent conversations from the single summary endpoint.
+- Marked the dashboard summary gap as closed in the backend gap register.
+
+Verification:
+
+- `npm test -- dashboard.service.spec.ts --runInBand` passed.
+- Backend `npm run typecheck` passed.
+- Backend `npm run build` passed.
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+
+Next:
+
+- Run live D4 smoke with the current Twilio/ngrok/customer webhook environment
+  and close the remaining manual inbound SMS/call gates.
+
+## 2026-05-19: Release Smoke Webhook Evidence Hardening
+
+**Status:** implemented
+
+Reason:
+
+- Release smoke should prove that customer webhook delivery actually succeeds.
+  A failed or retrying delivery row is useful debug evidence, but it is not a
+  valid proof that the customer backend received the event.
+
+Implemented:
+
+- `npm run smoke:release` now sends a signed `webhook.test` delivery to the
+  configured `VUKHO_SMOKE_WEBHOOK_URL` and fails if the delivery is not
+  `succeeded`.
+- `npm run smoke:inbound` now requires message, call, and transcript webhook
+  deliveries to be `succeeded`.
+- The inbound watcher now prints a stable progress line only when state changes
+  and reports missing evidence plus failed webhook status codes/errors on
+  timeout.
+
+Verification:
+
+- Backend `npm run typecheck` passed.
+- Backend `npm run build` passed.
+
+Next:
+
+- Run `npm run smoke:release` against the live-dev target with
+  `VUKHO_SMOKE_WEBHOOK_URL`.
+- Run `npm run smoke:inbound`, then manually send one SMS and place one inbound
+  call through the Twilio/ngrok number.
+
+## 2026-05-19: Workspace Launch Readiness State
+
+**Status:** implemented
+
+Reason:
+
+- Customer settings should show product progress from real workspace state, not
+  stale setup flags or internal provider details.
+
+Implemented:
+
+- `GET /v1/workspaces/current/settings` now returns derived launch readiness:
+  whether the workspace has an agent, active number, webhook endpoint, whether
+  it is ready for live traffic, and the next setup action.
+- The readiness state is derived from live database counts, so it stays aligned
+  with actual agents, numbers, and webhooks.
+- Dashboard workspace API types now include this readiness contract.
+- Closed the workspace settings gap without adding premature slug/billing-email
+  schema fields.
+
+Verification:
+
+- `npm test -- workspaces.service.spec.ts --runInBand` passed.
+- Backend `npm run typecheck` passed.
+- Backend `npm run build` passed.
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+- `git diff --check` passed in backend and dashboard repos.
+
+Next:
+
+- Use this readiness object in the dashboard settings/overview UI where a
+  customer needs a simple "what should I do next?" prompt.
+
+## 2026-05-19: Customer Launch Readiness UI
+
+**Status:** implemented
+
+Reason:
+
+- The customer dashboard should guide users toward live value instead of making
+  them infer setup progress from separate agents, numbers, and webhook screens.
+
+Implemented:
+
+- Added a launch readiness card to the Settings workspace tab.
+- The card reads the real `GET /v1/workspaces/current/settings` readiness
+  object and shows:
+  - create an agent
+  - attach a live number
+  - send events to your app
+  - ready for live traffic
+- Added direct navigation from each readiness step to the relevant product area.
+- Kept the copy customer-facing and vendor-neutral.
+
+Verification:
+
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+
+Next:
+
+- Add the same readiness signal to Overview as a small "next best action" banner
+  only when the workspace is not ready for live traffic.
+
+## 2026-05-19: Overview Next Best Action
+
+**Status:** implemented
+
+Reason:
+
+- The first screen should show the fastest path to value when a workspace is not
+  ready for live traffic.
+
+Implemented:
+
+- Added launch readiness to `GET /v1/dashboard/summary`, using active agents,
+  active numbers, and webhook endpoints from the same dashboard query.
+- Added a small next-best-action banner on Overview when setup is incomplete.
+- The banner routes customers to the exact next product area:
+  create agent, attach number, configure webhook, or run live test.
+- Kept Overview on one backend source of truth instead of adding more frontend
+  stitching.
+
+Verification:
+
+- `npm test -- dashboard.service.spec.ts --runInBand` passed.
+- Backend `npm run typecheck` passed.
+- Backend `npm run build` passed.
+- Dashboard `npm run build` passed. Wrangler logged a local preferences
+  write-permission warning during SSR build, but the build completed.
+- `git diff --check` passed in backend and dashboard repos.
+
+Next:
+
+- Run real live smoke with Twilio/ngrok and a customer webhook endpoint, then
+  fix only failures found from that smoke.

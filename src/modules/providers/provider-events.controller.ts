@@ -4,10 +4,13 @@ import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { ProviderEventsService } from './provider-events.service';
 
-@UseGuards(AuthContextGuard)
+@UseGuards(AuthContextGuard, WorkspaceRoleGuard)
 @Controller('provider-events')
+@WorkspaceRoles('owner', 'admin', 'developer')
 export class ProviderEventsController {
   constructor(private readonly providerEvents: ProviderEventsService) {}
 

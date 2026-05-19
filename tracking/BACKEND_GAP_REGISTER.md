@@ -3,21 +3,30 @@
 This file tracks backend gaps that are visible to the dashboard or required
 before production beta. Keep this in sync with the frontend gap register.
 
-## Partially Closed
+## Closed
 
 ### Workspace Settings
 
-Status: partially closed
+Status: closed for production beta
 
 Implemented:
 
 - `GET /v1/workspaces/current`
 - `PATCH /v1/workspaces/current`
+- `GET /v1/workspaces/current/settings`
+- Real workspace/project/member/invite/billing counts.
+- Launch readiness derived from live workspace records:
+  agent configured, active number attached, webhook configured, ready for live
+  traffic, and next setup action.
 
-Remaining:
+Notes:
 
-- Workspace serializer does not expose slug, billing email, or onboarding
-  completion state.
+- Slug and billing email are not current schema fields, so they are not part of
+  the production beta contract. Billing ownership stays with Stripe customer
+  records and workspace membership until custom workspace billing profiles are
+  added.
+
+## Partially Closed
 
 ### Team Members And Invites
 
@@ -33,14 +42,16 @@ Implemented:
 - `DELETE /v1/workspaces/current/invites/:inviteId`
 - `POST /v1/workspaces/current/invites/:inviteId/resend`
 - Brevo-backed invite email send path.
+- Brevo-backed invite accepted/revoked notification emails for workspace
+  owners/admins.
 - `EmailDelivery` ledger for sent, failed, and skipped invite emails.
 - `GET /v1/email/deliveries`
 - Idempotent invite email send keys.
 
 Remaining:
 
-- Invite accepted/revoked notification emails.
-- Full role-based authorization enforcement.
+- Release smoke with real owner/admin/developer/billing/member sessions to
+  verify frontend role behavior.
 
 ### Dashboard Summary Endpoint
 
@@ -52,14 +63,12 @@ Implemented:
 - Workspace/project counts for agents, active agents, numbers, active numbers,
   conversations, messages, calls, and webhook endpoints.
 - Recent calls and recent conversations.
-- Daily and monthly usage event/cost totals.
+- Daily, daily-window, and monthly usage event/cost totals.
+- Failed/retrying/exhausted webhook delivery count.
 - Billing balance snapshot.
 - Safe provider readiness flags for Twilio, Stripe, and Brevo.
-
-Remaining:
-
-- Frontend overview page should switch to this endpoint instead of stitching
-  many separate calls.
+- Dashboard overview page reads this endpoint as its source of truth instead of
+  stitching many separate calls.
 
 ### Twilio Voice Status Callbacks
 
@@ -108,13 +117,17 @@ Reason:
 
 ### Provider Runtime Status
 
-Priority: P2
+Status: closed
 
-Needed:
+Implemented:
 
-- Safe telecom provider status endpoint.
-- Twilio config/callback readiness.
-- Provider mode and health with no secret leakage.
+- `GET /v1/health/providers`
+- Safe readiness status without exposing provider secrets.
+- Phone, billing, and email readiness flags for release checks.
+- Release blockers for missing public callback URL, missing callback routes,
+  missing Stripe webhook secret, and missing transactional email configuration.
+- Customer-facing service health page consumes safe product capability status
+  instead of provider-console internals.
 
 ### Usage Controls And Compliance Settings
 
@@ -122,7 +135,5 @@ Priority: P2
 
 Needed:
 
-- Editable spend limit endpoint.
-- Recording consent controls.
-- Data retention controls.
-- Audit log viewer.
+- Recording consent controls before recording support is enabled.
+- Editable data retention controls before enterprise usage.

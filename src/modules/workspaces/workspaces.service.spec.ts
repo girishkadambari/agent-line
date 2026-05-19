@@ -48,6 +48,7 @@ describe('WorkspacesService', () => {
   } as unknown as AuditService;
   const email = {
     sendWorkspaceInviteEmail: jest.fn().mockResolvedValue({}),
+    sendWorkspaceTeamEventEmail: jest.fn().mockResolvedValue([]),
   } as unknown as EmailService;
   const config = {
     get: jest.fn().mockReturnValue(undefined),
@@ -181,6 +182,76 @@ describe('WorkspacesService', () => {
     );
   });
 
+  it('derives launch readiness from real workspace records', async () => {
+    const prisma = {
+      workspace: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: context.workspaceId,
+          name: 'Ready workspace',
+          createdAt: now,
+          updatedAt: now,
+        }),
+      },
+      workspaceMember: {
+        findUnique: jest.fn().mockResolvedValue(memberFixture({ role: 'admin' })),
+        count: jest.fn().mockResolvedValue(2),
+      },
+      workspaceInvite: {
+        count: jest.fn().mockResolvedValue(1),
+      },
+      project: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: context.projectId,
+            workspaceId: context.workspaceId,
+            name: 'Default project',
+            environment: 'live',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]),
+      },
+      billingBalance: {
+        findUnique: jest.fn().mockResolvedValue({
+          workspaceId: context.workspaceId,
+          currency: 'USD',
+          balanceCents: 2500,
+          spendLimitCents: 30000,
+        }),
+      },
+      agent: {
+        count: jest.fn().mockResolvedValue(1),
+      },
+      phoneNumber: {
+        count: jest.fn().mockResolvedValue(1),
+      },
+      webhookEndpoint: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+    } as unknown as PrismaService;
+    const service = new WorkspacesService(prisma, audit, billing, email, config);
+
+    const result = await service.getCurrentWorkspaceSettings({
+      ...context,
+      userId: 'usr_123',
+    });
+
+    expect(result.onboarding).toEqual({
+      hasAgent: true,
+      hasActiveNumber: true,
+      hasWebhook: false,
+      readyForLiveTraffic: false,
+      nextAction: 'configure_webhook',
+    });
+    expect(result.counts).toMatchObject({
+      activeMembers: 2,
+      pendingInvites: 1,
+      agents: 1,
+      activeNumbers: 1,
+      activeWebhooks: 0,
+    });
+  });
+
   it('accepts a pending invite for the signed-in email', async () => {
     const invite = {
       id: 'inv_123',
@@ -228,6 +299,15 @@ describe('WorkspacesService', () => {
       expect.objectContaining({
         action: 'invite.accepted',
         actorUserId: 'usr_123',
+      }),
+    );
+    expect(email.sendWorkspaceTeamEventEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws_123',
+        inviteId: 'inv_123',
+        inviteEmail: 'new@example.com',
+        role: 'developer',
+        kind: 'invite_accepted',
       }),
     );
   });

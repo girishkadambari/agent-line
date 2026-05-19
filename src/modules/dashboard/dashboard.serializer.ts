@@ -15,6 +15,13 @@ export function serializeDashboardSummary(input: {
     calls: number;
     webhooks: number;
   };
+  onboarding: {
+    hasAgent: boolean;
+    hasActiveNumber: boolean;
+    hasWebhook: boolean;
+    readyForLiveTraffic: boolean;
+    nextAction: 'create_agent' | 'attach_number' | 'configure_webhook' | 'run_live_smoke';
+  };
   recentCalls: Call[];
   recentConversations: Conversation[];
   usage: {
@@ -22,7 +29,13 @@ export function serializeDashboardSummary(input: {
     monthCost: string;
     todayEvents: number;
     monthEvents: number;
+    daily: Array<{
+      period: string;
+      quantity: string;
+      totalCost: string;
+    }>;
   };
+  failedWebhookDeliveries: number;
   billingBalance: BillingBalance | null;
   provider: {
     telecomProvider: string;
@@ -34,9 +47,11 @@ export function serializeDashboardSummary(input: {
 }) {
   return {
     counts: input.counts,
+    onboarding: input.onboarding,
     recentCalls: input.recentCalls.map(serializeCall),
     recentConversations: input.recentConversations.map(serializeConversation),
     usage: input.usage,
+    failedWebhookDeliveries: input.failedWebhookDeliveries,
     billingBalance: input.billingBalance ? serializeBillingBalance(input.billingBalance) : null,
     provider: input.provider,
   };

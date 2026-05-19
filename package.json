@@ -23,6 +23,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:topup": "tsx prisma/topup-local-balance.ts",
     "smoke:release": "tsx scripts/release-smoke.ts",
+    "smoke:inbound": "tsx scripts/inbound-smoke-watch.ts",
     "verify": "npm run typecheck && npm run test"
   },
   "dependencies": {

@@ -36,6 +36,8 @@ export class DashboardService {
       recentConversations,
       todayUsage,
       monthUsage,
+      recentUsageEvents,
+      failedWebhookDeliveries,
       billingBalance,
     ] = await Promise.all([
       this.prisma.agent.count({ where: scope }),
@@ -72,6 +74,25 @@ export class DashboardService {
         _count: { _all: true },
         _sum: { totalCost: true },
       }),
+      this.prisma.usageEvent.findMany({
+        where: {
+          ...scope,
+          occurredAt: { gte: this.startOfDate(this.daysAgo(6)) },
+        },
+        select: {
+          occurredAt: true,
+          quantity: true,
+          totalCost: true,
+        },
+        orderBy: { occurredAt: 'asc' },
+      }),
+      this.prisma.webhookDelivery.count({
+        where: {
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          status: { in: ['failed', 'retrying', 'exhausted'] },
+        },
+      }),
       this.prisma.billingBalance.findUnique({
         where: { workspaceId: context.workspaceId },
       }),
@@ -88,6 +109,11 @@ export class DashboardService {
         calls,
         webhooks,
       },
+      onboarding: this.getWorkspaceOnboardingState({
+        activeAgents,
+        activeNumbers,
+        activeWebhooks: webhooks,
+      }),
       recentCalls,
       recentConversations,
       usage: {
@@ -95,7 +121,9 @@ export class DashboardService {
         monthCost: this.decimalToString(monthUsage._sum.totalCost),
         todayEvents: todayUsage._count._all,
         monthEvents: monthUsage._count._all,
+        daily: this.fillDailyUsage(recentUsageEvents),
       },
+      failedWebhookDeliveries,
       billingBalance,
       provider: {
         telecomProvider: this.config.get<string>('TELECOM_PROVIDER', 'twilio'),
@@ -111,6 +139,55 @@ export class DashboardService {
     return value?.toString() ?? '0';
   }
 
+  private fillDailyUsage(
+    rows: Array<{
+      occurredAt: Date;
+      quantity: Decimal;
+      totalCost: Decimal;
+    }>,
+  ) {
+    const byDate = new Map<string, { quantity: Decimal; totalCost: Decimal }>();
+    for (const row of rows) {
+      const period = this.toDateKey(row.occurredAt);
+      const current = byDate.get(period) ?? {
+        quantity: new Decimal(0),
+        totalCost: new Decimal(0),
+      };
+      byDate.set(period, {
+        quantity: current.quantity.plus(row.quantity),
+        totalCost: current.totalCost.plus(row.totalCost),
+      });
+    }
+
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = this.daysAgo(6 - index);
+      const period = this.toDateKey(date);
+      const row = byDate.get(period);
+
+      return {
+        period,
+        quantity: this.decimalToString(row?.quantity ?? null),
+        totalCost: this.decimalToString(row?.totalCost ?? null),
+      };
+    });
+  }
+
+  private daysAgo(days: number) {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date;
+  }
+
+  private toDateKey(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private startOfDate(date: Date) {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
   private isTwilioReady() {
     const mode = this.config.get<string>('TWILIO_MODE', 'test');
     if (mode === 'test') {
@@ -123,5 +200,34 @@ export class DashboardService {
   private hasConfig(key: string) {
     const value = this.config.get<string>(key);
     return Boolean(value && value.trim().length > 0);
+  }
+
+  private getWorkspaceOnboardingState(input: {
+    activeAgents: number;
+    activeNumbers: number;
+    activeWebhooks: number;
+  }) {
+    const hasAgent = input.activeAgents > 0;
+    const hasActiveNumber = input.activeNumbers > 0;
+    const hasWebhook = input.activeWebhooks > 0;
+
+    let nextAction: 'create_agent' | 'attach_number' | 'configure_webhook' | 'run_live_smoke' =
+      'run_live_smoke';
+
+    if (!hasAgent) {
+      nextAction = 'create_agent';
+    } else if (!hasActiveNumber) {
+      nextAction = 'attach_number';
+    } else if (!hasWebhook) {
+      nextAction = 'configure_webhook';
+    }
+
+    return {
+      hasAgent,
+      hasActiveNumber,
+      hasWebhook,
+      readyForLiveTraffic: hasAgent && hasActiveNumber && hasWebhook,
+      nextAction,
+    };
   }
 }

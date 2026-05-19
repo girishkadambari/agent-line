@@ -4,10 +4,13 @@ import { parseLimit } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { AuthContextGuard } from '../auth/auth-context.guard';
+import { WorkspaceRoleGuard } from '../auth/workspace-role.guard';
+import { WorkspaceRoles } from '../auth/workspace-roles.decorator';
 import { EmailService } from './email.service';
 
-@UseGuards(AuthContextGuard)
+@UseGuards(AuthContextGuard, WorkspaceRoleGuard)
 @Controller('email')
+@WorkspaceRoles('owner', 'admin')
 export class EmailController {
   constructor(private readonly email: EmailService) {}
 

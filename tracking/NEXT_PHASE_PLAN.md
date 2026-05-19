@@ -110,8 +110,11 @@ Checklist:
 - [x] low balance email works
 - [x] spend limit reached email works
 - [x] payment failure email works
+- [x] invite accepted/revoked notification emails work
 - [x] invite/member/API-key/billing/provider changes are audited
 - [x] audit actor labels are understandable to customers in every dashboard row
+- [x] workspace role enforcement protects billing, API keys, webhooks, phone
+      numbers, calls, messages, usage, audit, email, and provider event surfaces
 
 ### D4: Deployment Smoke
 
@@ -129,6 +132,8 @@ Checklist:
 - [x] verify webhook delivery records are readable
 - [x] verify provider callback records are readable
 - [x] persist voice gather callback evidence for transcript/outcome debugging
+- [x] manual inbound smoke watcher exists for tunnel verification
+- [x] manual inbound smoke verifies resource-specific webhook deliveries
 - [ ] manually receive SMS through Twilio callback tunnel
 - [ ] manually receive inbound call through Twilio callback tunnel
 - [ ] manually verify transcript/outcome after live call gather
@@ -169,11 +174,21 @@ Implemented:
   - outbound call when `VUKHO_SMOKE_TO_NUMBER` is set
   - agent, number, conversation, call, usage, billing, audit, and webhook
     visibility
+  - configured customer webhook endpoint accepts a signed `webhook.test`
+    delivery before SMS/call webhook checks are trusted
 - provider callback visibility through:
   - `GET /v1/provider-events`
   - `GET /v1/provider-events/summary`
 - voice gather callback evidence is stored as `twilio.voice.gather` before
   transcript/outcome updates are emitted
+- `npm run smoke:inbound` watches manual inbound SMS/call evidence through the
+  public tunnel
+- inbound smoke verifies webhook deliveries for the actual inbound message,
+  inbound call, and transcript-update resources
+- inbound smoke requires webhook deliveries to be `succeeded`; failed or
+  retrying rows are reported as release blockers, not counted as received
+- inbound smoke only accepts evidence created after the current run starts, so
+  stale provider callbacks cannot create a false pass
 - The command fails closed for release sign-off if live smoke inputs are missing.
 - `VUKHO_SMOKE_ALLOW_PARTIAL=true` is available only for readiness runs.
 
@@ -194,9 +209,28 @@ Exit criteria:
 
 Next implementation:
 
-- Add a manual inbound smoke watcher that polls provider callback evidence,
-  conversations, calls, usage, and webhook deliveries while the tester sends an
-  inbound SMS and places an inbound call through the public tunnel.
+- Run `npm run smoke:inbound` with a live tunnel and close the remaining manual
+  D4 gates from real inbound SMS/call traffic.
+- If the watcher fails, fix the exact evidence gap it reports before moving to
+  broad UI polish or new feature work.
+
+## Recent Completed Work: Dashboard Summary Consolidation
+
+Implemented in this release phase:
+
+- `GET /v1/dashboard/summary` now includes a seven-day usage series and failed
+  webhook delivery count.
+- Dashboard overview now reads the summary endpoint instead of stitching
+  agents, numbers, calls, conversations, usage, billing, and webhook delivery
+  endpoints independently.
+- Overview counts, spend trend, billing balance, recent calls, and recent
+  conversations now come from one backend-scoped source of truth.
+
+Next:
+
+- Live D4 smoke remains the release gate: manually receive SMS, manually
+  receive an inbound call, and verify the customer webhook receives signed
+  message/call/transcript events.
 
 ## Recent Completed Work: Real Agent Phone Loop
 
