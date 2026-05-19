@@ -37,13 +37,6 @@ export function serializeDashboardSummary(input: {
   };
   failedWebhookDeliveries: number;
   billingBalance: BillingBalance | null;
-  provider: {
-    telecomProvider: string;
-    twilioMode: string;
-    twilioReady: boolean;
-    stripeReady: boolean;
-    brevoReady: boolean;
-  };
 }) {
   return {
     counts: input.counts,
@@ -53,6 +46,5 @@ export function serializeDashboardSummary(input: {
     usage: input.usage,
     failedWebhookDeliveries: input.failedWebhookDeliveries,
     billingBalance: input.billingBalance ? serializeBillingBalance(input.billingBalance) : null,
-    provider: input.provider,
   };
 }

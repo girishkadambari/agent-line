@@ -571,13 +571,33 @@ export class CallsService {
       },
     });
 
+    const shouldMarkInProgress =
+      !this.terminalCallStatuses.has(call.status) && call.status !== 'in_progress';
     const updated = await this.prisma.call.update({
       where: { id: call.id },
       data: {
+        status: shouldMarkInProgress ? 'in_progress' : call.status,
+        startedAt: shouldMarkInProgress ? (call.startedAt ?? new Date()) : call.startedAt,
+        providerStatus: shouldMarkInProgress ? 'in-progress' : call.providerStatus,
         summary: `Caller said: ${text}`,
         outcome: call.outcome ?? 'response_captured',
       },
     });
+
+    if (shouldMarkInProgress) {
+      const statusEvent = await this.events.create({
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        type: VukhoEvent.CallStatusUpdated,
+        resourceType: EventResourceType.Call,
+        resourceId: call.id,
+        payload: this.buildCallEventPayload(updated, {
+          providerStatus: 'in-progress',
+          source: 'provider.voice_gather',
+        }),
+      });
+      await this.webhooks.createDeliveriesForEvent(statusEvent);
+    }
 
     const event = await this.events.create({
       workspaceId: call.workspaceId,
@@ -595,6 +615,7 @@ export class CallsService {
           endedAtMs: turn.endedAtMs,
           confidence: turn.confidence?.toString() ?? null,
         },
+        source: 'provider.voice_gather',
       },
     });
     await this.webhooks.createDeliveriesForEvent(event);

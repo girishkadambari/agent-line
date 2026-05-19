@@ -556,10 +556,28 @@ describe('CallsService', () => {
   it('records live Twilio speech as a transcript turn and emits an update event', async () => {
     const prisma = {
       call: {
-        findFirst: jest
-          .fn()
-          .mockResolvedValue(callFixture({ provider: 'twilio', providerCallId: 'CA123' })),
-        update: jest.fn().mockResolvedValue(callFixture({ summary: 'Caller said: Hello Vukho' })),
+        findFirst: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'queued',
+            startedAt: null,
+            endedAt: null,
+            outcome: null,
+            summary: null,
+          }),
+        ),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'in_progress',
+            providerStatus: 'in-progress',
+            summary: 'Caller said: Hello Vukho',
+            outcome: 'response_captured',
+            endedAt: null,
+          }),
+        ),
       },
       transcriptTurn: {
         findFirst: jest
@@ -605,9 +623,17 @@ describe('CallsService', () => {
     expect(prisma.call.update).toHaveBeenCalledWith({
       where: { id: 'call_123' },
       data: expect.objectContaining({
+        status: 'in_progress',
+        providerStatus: 'in-progress',
         summary: 'Caller said: Hello Vukho',
+        outcome: 'response_captured',
       }),
     });
+    expect(events.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.call.status_updated',
+      }),
+    );
     expect(events.create).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'agent.call.transcript_updated',

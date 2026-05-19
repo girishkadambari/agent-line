@@ -2,6 +2,7 @@ import { Body, Controller, Header, Headers, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { success } from '../../../common/api/api-response';
+import { ApiException } from '../../../common/errors/api.exception';
 import { CallsService } from '../../calls/calls.service';
 import { MessagesService } from '../../messages/messages.service';
 import { TwilioSignatureService } from './twilio-signature.service';
@@ -212,17 +213,22 @@ export class TwilioWebhooksController {
   }
 
   private getVoiceGatherCallbackUrl() {
-    const configured = this.config.get<string>('TWILIO_VOICE_GATHER_CALLBACK_URL');
+    const configured = this.config.get<string>('TWILIO_VOICE_GATHER_CALLBACK_URL')?.trim();
     if (configured) {
       return configured;
     }
 
-    const voiceUrl = this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL');
+    const voiceUrl = this.config.get<string>('TWILIO_VOICE_WEBHOOK_URL')?.trim();
     if (voiceUrl?.endsWith('/voice/inbound')) {
       return voiceUrl.replace(/\/voice\/inbound$/, '/voice/gather');
     }
 
-    return 'https://example.com/vukho/voice/gather';
+    throw new ApiException(
+      'provider_error',
+      'TWILIO_VOICE_GATHER_CALLBACK_URL is required for live voice speech capture.',
+      500,
+      { config: 'TWILIO_VOICE_GATHER_CALLBACK_URL' },
+    );
   }
 
   private escapeXml(value: string) {

@@ -2,6 +2,58 @@
 
 This ledger records completed implementation work in chronological order. It must be updated after every implementation task.
 
+## 2026-05-19: Live Voice Transcript State Fix
+
+**Status:** done
+
+Implemented:
+
+- Fixed live speech capture so a queued/ringing call is promoted to
+  `in_progress` as soon as Twilio voice gather returns speech.
+- Added a call status webhook event before the transcript update event when
+  speech capture is the first reliable signal that the call is active.
+- Removed the fake `example.com` voice gather fallback; live voice now fails
+  loudly when the gather callback URL cannot be derived or configured.
+- Refreshed the call detail page after end/transfer actions so transcript and
+  provider state stay aligned with the backend response.
+- Removed the unused fake frontend call timeline compatibility stub.
+
+Release impact:
+
+- Fixes the confusing production symptom where Vukho captured caller speech but
+  the call stayed `queued`.
+- Prevents a misconfigured deployment from silently returning TwiML that points
+  Twilio at a fake gather endpoint.
+
+## 2026-05-19: Customer-Facing Internals Cleanup
+
+**Status:** done
+
+Implemented:
+
+- Removed unused provider readiness internals from the dashboard summary API.
+- Kept service/provider readiness in the dedicated settings and health surfaces,
+  where it is presented as customer-facing Vukho readiness instead of vendor
+  configuration.
+- Cleared the fake webhook URL from the create endpoint drawer so customers must
+  enter their own real destination before creating a webhook.
+- Simplified settings readiness labels for billing, sign-in, and channels so the
+  product reads as an operating workspace instead of a developer/provider console.
+
+Verification:
+
+- `npm test -- dashboard.service.spec.ts --runInBand` passed.
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- Frontend `npm run build` passed.
+- Backend and frontend `git diff --check` passed.
+
+Release impact:
+
+- Reduces visible implementation leakage in the customer dashboard while keeping
+  the backend evidence, health, and readiness checks available for release
+  operations.
+
 ## 2026-05-19: Voice Gather Callback Evidence
 
 **Status:** done

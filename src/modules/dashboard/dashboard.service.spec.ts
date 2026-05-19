@@ -1,4 +1,3 @@
-import type { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import type { PrismaService } from '../prisma/prisma.service';
@@ -103,21 +102,7 @@ describe('DashboardService', () => {
         }),
       },
     } as unknown as PrismaService;
-    const config = {
-      get: jest.fn((key: string, fallback?: string) => {
-        const values: Record<string, string> = {
-          TELECOM_PROVIDER: 'twilio',
-          TWILIO_MODE: 'live-dev',
-          TWILIO_ACCOUNT_SID: 'AC123',
-          TWILIO_AUTH_TOKEN: 'token',
-          STRIPE_SECRET_KEY: 'sk_test_123',
-          BREVO_API_KEY: 'xkeysib',
-          BREVO_FROM_EMAIL: 'no-reply@example.com',
-        };
-        return values[key] ?? fallback;
-      }),
-    } as unknown as ConfigService;
-    const service = new DashboardService(prisma, config);
+    const service = new DashboardService(prisma);
 
     const result = await service.getSummary(context);
 
@@ -154,12 +139,5 @@ describe('DashboardService', () => {
     });
     expect(result.usage.daily).toHaveLength(7);
     expect(result.failedWebhookDeliveries).toBe(1);
-    expect(result.provider).toEqual({
-      telecomProvider: 'twilio',
-      twilioMode: 'live-dev',
-      twilioReady: true,
-      stripeReady: true,
-      brevoReady: true,
-    });
   });
 });

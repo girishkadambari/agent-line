@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import type { RequestContext } from '../../common/context/request-context';
@@ -8,10 +7,7 @@ import { serializeDashboardSummary } from './dashboard.serializer';
 
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getSummary(context: RequestContext) {
     const now = new Date();
@@ -125,13 +121,6 @@ export class DashboardService {
       },
       failedWebhookDeliveries,
       billingBalance,
-      provider: {
-        telecomProvider: this.config.get<string>('TELECOM_PROVIDER', 'twilio'),
-        twilioMode: this.config.get<string>('TWILIO_MODE', 'test'),
-        twilioReady: this.isTwilioReady(),
-        stripeReady: this.hasConfig('STRIPE_SECRET_KEY'),
-        brevoReady: this.hasConfig('BREVO_API_KEY') && this.hasConfig('BREVO_FROM_EMAIL'),
-      },
     });
   }
 
@@ -186,20 +175,6 @@ export class DashboardService {
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
     return start;
-  }
-
-  private isTwilioReady() {
-    const mode = this.config.get<string>('TWILIO_MODE', 'test');
-    if (mode === 'test') {
-      return this.hasConfig('TWILIO_TEST_ACCOUNT_SID') && this.hasConfig('TWILIO_TEST_AUTH_TOKEN');
-    }
-
-    return this.hasConfig('TWILIO_ACCOUNT_SID') && this.hasConfig('TWILIO_AUTH_TOKEN');
-  }
-
-  private hasConfig(key: string) {
-    const value = this.config.get<string>(key);
-    return Boolean(value && value.trim().length > 0);
   }
 
   private getWorkspaceOnboardingState(input: {
