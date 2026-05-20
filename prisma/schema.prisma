@@ -37,6 +37,9 @@ model Workspace {
   internalEvents         InternalEvent[]
   activeSessions         UserSession[]
   emailDeliveries        EmailDelivery[]
+  businessProfiles       BusinessProfile[]
+  appointments           Appointment[]
+  appointmentWaitlist    AppointmentWaitlist[]
 }
 
 model Project {
@@ -645,6 +648,101 @@ model EmailDelivery {
   @@index([recipientEmail])
   @@index([template])
   @@index([status])
+}
+
+model BusinessProfile {
+  id               String                @id
+  workspaceId      String
+  businessType     String                @default("salon")
+  ownerName        String
+  businessName     String
+  ownerPhone       String
+  address          String?
+  openTime         String                @default("09:00")
+  closeTime        String                @default("22:00")
+  languages        String[]              @default(["kannada", "hindi", "english"])
+  services         Json                  @default("[]")
+  googleMapsUrl    String?
+  retellAgentId    String?               @unique
+  retellLlmId      String?
+  isOnBreak        Boolean               @default(false)
+  breakResumesAt   DateTime?
+  isFullDay        Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id])
+  appointments     Appointment[]
+  waitlist         AppointmentWaitlist[]
+
+  @@index([workspaceId])
+  @@index([businessType])
+}
+
+model Appointment {
+  id                String          @id
+  workspaceId       String
+  businessProfileId String
+  customerName      String
+  customerPhone     String
+  service           String
+  priceRs           Int
+  durationMin       Int             @default(30)
+  scheduledAt       DateTime
+  status            AppointmentStatus @default(pending)
+  confirmedAt       DateTime?
+  arrivedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  confirmationSentAt DateTime?
+  reminderSent      Boolean         @default(false)
+  feedbackScore     Int?
+  feedbackSentAt    DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id])
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+
+  @@index([workspaceId])
+  @@index([businessProfileId])
+  @@index([scheduledAt])
+  @@index([customerPhone])
+}
+
+model AppointmentWaitlist {
+  id                String          @id
+  workspaceId       String
+  businessProfileId String
+  customerName      String
+  customerPhone     String
+  service           String?
+  date              DateTime
+  notifiedAt        DateTime?
+  status            WaitlistStatus  @default(waiting)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id])
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id])
+
+  @@index([workspaceId])
+  @@index([businessProfileId])
+  @@index([date])
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  arrived
+  completed
+  cancelled
+  no_show
+}
+
+enum WaitlistStatus {
+  waiting
+  offered
+  booked
+  expired
 }
 
 enum WorkspaceRole {

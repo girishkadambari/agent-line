@@ -94,13 +94,24 @@ export const updateContactSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-export const createCallSchema = z.object({
-  agentId: z.string().min(1),
-  to: z.string().min(7),
-});
+export const createCallSchema = z
+  .object({
+    agentId: z.string().min(1),
+    to: z.string().min(7).optional(),
+    toNumber: z.string().min(7).optional(),
+    initialGreeting: z.string().min(1).optional(),
+    voice: z.string().min(1).optional(),
+    systemPrompt: z.string().min(1).optional(),
+    fromNumberId: z.string().min(1).optional(),
+  })
+  .refine((value) => value.to ?? value.toNumber, {
+    message: 'Either toNumber or to is required.',
+    path: ['toNumber'],
+  });
 
 export const createWebCallSchema = z.object({
   agentId: z.string().min(1),
+  variables: z.record(z.unknown()).optional(),
 });
 
 export const transferCallSchema = z.object({

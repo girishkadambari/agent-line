@@ -8,6 +8,7 @@ import { MockProviderService } from '../providers/mock/mock-provider.service';
 import type { TelecomProvider } from '../../domain/provider';
 import type { UsageService } from '../usage/usage.service';
 import type { WebhooksService } from '../webhooks/webhooks.service';
+import type { CallTranscriptStreamService } from './call-transcript-stream.service';
 import { CallsService } from './calls.service';
 
 const context = {
@@ -85,6 +86,11 @@ function createService(prisma: PrismaService, providerOverride?: TelecomProvider
   const audit = {
     record: jest.fn().mockResolvedValue({ id: 'audit_123' }),
   } as unknown as AuditService;
+  const transcriptStream = {
+    publishTurn: jest.fn(),
+    publishEnded: jest.fn(),
+    stream: jest.fn(),
+  } as unknown as CallTranscriptStreamService;
   const provider = providerOverride ?? new MockProviderService();
 
   return {
@@ -97,6 +103,7 @@ function createService(prisma: PrismaService, providerOverride?: TelecomProvider
       usage,
       webhooks,
       audit,
+      transcriptStream,
     ),
     contacts,
     conversations,
@@ -104,6 +111,7 @@ function createService(prisma: PrismaService, providerOverride?: TelecomProvider
     usage,
     webhooks,
     audit,
+    transcriptStream,
   };
 }
 
@@ -195,6 +203,92 @@ describe('CallsService', () => {
         to: '+14155550100',
       }),
     ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  it('creates outbound calls with docs-compatible aliases and selected from number', async () => {
+    const provider = {
+      createCall: jest.fn().mockResolvedValue({
+        provider: 'twilio',
+        providerCallId: 'CA123',
+        status: 'queued',
+        durationSeconds: 0,
+      }),
+    } as unknown as TelecomProvider;
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+      phoneNumber: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'num_selected',
+          phoneNumber: '+14155559999',
+          provider: 'twilio',
+        }),
+      },
+      call: {
+        create: jest.fn().mockResolvedValue(callFixture({ status: 'queued' })),
+        update: jest.fn().mockResolvedValue(
+          callFixture({
+            provider: 'twilio',
+            providerCallId: 'CA123',
+            status: 'queued',
+            fromNumber: '+14155559999',
+            toNumber: '+14155550100',
+          }),
+        ),
+      },
+      transcriptTurn: {
+        createMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma, provider);
+
+    await service.createOutboundCall(context, {
+      agentId: 'agt_123',
+      toNumber: '+14155550100',
+      fromNumberId: 'num_selected',
+      initialGreeting: 'Hello there.',
+      voice: 'alloy',
+      systemPrompt: 'Be brief.',
+    });
+
+    expect(prisma.phoneNumber.findFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'num_selected',
+        agentId: 'agt_123',
+        capabilities: { has: 'voice' },
+      }),
+    });
+    expect(provider.createCall).toHaveBeenCalledWith({
+      from: '+14155559999',
+      to: '+14155550100',
+      initialGreeting: 'Hello there.',
+      voice: 'alloy',
+      systemPrompt: 'Be brief.',
+    });
+  });
+
+  it('creates short-lived web call tokens with docs-compatible fields', async () => {
+    const prisma = {
+      agent: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'agt_123' }),
+      },
+    } as unknown as PrismaService;
+    const { service } = createService(prisma);
+
+    const result = await service.createWebCallToken(context, {
+      agentId: 'agt_123',
+      variables: { tier: 'gold' },
+    });
+
+    expect(result).toMatchObject({
+      accessToken: expect.stringMatching(/^mock_web_call_tok_/),
+      token: expect.stringMatching(/^mock_web_call_tok_/),
+      callId: expect.stringMatching(/^call_/),
+      agentId: 'agt_123',
+    });
+    expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    expect(new Date(result.expiresAt).getTime()).toBeLessThanOrEqual(Date.now() + 30_000);
   });
 
   it('does not create call when usage debit fails', async () => {

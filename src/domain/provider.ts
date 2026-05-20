@@ -1,4 +1,4 @@
-export type ProviderCapability = "sms" | "mms" | "voice";
+export type ProviderCapability = 'sms' | 'mms' | 'voice';
 
 export interface SearchNumbersInput {
   country: string;
@@ -19,12 +19,12 @@ export interface ProvisionNumberInput extends SearchNumbersInput {
   workspaceId: string;
   projectId: string;
   inboundSmsUrl?: string;
-  inboundSmsMethod?: "POST" | "GET";
+  inboundSmsMethod?: 'POST' | 'GET';
   statusCallbackUrl?: string;
 }
 
 export interface ProvisionNumberResult {
-  provider: "mock" | "twilio" | "telnyx";
+  provider: 'mock' | 'twilio' | 'telnyx';
   providerNumberId: string;
   phoneNumber: string;
   country: string;
@@ -36,7 +36,7 @@ export interface ImportNumberInput {
   phoneNumber: string;
   capabilities: ProviderCapability[];
   inboundSmsUrl?: string;
-  inboundSmsMethod?: "POST" | "GET";
+  inboundSmsMethod?: 'POST' | 'GET';
   statusCallbackUrl?: string;
 }
 
@@ -58,20 +58,31 @@ export interface SendSmsInput {
 }
 
 export interface SendSmsResult {
-  provider: "mock" | "twilio" | "telnyx";
+  provider: 'mock' | 'twilio' | 'telnyx';
   providerMessageId: string;
-  status: "sent" | "delivered" | "failed";
+  status: 'sent' | 'delivered' | 'failed';
 }
 
 export interface CreateCallInput {
   from: string;
   to: string;
+  initialGreeting?: string;
+  voice?: string;
+  systemPrompt?: string;
 }
 
 export interface CreateCallResult {
-  provider: "mock" | "twilio" | "telnyx";
+  provider: 'mock' | 'twilio' | 'telnyx';
   providerCallId: string;
-  status: "queued" | "ringing" | "in_progress" | "completed" | "failed" | "busy" | "no_answer" | "canceled";
+  status:
+    | 'queued'
+    | 'ringing'
+    | 'in_progress'
+    | 'completed'
+    | 'failed'
+    | 'busy'
+    | 'no_answer'
+    | 'canceled';
   durationSeconds: number;
 }
 
@@ -80,7 +91,7 @@ export interface EndCallInput {
 }
 
 export interface EndCallResult {
-  status: "completed" | "canceled";
+  status: 'completed' | 'canceled';
 }
 
 export interface TransferCallInput {
@@ -89,7 +100,7 @@ export interface TransferCallInput {
 }
 
 export interface TransferCallResult {
-  status: "transferred";
+  status: 'transferred';
 }
 
 export interface TelecomProvider {

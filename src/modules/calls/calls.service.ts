@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, MessageEvent } from '@nestjs/common';
 import { CallStatus, Prisma, type Call } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { Observable } from 'rxjs';
 
 import { list } from '../../common/api/api-response';
 import type { RequestContext } from '../../common/context/request-context';
@@ -17,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { CallTranscriptStreamService } from './call-transcript-stream.service';
 import { serializeCall, serializeTranscriptTurn } from './calls.serializer';
 
 @Injectable()
@@ -40,12 +42,16 @@ export class CallsService {
     private readonly usage: UsageService,
     private readonly webhooks: WebhooksService,
     private readonly audit: AuditService,
+    private readonly transcriptStream: CallTranscriptStreamService,
   ) {}
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
     const agent = await this.findAgentOrThrow(context, input.agentId);
-    const phoneNumber = await this.findVoiceCapableNumberOrThrow(context, agent.id);
-    const contact = await this.contacts.findOrCreateByPhoneNumber(context, input.to);
+    const toNumber = this.resolveCallToNumber(input);
+    const phoneNumber = input.fromNumberId
+      ? await this.findVoiceCapableNumberByIdOrThrow(context, agent.id, input.fromNumberId)
+      : await this.findVoiceCapableNumberOrThrow(context, agent.id);
+    const contact = await this.contacts.findOrCreateByPhoneNumber(context, toNumber);
     const conversation = await this.conversations.findOrCreateVoiceConversation(
       context,
       agent.id,
@@ -75,7 +81,7 @@ export class CallsService {
           contactId: contact.id,
           direction: 'outbound',
           fromNumber: phoneNumber.phoneNumber,
-          toNumber: input.to,
+          toNumber,
           status: 'queued',
           durationSeconds: 0,
           provider: phoneNumber.provider,
@@ -85,7 +91,10 @@ export class CallsService {
 
       const providerCall = await this.telecomProvider.createCall({
         from: phoneNumber.phoneNumber,
-        to: input.to,
+        to: toNumber,
+        initialGreeting: input.initialGreeting,
+        voice: input.voice,
+        systemPrompt: input.systemPrompt,
       });
       providerStarted = true;
       await this.usage.finalizeVoiceCall({
@@ -116,7 +125,9 @@ export class CallsService {
       });
 
       if (providerCall.provider === 'mock') {
-        await this.createMockTranscript(context, call.id, input.to);
+        await this.createMockTranscript(context, call.id, toNumber, {
+          initialGreeting: input.initialGreeting,
+        });
       }
       const event = await this.events.create({
         workspaceId: context.workspaceId,
@@ -172,12 +183,16 @@ export class CallsService {
   }
 
   async createWebCallToken(context: RequestContext, input: CreateWebCallInput) {
-    await this.findAgentOrThrow(context, input.agentId);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const agent = await this.findAgentOrThrow(context, input.agentId);
+    const expiresAt = new Date(Date.now() + 30 * 1000);
+    const callId = createId('call');
+    const accessToken = `mock_web_call_${createId('tok')}`;
 
     return {
-      token: `mock_web_call_${createId('tok')}`,
-      agentId: input.agentId,
+      accessToken,
+      token: accessToken,
+      callId,
+      agentId: agent.id,
       expiresAt: expiresAt.toISOString(),
     };
   }
@@ -233,6 +248,7 @@ export class CallsService {
       payload: this.buildCallEventPayload(call, { providerStatus: providerCall.status }),
     });
     await this.webhooks.createDeliveriesForEvent(event);
+    this.publishTerminalTranscriptEvent(call);
     await this.recordCallAudit(context, AuditAction.CallEnded, call, {
       providerStatus: providerCall.status,
     });
@@ -318,6 +334,7 @@ export class CallsService {
         payload: this.buildCallEventPayload(call, { providerStatus: input.status }),
       });
       await this.webhooks.createDeliveriesForEvent(event);
+      this.publishTerminalTranscriptEvent(call);
     } else if (shouldUpdate && nextStatus !== existing.status) {
       const event = await this.events.create({
         workspaceId: call.workspaceId,
@@ -557,18 +574,13 @@ export class CallsService {
     const startedAtMs = Math.max(lastTurn?.endedAtMs ?? 0, 5000);
     const endedAtMs = startedAtMs + Math.max(1000, Math.min(text.length * 80, 10000));
 
-    const turn = await this.prisma.transcriptTurn.create({
-      data: {
-        id: createId('trn'),
-        workspaceId: call.workspaceId,
-        projectId: call.projectId,
-        callId: call.id,
-        speaker: 'user',
-        text,
-        startedAtMs,
-        endedAtMs,
-        confidence: Number.isFinite(input.confidence) ? input.confidence : null,
-      },
+    const turn = await this.appendTranscriptTurn({
+      call,
+      speaker: 'user',
+      text,
+      startedAtMs,
+      endedAtMs,
+      confidence: Number.isFinite(input.confidence) ? input.confidence : null,
     });
 
     const shouldMarkInProgress =
@@ -678,11 +690,41 @@ export class CallsService {
     });
   }
 
-  private async createMockTranscript(context: RequestContext, callId: string, phoneNumber: string) {
+  streamTranscript(context: RequestContext, callId: string): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let streamSubscription: { unsubscribe: () => void } | undefined;
+      let closed = false;
+
+      this.listTranscript(context, callId)
+        .then((response) => {
+          if (closed) {
+            return;
+          }
+          streamSubscription = this.transcriptStream
+            .stream(context, callId, response.data)
+            .subscribe(subscriber);
+        })
+        .catch((error) => subscriber.error(error));
+
+      return () => {
+        closed = true;
+        streamSubscription?.unsubscribe();
+      };
+    });
+  }
+
+  private async createMockTranscript(
+    context: RequestContext,
+    callId: string,
+    phoneNumber: string,
+    options: { initialGreeting?: string } = {},
+  ) {
     const turns = [
       {
         speaker: 'agent' as const,
-        text: 'Hi, this is your Vukho agent. I am calling to help with your request.',
+        text:
+          options.initialGreeting ??
+          'Hi, this is your Vukho agent. I am calling to help with your request.',
         startedAtMs: 0,
         endedAtMs: 5200,
       },
@@ -732,19 +774,87 @@ export class CallsService {
       return;
     }
 
-    await this.prisma.transcriptTurn.create({
-      data: {
-        id: createId('trn'),
-        workspaceId: call.workspaceId,
-        projectId: call.projectId,
-        callId: call.id,
-        speaker: 'agent',
-        text: 'Hello from Vukho. This is your live phone agent. Please say a short reply after the tone.',
-        startedAtMs: 0,
-        endedAtMs: 5000,
-        confidence: 1,
+    await this.appendTranscriptTurn({
+      call,
+      speaker: 'agent',
+      text: this.liveVoiceGreetingText(),
+      startedAtMs: 0,
+      endedAtMs: 5000,
+      confidence: 1,
+    });
+  }
+
+  private liveVoiceGreetingText() {
+    return 'Hello from Vukho. This is your live phone agent. Please say a short reply after the tone.';
+  }
+
+  private publishTerminalTranscriptEvent(
+    call: Pick<Call, 'workspaceId' | 'projectId' | 'id' | 'status'>,
+  ) {
+    if (this.terminalCallStatuses.has(call.status)) {
+      this.transcriptStream.publishEnded(call);
+    }
+  }
+
+  private resolveCallToNumber(input: CreateCallInput) {
+    const toNumber = input.toNumber ?? input.to;
+    if (!toNumber) {
+      throw new ApiException('invalid_request', 'Either toNumber or to is required.', 400);
+    }
+    return toNumber;
+  }
+
+  private async findVoiceCapableNumberByIdOrThrow(
+    context: RequestContext,
+    agentId: string,
+    phoneNumberId: string,
+  ) {
+    const phoneNumber = await this.prisma.phoneNumber.findFirst({
+      where: {
+        id: phoneNumberId,
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId,
+        status: 'active',
+        capabilities: { has: 'voice' },
       },
     });
+
+    if (!phoneNumber) {
+      throw new ApiException(
+        'not_found',
+        'Voice-capable fromNumberId was not found for this agent.',
+        404,
+        { agentId, fromNumberId: phoneNumberId },
+      );
+    }
+
+    return phoneNumber;
+  }
+
+  private async appendTranscriptTurn(input: {
+    call: Pick<Call, 'workspaceId' | 'projectId' | 'id'>;
+    speaker: 'agent' | 'user';
+    text: string;
+    startedAtMs: number;
+    endedAtMs: number;
+    confidence?: number | null;
+  }) {
+    const turn = await this.prisma.transcriptTurn.create({
+      data: {
+        id: createId('trn'),
+        workspaceId: input.call.workspaceId,
+        projectId: input.call.projectId,
+        callId: input.call.id,
+        speaker: input.speaker,
+        text: input.text,
+        startedAtMs: input.startedAtMs,
+        endedAtMs: input.endedAtMs,
+        confidence: input.confidence ?? null,
+      },
+    });
+    this.transcriptStream.publishTurn(input.call, turn);
+    return turn;
   }
 
   private normalizeProviderCallStatus(status: string): CallStatus {

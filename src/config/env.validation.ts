@@ -40,6 +40,9 @@ const rawEnvSchema = z
     WEBHOOK_RETRY_WORKER_ENABLED: z.string().optional(),
     WEBHOOK_RETRY_WORKER_INTERVAL_MS: z.string().optional(),
     WEBHOOK_RETRY_WORKER_BATCH_SIZE: z.string().optional(),
+    RETELL_API_KEY: z.string().optional(),
+    RETELL_WEBHOOK_SECRET: z.string().optional(),
+    INTERAKT_API_KEY: z.string().optional(),
   })
   .passthrough();
 

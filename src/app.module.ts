@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { validateEnv } from './config/env.validation';
 import { AgentsModule } from './modules/agents/agents.module';
@@ -20,6 +21,9 @@ import { UsageModule } from './modules/usage/usage.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks.module';
+import { RetellModule } from './modules/retell/retell.module';
+import { InteraktWebhooksModule } from './modules/interakt/interakt-webhooks.module';
+import { BusinessModule } from './modules/business/business.module';
 
 @Module({
   imports: [
@@ -27,6 +31,7 @@ import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks
       isGlobal: true,
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     HealthModule,
@@ -45,6 +50,9 @@ import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks
     WebhooksModule,
     UsageModule,
     TwilioWebhooksModule,
+    RetellModule,
+    InteraktWebhooksModule,
+    BusinessModule,
   ],
 })
 export class AppModule {}

@@ -9,7 +9,7 @@ import {
   Sse,
   UseGuards,
 } from '@nestjs/common';
-import { from, map, mergeMap, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -87,9 +87,6 @@ export class CallsController {
     @CurrentContext() context: RequestContext,
     @Param('id') id: string,
   ): Observable<MessageEvent> {
-    return from(this.calls.listTranscript(context, id)).pipe(
-      mergeMap((response) => from(response.data)),
-      map((turn) => ({ data: turn })),
-    );
+    return this.calls.streamTranscript(context, id);
   }
 }

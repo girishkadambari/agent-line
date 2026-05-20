@@ -140,8 +140,12 @@ export class TwilioWebhooksController {
       });
     }
 
-    const gatherUrl = this.getVoiceGatherCallbackUrl();
+    const streamUrl = this.config.get<string>('TWILIO_VOICE_STREAM_URL')?.trim();
+    if (streamUrl) {
+      return this.buildStreamingVoiceResponse(streamUrl);
+    }
 
+    const gatherUrl = this.getVoiceGatherCallbackUrl();
     return [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
@@ -229,6 +233,17 @@ export class TwilioWebhooksController {
       500,
       { config: 'TWILIO_VOICE_GATHER_CALLBACK_URL' },
     );
+  }
+
+  private buildStreamingVoiceResponse(streamUrl: string) {
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<Response>',
+      '<Connect>',
+      `<Stream url="${this.escapeXml(streamUrl)}" />`,
+      '</Connect>',
+      '</Response>',
+    ].join('');
   }
 
   private escapeXml(value: string) {

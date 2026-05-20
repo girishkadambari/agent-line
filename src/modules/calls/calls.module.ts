@@ -8,6 +8,7 @@ import { EventsModule } from '../events/events.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { UsageModule } from '../usage/usage.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { CallTranscriptStreamService } from './call-transcript-stream.service';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
 
@@ -23,7 +24,7 @@ import { CallsService } from './calls.service';
     WebhooksModule,
   ],
   controllers: [CallsController],
-  providers: [CallsService],
-  exports: [CallsService],
+  providers: [CallsService, CallTranscriptStreamService],
+  exports: [CallsService, CallTranscriptStreamService],
 })
 export class CallsModule {}
