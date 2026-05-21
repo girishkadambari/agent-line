@@ -170,6 +170,7 @@ model Agent {
   status           AgentStatus    @default(active)
   systemPrompt     String?
   voice            String?
+  language         String?   @default("en-IN")
   beginMessage     String?
   transferNumber   String?
   voicemailMessage String?

@@ -11,6 +11,7 @@ export function serializeAgent(agent: Agent) {
     status: agent.status,
     systemPrompt: agent.systemPrompt,
     voice: agent.voice,
+    language: agent.language ?? 'en-IN',
     beginMessage: agent.beginMessage,
     transferNumber: agent.transferNumber,
     voicemailMessage: agent.voicemailMessage,

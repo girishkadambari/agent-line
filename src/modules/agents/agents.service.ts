@@ -19,6 +19,101 @@ import { WebhooksService } from '../webhooks/webhooks.service';
 import { serializeWebhookDelivery } from '../webhooks/webhooks.serializer';
 import { serializeAgent } from './agents.serializer';
 
+const SARVAM_LANGUAGES = [
+  {
+    code: 'en-IN',
+    name: 'English (India)',
+    speakers: [
+      { id: 'ritu', name: 'Ritu' },
+      { id: 'amit', name: 'Amit' },
+      { id: 'priya', name: 'Priya' },
+      { id: 'neha', name: 'Neha' },
+      { id: 'rahul', name: 'Rahul' },
+      { id: 'ishita', name: 'Ishita' },
+      { id: 'rohan', name: 'Rohan' },
+      { id: 'simran', name: 'Simran' },
+      { id: 'dev', name: 'Dev' },
+      { id: 'kavya', name: 'Kavya' },
+    ],
+  },
+  {
+    code: 'hi-IN',
+    name: 'Hindi',
+    speakers: [
+      { id: 'rahul', name: 'Rahul' },
+      { id: 'priya', name: 'Priya' },
+      { id: 'ishita', name: 'Ishita' },
+      { id: 'amit', name: 'Amit' },
+      { id: 'kabir', name: 'Kabir' },
+    ],
+  },
+  {
+    code: 'kn-IN',
+    name: 'Kannada',
+    speakers: [
+      { id: 'ritu', name: 'Ritu' },
+      { id: 'priya', name: 'Priya' },
+    ],
+  },
+  {
+    code: 'ta-IN',
+    name: 'Tamil',
+    speakers: [
+      { id: 'ritu', name: 'Ritu' },
+      { id: 'priya', name: 'Priya' },
+      { id: 'kavitha', name: 'Kavitha' },
+    ],
+  },
+  {
+    code: 'te-IN',
+    name: 'Telugu',
+    speakers: [
+      { id: 'amit', name: 'Amit' },
+      { id: 'priya', name: 'Priya' },
+    ],
+  },
+  {
+    code: 'ml-IN',
+    name: 'Malayalam',
+    speakers: [
+      { id: 'priya', name: 'Priya' },
+      { id: 'ritu', name: 'Ritu' },
+    ],
+  },
+  {
+    code: 'mr-IN',
+    name: 'Marathi',
+    speakers: [
+      { id: 'priya', name: 'Priya' },
+      { id: 'ritu', name: 'Ritu' },
+    ],
+  },
+  {
+    code: 'bn-IN',
+    name: 'Bengali',
+    speakers: [
+      { id: 'dev', name: 'Dev' },
+      { id: 'ritu', name: 'Ritu' },
+    ],
+  },
+  {
+    code: 'gu-IN',
+    name: 'Gujarati',
+    speakers: [
+      { id: 'manan', name: 'Manan' },
+      { id: 'ritu', name: 'Ritu' },
+    ],
+  },
+  {
+    code: 'pa-IN',
+    name: 'Punjabi',
+    speakers: [
+      { id: 'varun', name: 'Varun' },
+      { id: 'ritu', name: 'Ritu' },
+    ],
+  },
+];
+
 @Injectable()
 export class AgentsService {
   constructor(
@@ -51,6 +146,7 @@ export class AgentsService {
         mode: input.mode,
         systemPrompt: input.systemPrompt,
         voice: input.voice,
+        language: input.language ?? 'en-IN',
         beginMessage: input.beginMessage,
         transferNumber: input.transferNumber,
         voicemailMessage: input.voicemailMessage,
@@ -246,11 +342,7 @@ export class AgentsService {
   }
 
   listVoices() {
-    return [
-      { id: 'alloy', name: 'Alloy', mode: 'hosted' },
-      { id: 'verse', name: 'Verse', mode: 'hosted' },
-      { id: 'aria', name: 'Aria', mode: 'hosted' },
-    ];
+    return SARVAM_LANGUAGES;
   }
 
   private async emitAgentEvent(context: RequestContext, type: string, agent: Agent) {

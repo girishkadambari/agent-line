@@ -13,6 +13,11 @@ export class TwilioSignatureService {
     signature?: string;
     params: Record<string, unknown>;
   }) {
+    // Skip validation in development — avoids ngrok URL mismatches during local testing.
+    if (this.config.get<string>('NODE_ENV') === 'development') {
+      return;
+    }
+
     const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
     if (!authToken) {
       throw new ApiException('provider_error', 'Twilio auth token is not configured.', 500);

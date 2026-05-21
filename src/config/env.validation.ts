@@ -23,6 +23,7 @@ const rawEnvSchema = z
     TWILIO_VOICE_WEBHOOK_URL: z.string().optional(),
     TWILIO_VOICE_GATHER_CALLBACK_URL: z.string().optional(),
     TWILIO_VOICE_STATUS_CALLBACK_URL: z.string().optional(),
+    TWILIO_VOICE_STREAM_URL: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
@@ -40,6 +41,18 @@ const rawEnvSchema = z
     WEBHOOK_RETRY_WORKER_ENABLED: z.string().optional(),
     WEBHOOK_RETRY_WORKER_INTERVAL_MS: z.string().optional(),
     WEBHOOK_RETRY_WORKER_BATCH_SIZE: z.string().optional(),
+    // Vukho voice pipeline
+    PUBLIC_API_URL: z.string().optional(),
+    VUKHO_VOICE_URL: z.string().optional(),
+    VUKHO_INTERNAL_SECRET: z.string().optional(),
+    VUKHO_AGENT_WEBHOOK_TIMEOUT_MS: z.string().optional(),
+    // LLM providers (hosted mode)
+    HOSTED_LLM_PROVIDER: z.string().optional(),
+    HOSTED_LLM_TIMEOUT_MS: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    GROQ_API_KEY: z.string().optional(),
+    // STT/TTS
+    SARVAM_API_KEY: z.string().optional(),
   })
   .passthrough();
 
@@ -151,6 +164,11 @@ function validateTwilioConfig(input: {
   requireEnv(input.parsed.TWILIO_VOICE_WEBHOOK_URL, 'TWILIO_VOICE_WEBHOOK_URL');
   requireEnv(input.parsed.TWILIO_VOICE_GATHER_CALLBACK_URL, 'TWILIO_VOICE_GATHER_CALLBACK_URL');
   requireEnv(input.parsed.TWILIO_VOICE_STATUS_CALLBACK_URL, 'TWILIO_VOICE_STATUS_CALLBACK_URL');
+
+  if (input.appEnv === 'production') {
+    requireEnv(input.parsed.PUBLIC_API_URL, 'PUBLIC_API_URL');
+    requireEnv(input.parsed.VUKHO_INTERNAL_SECRET, 'VUKHO_INTERNAL_SECRET');
+  }
 
   if (input.appEnv === 'production' && input.twilioMode !== 'live') {
     throw new Error('APP_ENV=production requires TWILIO_MODE=live.');

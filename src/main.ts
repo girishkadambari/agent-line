@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
@@ -31,6 +32,19 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3000);
   const allowedOrigins = corsOrigins(config);
+
+  // Proxy WebSocket /media-stream → vukho-voice:8000
+  // This way only one public URL (port 3000) is needed for Twilio.
+  // In http-proxy-middleware v3 WebSocket upgrades require attaching to the HTTP server's
+  // 'upgrade' event; the middleware alone only handles plain HTTP requests on that path.
+  const vukhoVoiceUrl = config.get<string>('VUKHO_VOICE_URL') ?? 'http://localhost:8000';
+  const wsProxy = createProxyMiddleware({
+    target: vukhoVoiceUrl,
+    changeOrigin: true,
+    ws: true,
+  });
+  app.use('/media-stream', wsProxy);
+  app.getHttpServer().on('upgrade', wsProxy.upgrade);
 
   app.use(helmet());
   app.enableCors({

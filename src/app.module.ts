@@ -20,6 +20,7 @@ import { UsageModule } from './modules/usage/usage.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks.module';
+import { VukhoModule } from './modules/vukho/vukho.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { TwilioWebhooksModule } from './modules/providers/twilio/twilio-webhooks
     WebhooksModule,
     UsageModule,
     TwilioWebhooksModule,
+    VukhoModule,
   ],
 })
 export class AppModule {}

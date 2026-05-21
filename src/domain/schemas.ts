@@ -44,6 +44,7 @@ export const createAgentSchema = z.object({
   mode: agentModeSchema.default('webhook'),
   systemPrompt: z.string().optional(),
   voice: z.string().optional(),
+  language: z.string().optional(),
   beginMessage: z.string().optional(),
   transferNumber: z.string().optional(),
   voicemailMessage: z.string().optional(),
