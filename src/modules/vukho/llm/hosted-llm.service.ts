@@ -212,7 +212,7 @@ export class HostedLlmService {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
+        max_tokens: 80,
         stream: true,
         system: systemPrompt,
         messages: conversationMessages,
@@ -286,7 +286,7 @@ export class HostedLlmService {
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages,
-        max_tokens: 200,
+        max_tokens: 80,
         temperature: 0.3,
         stream: true,
       }),
