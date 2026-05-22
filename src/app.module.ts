@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { parse as parseDotenv } from 'dotenv';
 
 import { validateEnv } from './config/env.validation';
 import { AgentsModule } from './modules/agents/agents.module';
@@ -27,6 +30,27 @@ import { VukhoModule } from './modules/vukho/vukho.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+      // Read .env via dotenv.parse and expose through ConfigService.
+      // ignoreEnvVars: true makes ConfigService read ONLY from the loaded
+      // config objects — never from process.env.  This prevents empty shell
+      // exports (e.g. ANTHROPIC_API_KEY="") on developer machines from
+      // silently shadowing values defined in .env.
+      ignoreEnvVars: true,
+      load: [
+        () => {
+          // Merge process.env first so system vars (DATABASE_URL, etc.) are
+          // still available, then overlay with .env file values so .env wins.
+          const fileVars = (() => {
+            try {
+              const envPath = resolve(process.cwd(), '.env');
+              return parseDotenv(readFileSync(envPath));
+            } catch {
+              return {} as Record<string, string>;
+            }
+          })();
+          return { ...process.env, ...fileVars };
+        },
+      ],
     }),
     PrismaModule,
     AuthModule,

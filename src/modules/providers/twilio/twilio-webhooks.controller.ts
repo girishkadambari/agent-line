@@ -231,6 +231,35 @@ export class TwilioWebhooksController {
     );
   }
 
+  /**
+   * Twilio calls this endpoint when a call recording is complete.
+   * Stores the recording URL and links it to the call record.
+   *
+   * Configure on Twilio's side via TWILIO_RECORDING_CALLBACK_URL
+   * (set to https://your-host/v1/providers/twilio/voice/recording-status).
+   */
+  @Post('voice/recording-status')
+  async receiveRecordingStatus(@Body() body: Record<string, string>) {
+    const callSid = body.CallSid;
+    const recordingSid = body.RecordingSid;
+    const recordingUrl = body.RecordingUrl;
+    const recordingStatus = body.RecordingStatus;
+    const durationSeconds = body.RecordingDuration ? Number.parseInt(body.RecordingDuration, 10) : 0;
+
+    if (!callSid || !recordingSid || recordingStatus !== 'completed') {
+      return success({ received: true, ignored: true });
+    }
+
+    await this.calls.createOrUpdateRecording({
+      providerCallId: callSid,
+      providerRecordingId: recordingSid,
+      url: recordingUrl ?? `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID ?? ''}/Recordings/${recordingSid}`,
+      durationSeconds: Number.isNaN(durationSeconds) ? 0 : durationSeconds,
+    });
+
+    return success({ received: true, ignored: false });
+  }
+
   private escapeXml(value: string) {
     return value
       .replace(/&/g, '&amp;')

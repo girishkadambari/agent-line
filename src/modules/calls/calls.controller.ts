@@ -6,9 +6,11 @@ import {
   Param,
   Post,
   Query,
+  Res,
   Sse,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { from, map, mergeMap, Observable } from 'rxjs';
 
 import { parseLimit, success } from '../../common/api/api-response';
@@ -91,5 +93,37 @@ export class CallsController {
       mergeMap((response) => from(response.data)),
       map((turn) => ({ data: turn })),
     );
+  }
+
+  /**
+   * Proxy call recording audio from Twilio so the frontend can play it
+   * without exposing Twilio credentials to the browser.
+   */
+  @Get(':id/recording')
+  async streamRecording(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { stream, contentType, contentLength } = await this.calls.streamRecording(context, id);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'none');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    // Pipe the ReadableStream (Web Streams API) into the Express response.
+    const reader = (stream as ReadableStream<Uint8Array>).getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    } finally {
+      reader.releaseLock();
+      res.end();
+    }
   }
 }

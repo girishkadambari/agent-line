@@ -48,6 +48,12 @@ const VALID_SPEAKERS = new Set([
 
 @Injectable()
 export class InternalVoiceService implements OnModuleInit {
+  /**
+   * Per-call wall-clock start time (ms since epoch).
+   * Set when the 'started' event arrives; cleared on 'ended'.
+   */
+  private readonly callStartTimes = new Map<string, number>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -108,9 +114,25 @@ export class InternalVoiceService implements OnModuleInit {
       throw new ApiException('not_found', `No call found for callSid: ${callSid}`, 404);
     }
 
-    await this.saveTranscriptTurn(call.id, call.workspaceId, call.projectId, 'user', transcript);
+    // ── Transcript timestamps ─────────────────────────────────────────────────
+    // Calculate relative timestamps from the wall-clock call start time.
+    // User turn: estimate speech start from word count (~2.5 words/sec on phone).
+    const callStart = this.callStartTimes.get(callSid) ?? 0;
+    const nowMs = Date.now();
+    const relativeMsNow = callStart > 0 ? nowMs - callStart : 0;
+    const wordCount = transcript.trim().split(/\s+/).length;
+    const estimatedSpeechMs = Math.max(500, Math.round((wordCount / 2.5) * 1000));
+    const userTurnStartMs = Math.max(0, relativeMsNow - estimatedSpeechMs);
+    const userTurnEndMs = relativeMsNow;
+
+    await this.saveTranscriptTurn(
+      call.id, call.workspaceId, call.projectId,
+      'user', transcript,
+      userTurnStartMs, userTurnEndMs,
+    );
 
     const chunks: string[] = [];
+    const agentTurnStartMs = callStart > 0 ? Date.now() - callStart : 0;
 
     try {
       if (call.agent.mode === AgentMode.hosted) {
@@ -151,10 +173,15 @@ export class InternalVoiceService implements OnModuleInit {
         yield { text, interim: false };
       }
     } finally {
-      // Save the full assembled response to the transcript.
+      // Save the full assembled response to the transcript with real timing.
       const fullText = chunks.join(' ').trim();
+      const agentTurnEndMs = callStart > 0 ? Date.now() - callStart : 0;
       if (fullText) {
-        await this.saveTranscriptTurn(call.id, call.workspaceId, call.projectId, 'agent', fullText);
+        await this.saveTranscriptTurn(
+          call.id, call.workspaceId, call.projectId,
+          'agent', fullText,
+          agentTurnStartMs, agentTurnEndMs,
+        );
       }
     }
   }
@@ -185,23 +212,44 @@ export class InternalVoiceService implements OnModuleInit {
     if (!call) return;
 
     if (event === 'started') {
+      const startedAt = new Date();
+      this.callStartTimes.set(callSid, startedAt.getTime());
       await this.prisma.call.update({
         where: { id: call.id },
-        data: { status: 'in_progress', startedAt: new Date() },
+        data: { status: 'in_progress', startedAt },
       });
     }
 
     if (event === 'ended') {
-      const durationSecs = typeof payload.durationSecs === 'number' ? payload.durationSecs : 0;
+      const endedAt = new Date();
+
+      // Use vukho-voice's reported duration if provided; otherwise calculate
+      // from the wall-clock start time tracked in memory.
+      const reportedSecs = typeof payload.durationSecs === 'number' ? payload.durationSecs : 0;
+      const startTime = this.callStartTimes.get(callSid);
+      const durationSecs =
+        reportedSecs > 0
+          ? reportedSecs
+          : startTime
+            ? Math.round((endedAt.getTime() - startTime) / 1000)
+            : (call.startedAt ? Math.round((endedAt.getTime() - call.startedAt.getTime()) / 1000) : 0);
+
+      this.callStartTimes.delete(callSid);
+
       await this.prisma.call.update({
         where: { id: call.id },
         data: {
           status: 'completed',
-          endedAt: new Date(),
-          durationSeconds: Math.round(durationSecs),
+          endedAt,
+          durationSeconds: Math.max(0, durationSecs),
         },
       });
+
       this.hostedLlm.clearHistory(callSid);
+
+      // Generate AI summary asynchronously — fire and forget so it doesn't
+      // block the pipeline teardown.  Failure is non-fatal.
+      this.generateAndSaveCallSummary(call.id).catch(() => { /* logged inside */ });
     }
   }
 
@@ -279,6 +327,8 @@ export class InternalVoiceService implements OnModuleInit {
     projectId: string,
     speaker: 'user' | 'agent',
     text: string,
+    startedAtMs = 0,
+    endedAtMs = 0,
   ): Promise<void> {
     const speakerEnum = speaker === 'user' ? Speaker.user : Speaker.agent;
     await this.prisma.transcriptTurn.create({
@@ -289,9 +339,35 @@ export class InternalVoiceService implements OnModuleInit {
         callId,
         speaker: speakerEnum,
         text,
-        startedAtMs: 0,
-        endedAtMs: 0,
+        startedAtMs,
+        endedAtMs,
       },
     });
+  }
+
+  /**
+   * Fetch all transcript turns for a call and generate an AI summary,
+   * then persist it to the call record.
+   * Called asynchronously after the call ends — failure is non-fatal.
+   */
+  private async generateAndSaveCallSummary(callId: string): Promise<void> {
+    const turns = await this.prisma.transcriptTurn.findMany({
+      where: { callId },
+      orderBy: { startedAtMs: 'asc' },
+      select: { speaker: true, text: true },
+    });
+
+    if (turns.length === 0) return;
+
+    const summary = await this.hostedLlm.summarize(
+      turns.map((t) => ({ speaker: t.speaker as 'user' | 'agent', text: t.text })),
+    );
+
+    if (summary) {
+      await this.prisma.call.update({
+        where: { id: callId },
+        data: { summary },
+      });
+    }
   }
 }

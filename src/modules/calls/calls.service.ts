@@ -198,9 +198,108 @@ export class CallsService {
   async getCall(context: RequestContext, id: string) {
     const call = await this.findCallOrThrow(context, id);
 
+    // Include recording URL if one has been stored for this call.
+    let recordingUrl: string | null = null;
+    if (call.recordingId) {
+      const recording = await this.prisma.recording.findUnique({
+        where: { id: call.recordingId },
+        select: { url: true },
+      });
+      recordingUrl = recording?.url ?? null;
+    }
+
     return {
       ...serializeCall(call),
+      recordingUrl,
       providerDiagnostics: await this.listProviderDiagnosticsForCall(call),
+    };
+  }
+
+  /**
+   * Create or update a Recording record when Twilio sends the recording-status
+   * callback.  Links the recording to the call via `call.recordingId`.
+   */
+  async createOrUpdateRecording(input: {
+    providerCallId: string;
+    providerRecordingId: string;
+    url: string;
+    durationSeconds: number;
+  }): Promise<void> {
+    const call = await this.prisma.call.findFirst({
+      where: { providerCallId: input.providerCallId },
+    });
+
+    if (!call) return;
+
+    const recording = await this.prisma.recording.upsert({
+      where: { providerRecordingId: input.providerRecordingId },
+      create: {
+        id: createId('rec'),
+        workspaceId: call.workspaceId,
+        projectId: call.projectId,
+        providerRecordingId: input.providerRecordingId,
+        url: input.url,
+        durationSeconds: input.durationSeconds,
+      },
+      update: {
+        url: input.url,
+        durationSeconds: input.durationSeconds,
+      },
+    });
+
+    // Link to the call if not already linked.
+    if (!call.recordingId) {
+      await this.prisma.call.update({
+        where: { id: call.id },
+        data: { recordingId: recording.id },
+      });
+    }
+  }
+
+  /**
+   * Proxy a call recording from Twilio, authenticating with Basic Auth.
+   * Returns the raw MP3 stream so the frontend can play it without
+   * exposing Twilio credentials to the browser.
+   */
+  async streamRecording(context: RequestContext, callId: string): Promise<{
+    stream: ReadableStream;
+    contentType: string;
+    contentLength?: number;
+  }> {
+    const call = await this.findCallOrThrow(context, callId);
+
+    if (!call.recordingId) {
+      throw new ApiException('not_found', 'No recording available for this call.', 404);
+    }
+
+    const recording = await this.prisma.recording.findUnique({
+      where: { id: call.recordingId },
+      select: { url: true },
+    });
+
+    if (!recording?.url) {
+      throw new ApiException('not_found', 'Recording URL not available yet.', 404);
+    }
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID ?? '';
+    const authToken = process.env.TWILIO_AUTH_TOKEN ?? '';
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+    const response = await fetch(`${recording.url}.mp3`, {
+      headers: { Authorization: `Basic ${credentials}` },
+    });
+
+    if (!response.ok || !response.body) {
+      throw new ApiException('provider_error', 'Failed to fetch recording from Twilio.', 502);
+    }
+
+    const contentType = response.headers.get('content-type') ?? 'audio/mpeg';
+    const contentLength = response.headers.get('content-length');
+
+    return {
+      stream: response.body,
+      contentType,
+      contentLength: contentLength ? Number(contentLength) : undefined,
     };
   }
 

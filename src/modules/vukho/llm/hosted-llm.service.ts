@@ -82,6 +82,41 @@ export class HostedLlmService {
   }
 
   /**
+   * Generate a concise summary of a completed call from its transcript.
+   * One-shot — does not use or update conversation history.
+   * Returns an empty string on failure so callers can treat it as optional.
+   */
+  async summarize(turns: Array<{ speaker: 'user' | 'agent'; text: string }>): Promise<string> {
+    if (turns.length === 0) return '';
+
+    const formatted = turns
+      .map((t) => `${t.speaker === 'agent' ? 'Agent' : 'Caller'}: ${t.text}`)
+      .join('\n');
+
+    const systemPrompt =
+      'You are a call summarization assistant. ' +
+      'Summarize the following phone call transcript in 2–3 concise sentences. ' +
+      'Cover: what the caller wanted, what the agent provided, and the outcome. ' +
+      'Write in third person. No bullet points. No markdown.';
+
+    const history: Message[] = [
+      { role: 'user', content: `Transcript:\n\n${formatted}\n\nSummary:` },
+    ];
+
+    try {
+      const provider = this.config.get<string>('HOSTED_LLM_PROVIDER') ?? 'anthropic';
+      const gen = await this.buildLlmGenerator(provider, history, systemPrompt);
+      const tokens: string[] = [];
+      for await (const token of gen) {
+        tokens.push(token);
+      }
+      return tokens.join('').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * Builds the appropriate LLM generator.
    * If the primary provider is Anthropic and it returns overloaded_error,
    * automatically falls back to Groq (if GROQ_API_KEY is configured).

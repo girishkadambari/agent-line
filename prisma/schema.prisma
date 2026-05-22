@@ -552,17 +552,18 @@ model BillingTransaction {
 }
 
 model Recording {
-  id              String    @id
-  workspaceId     String
-  projectId       String
-  url             String?
-  consentMode     String?
-  durationSeconds Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  workspace       Workspace @relation(fields: [workspaceId], references: [id])
-  project         Project   @relation(fields: [projectId], references: [id])
-  calls           Call[]
+  id                  String    @id
+  workspaceId         String
+  projectId           String
+  providerRecordingId String?   @unique
+  url                 String?
+  consentMode         String?
+  durationSeconds     Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  workspace           Workspace @relation(fields: [workspaceId], references: [id])
+  project             Project   @relation(fields: [projectId], references: [id])
+  calls               Call[]
 
   @@index([workspaceId, projectId])
 }
