@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentMode, Speaker } from '@prisma/client';
@@ -87,7 +88,17 @@ export class InternalVoiceService implements OnModuleInit {
     };
   }
 
-  async handleTurn(callSid: string, transcript: string): Promise<TurnResult> {
+  /**
+   * Streaming turn handler — yields TurnResult chunks as they arrive.
+   *
+   * For hosted mode: LLM sentence-boundary chunks are yielded progressively
+   * (interim=true) until the final chunk (interim=false).
+   * For webhook mode: single blocking call, yielded as one final chunk.
+   *
+   * Transcript turns are persisted in `finally` so partial results are
+   * saved even if the caller disconnects mid-stream.
+   */
+  async *handleTurnStream(callSid: string, transcript: string): AsyncGenerator<TurnResult> {
     const call = await this.prisma.call.findFirst({
       where: { providerCallId: callSid },
       include: { agent: true },
@@ -99,23 +110,67 @@ export class InternalVoiceService implements OnModuleInit {
 
     await this.saveTranscriptTurn(call.id, call.workspaceId, call.projectId, 'user', transcript);
 
-    let responseText: string;
+    const chunks: string[] = [];
 
-    if (call.agent.mode === AgentMode.webhook) {
-      responseText = await this.forwardToWebhook(call.agent.webhookUrl, callSid, transcript);
-    } else if (call.agent.mode === AgentMode.hosted) {
-      responseText = await this.hostedLlm.generateResponse(
-        callSid,
-        call.agent.systemPrompt ?? '',
-        transcript,
-      );
-    } else {
-      responseText = 'I am not configured to handle calls.';
+    try {
+      if (call.agent.mode === AgentMode.hosted) {
+        // Stream sentence-by-sentence from the LLM.
+        const gen = this.hostedLlm.streamResponse(
+          callSid,
+          call.agent.systemPrompt ?? '',
+          transcript,
+        );
+
+        let prev: string | null = null;
+        for await (const chunk of gen) {
+          if (prev !== null) {
+            // Emit the previous chunk as interim.
+            chunks.push(prev);
+            yield { text: prev, interim: true };
+          }
+          prev = chunk;
+        }
+        // Emit the last chunk as final.
+        if (prev !== null) {
+          chunks.push(prev);
+          yield { text: prev, interim: false };
+        }
+
+        // Guard: if LLM yielded nothing (e.g. silent upstream error), send fallback.
+        if (chunks.length === 0) {
+          const fallback = "I'm sorry, I'm having trouble right now. Could you repeat that?";
+          yield { text: fallback, interim: false };
+        }
+      } else if (call.agent.mode === AgentMode.webhook) {
+        const text = await this.forwardToWebhook(call.agent.webhookUrl, callSid, transcript);
+        chunks.push(text);
+        yield { text, interim: false };
+      } else {
+        const text = 'I am not configured to handle calls.';
+        chunks.push(text);
+        yield { text, interim: false };
+      }
+    } finally {
+      // Save the full assembled response to the transcript.
+      const fullText = chunks.join(' ').trim();
+      if (fullText) {
+        await this.saveTranscriptTurn(call.id, call.workspaceId, call.projectId, 'agent', fullText);
+      }
     }
+  }
 
-    await this.saveTranscriptTurn(call.id, call.workspaceId, call.projectId, 'agent', responseText);
-
-    return { text: responseText, interim: false };
+  /**
+   * Non-streaming variant for compatibility (e.g., SMS flows).
+   */
+  async handleTurn(callSid: string, transcript: string): Promise<TurnResult> {
+    const chunks: TurnResult[] = [];
+    for await (const chunk of this.handleTurnStream(callSid, transcript)) {
+      chunks.push(chunk);
+    }
+    const last = chunks[chunks.length - 1];
+    if (!last) return { text: '', interim: false };
+    // Return combined text as a single final result.
+    return { text: chunks.map((c) => c.text).join(' '), interim: false };
   }
 
   async handleEvent(
@@ -157,6 +212,15 @@ export class InternalVoiceService implements OnModuleInit {
     return LANGUAGE_DEFAULT_SPEAKER[language] ?? 'ritu';
   }
 
+  /**
+   * POST transcript to agent's webhook URL.
+   *
+   * Adds an HMAC-SHA256 signature header (`X-Vukho-Signature`) so webhook
+   * receivers can verify the request originated from Vukho.
+   * Retries once on network errors or 5xx responses.
+   *
+   * Expected response shape: `{ text: string }`
+   */
   private async forwardToWebhook(
     webhookUrl: string | null,
     callSid: string,
@@ -166,23 +230,47 @@ export class InternalVoiceService implements OnModuleInit {
       return 'This agent has no webhook configured.';
     }
 
-    try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ call_id: callSid, transcript }),
-        signal: AbortSignal.timeout(8000),
-      });
+    const payload = JSON.stringify({ call_id: callSid, transcript });
+    const secret =
+      (this.config.get<string>('VUKHO_WEBHOOK_SECRET_PEPPER') ?? '') +
+      (this.config.get<string>('VUKHO_INTERNAL_SECRET') ?? '');
+    const signature = createHmac('sha256', secret).update(payload).digest('hex');
 
-      if (!response.ok) {
-        return 'I had trouble reaching the agent. Please try again.';
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Vukho-Signature': `sha256=${signature}`,
+    };
+
+    // Two attempts: initial + one retry.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: AbortSignal.timeout(8_000),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as Record<string, unknown>;
+          return typeof data.text === 'string' ? data.text : '';
+        }
+
+        // 4xx errors are not retryable.
+        if (response.status >= 400 && response.status < 500) {
+          return 'I had trouble reaching the agent. Please try again.';
+        }
+
+        // 5xx — retry once.
+      } catch {
+        // Network error — retry once.
+        if (attempt === 1) {
+          return 'I had trouble reaching the agent. Please try again.';
+        }
       }
-
-      const data = (await response.json()) as Record<string, unknown>;
-      return typeof data.text === 'string' ? data.text : '';
-    } catch {
-      return 'I had trouble reaching the agent. Please try again.';
     }
+
+    return 'I had trouble reaching the agent. Please try again.';
   }
 
   private async saveTranscriptTurn(

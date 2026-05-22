@@ -16,6 +16,13 @@ export class InternalVoiceController {
     return this.service.getCallConfig(callSid);
   }
 
+  /**
+   * Stream the agent's response as NDJSON so vukho-voice can start TTS
+   * on the first sentence without waiting for the full reply.
+   *
+   * Each line: {"text":"...","interim":true|false}
+   * The final line always has interim=false.
+   */
   @Post(':callSid/turn')
   @HttpCode(200)
   async handleTurn(
@@ -25,14 +32,25 @@ export class InternalVoiceController {
     @Res({ passthrough: false }) res: Response,
   ) {
     this.service.verifySecret(secret);
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering for proxied deployments.
+
     try {
-      const result = await this.service.handleTurn(callSid, body.transcript);
-      res.setHeader('Content-Type', 'application/x-ndjson');
-      res.write(JSON.stringify({ text: result.text, interim: false }) + '\n');
+      for await (const chunk of this.service.handleTurnStream(callSid, body.transcript)) {
+        res.write(JSON.stringify({ text: chunk.text, interim: chunk.interim }) + '\n');
+      }
       res.end();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: message });
+      } else {
+        // Headers already sent — write an error line and close.
+        res.write(JSON.stringify({ text: 'Sorry, something went wrong.', interim: false }) + '\n');
+        res.end();
+      }
     }
   }
 
