@@ -33,6 +33,36 @@ export const DEFAULT_USAGE_RATES = [
     unitCostCents: 3,
     formula: 'ceil(duration_seconds / 60) * voice_minute',
   },
+  // ── Per-turn component costs (hosted mode) ──────────────────────────────────
+  // These capture the cost of each AI turn so the dashboard can show a breakdown.
+  // Rate basis: Claude Haiku ≈ $0.0008/1K input + $0.004/1K output tokens.
+  // Typical turn ≈ 150 input + 50 output tokens → ~0.032 cents.  Rounded to 0.05c.
+  {
+    key: 'ai_llm_turn',
+    resourceType: 'call',
+    channel: 'voice.ai.llm',
+    unit: 'turn',
+    unitCostCents: 0.05,
+    formula: 'turns * ai_llm_turn',
+  },
+  // Sarvam STT: estimated at $0.006/minute ($0.0001/second).
+  {
+    key: 'ai_stt_second',
+    resourceType: 'call',
+    channel: 'voice.ai.stt',
+    unit: 'second',
+    unitCostCents: 0.01,
+    formula: 'speech_seconds * ai_stt_second',
+  },
+  // Sarvam TTS: estimated at $0.000015/character.
+  {
+    key: 'ai_tts_character',
+    resourceType: 'call',
+    channel: 'voice.ai.tts',
+    unit: 'character',
+    unitCostCents: 0.0015,
+    formula: 'characters * ai_tts_character',
+  },
 ] as const;
 
 export type UsageRateKey = (typeof DEFAULT_USAGE_RATES)[number]['key'];

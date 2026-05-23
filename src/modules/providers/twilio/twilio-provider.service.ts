@@ -266,6 +266,39 @@ export class TwilioProviderService implements TelecomProvider {
     return { status: 'transferred' };
   }
 
+  /**
+   * Start a dual-channel recording on a live call via the Twilio REST API.
+   * Must be called after the Media Stream is connected so both the caller's
+   * audio and the bot's outbound audio are captured.
+   *
+   * Returns the Twilio RecordingSid, or null if recording could not be started
+   * (non-fatal — call continues without a recording).
+   */
+  async startCallRecording(
+    providerCallId: string,
+    statusCallbackUrl?: string,
+  ): Promise<string | null> {
+    const body: TwilioRequestBody = {
+      RecordingChannels: 'dual',
+    };
+    if (statusCallbackUrl) {
+      body.RecordingStatusCallback = statusCallbackUrl;
+      body.RecordingStatusCallbackMethod = 'POST';
+    }
+
+    try {
+      const result = await this.request<{ sid?: string }>(
+        'POST',
+        `/Calls/${providerCallId}/Recordings.json`,
+        body,
+      );
+      return result.sid ?? null;
+    } catch {
+      // Recording failure is non-fatal — the call continues.
+      return null;
+    }
+  }
+
   private async request<T>(
     method: 'GET' | 'POST' | 'DELETE',
     path: string,

@@ -6,6 +6,8 @@ import { AgentMode, Speaker } from '@prisma/client';
 import { ApiException } from '../../../common/errors/api.exception';
 import { createId } from '../../../common/ids';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TwilioProviderService } from '../../providers/twilio/twilio-provider.service';
+import { UsageService } from '../../usage/usage.service';
 import { HostedLlmService } from '../llm/hosted-llm.service';
 
 export interface AgentCallConfig {
@@ -46,6 +48,14 @@ const VALID_SPEAKERS = new Set([
   'mohit', 'kavitha', 'rehan', 'soham', 'rupali', 'niharika',
 ]);
 
+/** Accumulated AI component usage across all turns of one call. */
+interface CallComponentTotals {
+  llmTurns: number;
+  sttSeconds: number;
+  ttsChars: number;
+  isHosted: boolean;
+}
+
 @Injectable()
 export class InternalVoiceService implements OnModuleInit {
   /**
@@ -54,10 +64,18 @@ export class InternalVoiceService implements OnModuleInit {
    */
   private readonly callStartTimes = new Map<string, number>();
 
+  /**
+   * Accumulated AI component usage (LLM turns, STT seconds, TTS chars).
+   * Written each turn; read and cleared when the call ends.
+   */
+  private readonly callComponentTotals = new Map<string, CallComponentTotals>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly hostedLlm: HostedLlmService,
+    private readonly twilio: TwilioProviderService,
+    private readonly usage: UsageService,
   ) {}
 
   onModuleInit() {}
@@ -183,6 +201,15 @@ export class InternalVoiceService implements OnModuleInit {
           agentTurnStartMs, agentTurnEndMs,
         );
       }
+
+      // Accumulate AI component usage in memory — written to DB when the call ends.
+      if (fullText) {
+        this.accumulateTurnUsage(callSid, {
+          agentMode: call.agent.mode,
+          speechDurationMs: userTurnEndMs - userTurnStartMs,
+          agentResponseChars: fullText.length,
+        });
+      }
     }
   }
 
@@ -218,6 +245,13 @@ export class InternalVoiceService implements OnModuleInit {
         where: { id: call.id },
         data: { status: 'in_progress', startedAt },
       });
+
+      // Start a dual-channel recording on the live call so both the caller's
+      // voice and the bot's audio are captured.  Non-fatal if it fails.
+      const recordingCallbackUrl = this.config.get<string>('TWILIO_RECORDING_CALLBACK_URL');
+      this.twilio.startCallRecording(callSid, recordingCallbackUrl).catch(() => {
+        // Recording failure is logged inside startCallRecording; call continues.
+      });
     }
 
     if (event === 'ended') {
@@ -246,6 +280,10 @@ export class InternalVoiceService implements OnModuleInit {
       });
 
       this.hostedLlm.clearHistory(callSid);
+
+      // Flush accumulated AI component usage to the billing system.
+      // Done asynchronously — failure is non-fatal.
+      this.finalizeComponentUsage(callSid, call).catch(() => { /* non-fatal */ });
 
       // Generate AI summary asynchronously — fire and forget so it doesn't
       // block the pipeline teardown.  Failure is non-fatal.
@@ -319,6 +357,92 @@ export class InternalVoiceService implements OnModuleInit {
     }
 
     return 'I had trouble reaching the agent. Please try again.';
+  }
+
+  /**
+   * Accumulate AI component metrics in memory for each turn.
+   * A single usage event per component is written when the call ends (see
+   * finalizeComponentUsage), which avoids the Math.ceil-per-event inflation
+   * that would occur if we wrote a DB record on every turn.
+   */
+  private accumulateTurnUsage(
+    callSid: string,
+    input: { agentMode: AgentMode; speechDurationMs: number; agentResponseChars: number },
+  ): void {
+    const existing = this.callComponentTotals.get(callSid) ?? {
+      llmTurns: 0,
+      sttSeconds: 0,
+      ttsChars: 0,
+      isHosted: input.agentMode === AgentMode.hosted,
+    };
+
+    this.callComponentTotals.set(callSid, {
+      llmTurns: existing.llmTurns + (input.agentMode === AgentMode.hosted ? 1 : 0),
+      sttSeconds: existing.sttSeconds + Math.max(0.5, input.speechDurationMs / 1000),
+      ttsChars: existing.ttsChars + input.agentResponseChars,
+      isHosted: existing.isHosted || input.agentMode === AgentMode.hosted,
+    });
+  }
+
+  /**
+   * Write one UsageEvent per AI component for the completed call.
+   * Called once at call end — totals across all turns, so Math.ceil operates
+   * on realistic quantities (e.g. 45 STT seconds) rather than per-turn fractions.
+   */
+  private async finalizeComponentUsage(
+    callSid: string,
+    call: { id: string; workspaceId: string; projectId: string; agentId: string },
+  ): Promise<void> {
+    const totals = this.callComponentTotals.get(callSid);
+    this.callComponentTotals.delete(callSid);
+
+    if (!totals) return;
+
+    const sharedContext = {
+      workspaceId: call.workspaceId,
+      projectId: call.projectId,
+      agentId: call.agentId,
+      resourceType: 'call',
+      resourceId: call.id,
+      occurredAt: new Date(),
+      reportToStripe: false as const,
+    };
+
+    // LLM — hosted mode only; webhook mode uses the customer's own LLM.
+    if (totals.isHosted && totals.llmTurns > 0) {
+      await this.usage.recordUsage({
+        ...sharedContext,
+        channel: 'voice.ai.llm',
+        quantity: totals.llmTurns,
+        unit: 'turn',
+        rateKey: 'ai_llm_turn',
+        evidence: { totalTurns: totals.llmTurns },
+      });
+    }
+
+    // STT — always (Sarvam STT is used regardless of agent mode).
+    if (totals.sttSeconds > 0) {
+      await this.usage.recordUsage({
+        ...sharedContext,
+        channel: 'voice.ai.stt',
+        quantity: Math.round(totals.sttSeconds * 10) / 10, // 1 decimal place
+        unit: 'second',
+        rateKey: 'ai_stt_second',
+        evidence: { totalSpeechSeconds: totals.sttSeconds },
+      });
+    }
+
+    // TTS — always (agent responses are always synthesised to speech).
+    if (totals.ttsChars > 0) {
+      await this.usage.recordUsage({
+        ...sharedContext,
+        channel: 'voice.ai.tts',
+        quantity: totals.ttsChars,
+        unit: 'character',
+        rateKey: 'ai_tts_character',
+        evidence: { totalChars: totals.ttsChars },
+      });
+    }
   }
 
   private async saveTranscriptTurn(

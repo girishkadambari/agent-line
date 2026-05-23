@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { CallStatus, Prisma, type Call } from '@prisma/client';
+import { CallStatus, Direction, Prisma, type Call } from '@prisma/client';
 import { createHash } from 'node:crypto';
 
 import { list } from '../../common/api/api-response';
@@ -198,21 +198,75 @@ export class CallsService {
   async getCall(context: RequestContext, id: string) {
     const call = await this.findCallOrThrow(context, id);
 
-    // Include recording URL if one has been stored for this call.
-    let recordingUrl: string | null = null;
-    if (call.recordingId) {
-      const recording = await this.prisma.recording.findUnique({
-        where: { id: call.recordingId },
-        select: { url: true },
-      });
-      recordingUrl = recording?.url ?? null;
-    }
+    // Run all async lookups in parallel.
+    const [recording, providerDiagnostics, costBreakdown] = await Promise.all([
+      call.recordingId
+        ? this.prisma.recording.findUnique({
+            where: { id: call.recordingId },
+            select: { url: true },
+          })
+        : Promise.resolve(null),
+      this.listProviderDiagnosticsForCall(call),
+      this.getCallCostBreakdown(context.workspaceId, id, call.durationSeconds, call.direction),
+    ]);
 
     return {
       ...serializeCall(call),
-      recordingUrl,
-      providerDiagnostics: await this.listProviderDiagnosticsForCall(call),
+      recordingUrl: recording?.url ?? null,
+      providerDiagnostics,
+      costBreakdown,
     };
+  }
+
+  /**
+   * Build a per-component cost breakdown for a call.
+   *
+   * `total`    — what the customer is actually charged (the voice_minute event).
+   * `twilio`   — estimated Twilio carrier cost (informational, not billed separately).
+   * `llm/stt/tts` — recorded AI component costs from UsageEvents.
+   * `platform` — remainder: total - twilio - llm - stt - tts (Vukho margin).
+   *
+   * All amounts are in USD.
+   */
+  private async getCallCostBreakdown(
+    workspaceId: string,
+    callId: string,
+    durationSeconds: number,
+    direction: Direction,
+  ) {
+    const usageEvents = await this.prisma.usageEvent.findMany({
+      where: {
+        workspaceId,
+        resourceType: 'call',
+        resourceId: callId,
+        settlementStatus: { not: 'voided' },
+      },
+      select: { channel: true, totalCost: true },
+    });
+
+    // Sum costs per channel.
+    const byChannel: Record<string, number> = {};
+    for (const event of usageEvents) {
+      const cost = parseFloat(event.totalCost.toString());
+      byChannel[event.channel] = (byChannel[event.channel] ?? 0) + cost;
+    }
+
+    // `voice_minute` is the billable total charged to the customer.
+    const billableMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
+    const total = parseFloat((byChannel['voice'] ?? billableMinutes * 0.03).toFixed(4));
+
+    // Twilio carrier cost — informational, not billed to customer separately.
+    const twilioRatePerMin = direction === 'outbound' ? 0.022 : 0.0085;
+    const twilio = parseFloat((billableMinutes * twilioRatePerMin).toFixed(4));
+
+    const llm = parseFloat((byChannel['voice.ai.llm'] ?? 0).toFixed(4));
+    const stt = parseFloat((byChannel['voice.ai.stt'] ?? 0).toFixed(4));
+    const tts = parseFloat((byChannel['voice.ai.tts'] ?? 0).toFixed(4));
+
+    // Platform margin = what Vukho keeps after paying Twilio, Sarvam, and Anthropic.
+    const platform = parseFloat(Math.max(0, total - twilio - llm - stt - tts).toFixed(4));
+
+    return { twilio, llm, stt, tts, platform, total };
   }
 
   /**
