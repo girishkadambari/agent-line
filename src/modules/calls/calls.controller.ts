@@ -51,8 +51,12 @@ export class CallsController {
   }
 
   @Get()
-  listCalls(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
-    return this.calls.listCalls(context, parseLimit(limit));
+  listCalls(
+    @CurrentContext() context: RequestContext,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.calls.listCalls(context, parseLimit(limit), cursor);
   }
 
   @Get(':id')

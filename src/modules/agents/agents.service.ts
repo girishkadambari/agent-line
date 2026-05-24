@@ -122,17 +122,38 @@ export class AgentsService {
     private readonly webhooks: WebhooksService,
   ) {}
 
-  async listAgents(context: RequestContext, limit: number) {
+  async listAgents(context: RequestContext, limit: number, cursor?: string) {
     const agents = await this.prisma.agent.findMany({
       where: {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
       },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: limit + 1,
+      include: {
+        _count: {
+          select: {
+            phoneNumbers: true,
+            calls:        true,
+            messages:     true,
+          },
+        },
+      },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    return list(agents.map(serializeAgent), { limit, nextCursor: null });
+    const hasMore = agents.length > limit;
+    const page = hasMore ? agents.slice(0, limit) : agents;
+
+    return list(
+      page.map((a) => ({
+        ...serializeAgent(a),
+        numbers:  a._count.phoneNumbers,
+        calls:    a._count.calls,
+        messages: a._count.messages,
+      })),
+      { limit, hasMore, nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null },
+    );
   }
 
   async createAgent(context: RequestContext, input: CreateAgentInput) {
@@ -151,6 +172,8 @@ export class AgentsService {
         transferNumber: input.transferNumber,
         voicemailMessage: input.voicemailMessage,
         webhookUrl: input.webhookUrl,
+        tier: input.tier,
+        sttAccuracy: input.sttAccuracy,
         metadata: input.metadata as Prisma.InputJsonValue,
       },
     });
@@ -323,6 +346,79 @@ export class AgentsService {
     await this.emitAgentEvent(context, VukhoEvent.AgentDisabled, agent);
 
     return serializeAgent(agent);
+  }
+
+  async listAgentCalls(
+    context: RequestContext,
+    agentId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    await this.findAgentOrThrow(context, agentId);
+
+    const calls = await this.prisma.call.findMany({
+      where: {
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = calls.length > limit;
+    const page = hasMore ? calls.slice(0, limit) : calls;
+
+    return list(page.map(serializeCall), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
+  }
+
+  async listAgentConversations(
+    context: RequestContext,
+    agentId: string,
+    limit: number,
+    filters: {
+      cursor?: string;
+      contactId?: string;
+      channel?: string;
+      status?: string;
+    } = {},
+  ) {
+    await this.findAgentOrThrow(context, agentId);
+
+    const where: import('@prisma/client').Prisma.ConversationWhereInput = {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      agentId,
+    };
+
+    if (filters.contactId) where.contactId = filters.contactId;
+    if (filters.channel)
+      where.channel =
+        filters.channel as import('@prisma/client').Prisma.EnumConversationChannelFilter;
+    if (filters.status)
+      where.status =
+        filters.status as import('@prisma/client').Prisma.EnumConversationStatusFilter;
+
+    const conversations = await this.prisma.conversation.findMany({
+      where,
+      orderBy: { lastActivityAt: 'desc' },
+      take: limit + 1,
+      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = conversations.length > limit;
+    const page = hasMore ? conversations.slice(0, limit) : conversations;
+
+    return list(page.map(serializeConversation), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
   }
 
   async findAgentOrThrow(context: RequestContext, id: string) {

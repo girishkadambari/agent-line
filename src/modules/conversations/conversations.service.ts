@@ -90,17 +90,50 @@ export class ConversationsService {
     return conversation;
   }
 
-  async listConversations(context: RequestContext, limit: number) {
+  async listConversations(
+    context: RequestContext,
+    limit: number,
+    filters: {
+      cursor?: string;
+      agentId?: string;
+      contactId?: string;
+      channel?: string;
+      status?: string;
+    } = {},
+  ) {
+    const where: Prisma.ConversationWhereInput = {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+    };
+
+    if (filters.agentId) {
+      where.agentId = filters.agentId;
+    }
+    if (filters.contactId) {
+      where.contactId = filters.contactId;
+    }
+    if (filters.channel) {
+      where.channel = filters.channel as Prisma.EnumConversationChannelFilter;
+    }
+    if (filters.status) {
+      where.status = filters.status as Prisma.EnumConversationStatusFilter;
+    }
+
     const conversations = await this.prisma.conversation.findMany({
-      where: {
-        workspaceId: context.workspaceId,
-        projectId: context.projectId,
-      },
+      where,
       orderBy: { lastActivityAt: 'desc' },
-      take: limit,
+      take: limit + 1,
+      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
     });
 
-    return list(conversations.map(serializeConversation), { limit, nextCursor: null });
+    const hasMore = conversations.length > limit;
+    const page = hasMore ? conversations.slice(0, limit) : conversations;
+
+    return list(page.map(serializeConversation), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
   }
 
   async getConversation(context: RequestContext, id: string) {
@@ -122,6 +155,28 @@ export class ConversationsService {
     await this.emitConversationEvent(context, VukhoEvent.ConversationUpdated, conversation);
 
     return serializeConversation(conversation);
+  }
+
+  /**
+   * Send a typing indicator for an agent in a conversation.
+   * Returns `{ conversationId, sentAt }` as the SDK expects.
+   */
+  async sendTypingIndicator(context: RequestContext, conversationId: string) {
+    await this.findConversationOrThrow(context, conversationId);
+    const sentAt = new Date().toISOString();
+
+    // Emit a typing event so webhook subscribers and SSE listeners are notified.
+    const event = await this.events.create({
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+      type: VukhoEvent.ConversationTyping,
+      resourceType: EventResourceType.Conversation,
+      resourceId: conversationId,
+      payload: { conversationId, sentAt },
+    });
+    await this.webhooks.createDeliveriesForEvent(event);
+
+    return { conversationId, sentAt };
   }
 
   private async emitConversationEvent(

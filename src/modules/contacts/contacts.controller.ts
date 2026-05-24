@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { updateContactSchema } from '../../domain/schemas';
+import { createContactSchema, updateContactSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
@@ -18,8 +18,23 @@ export class ContactsController {
   constructor(private readonly contacts: ContactsService) {}
 
   @Get()
-  listContacts(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
-    return this.contacts.listContacts(context, parseLimit(limit));
+  listContacts(
+    @CurrentContext() context: RequestContext,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.contacts.listContacts(context, parseLimit(limit), { search, cursor });
+  }
+
+  @Post()
+  @AllowApiKeyAuth()
+  @WorkspaceRoles('owner', 'admin', 'developer')
+  async createContact(
+    @CurrentContext() context: RequestContext,
+    @Body(new ZodValidationPipe(createContactSchema)) body: unknown,
+  ) {
+    return success(await this.contacts.createContact(context, createContactSchema.parse(body)));
   }
 
   @Get(':id')
@@ -36,5 +51,12 @@ export class ContactsController {
     @Body(new ZodValidationPipe(updateContactSchema)) body: unknown,
   ) {
     return success(await this.contacts.updateContact(context, id, updateContactSchema.parse(body)));
+  }
+
+  @Delete(':id')
+  @AllowApiKeyAuth()
+  @WorkspaceRoles('owner', 'admin', 'developer')
+  async deleteContact(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.contacts.deleteContact(context, id));
   }
 }

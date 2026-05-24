@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { list, parseLimit, success } from '../../common/api/api-response';
+import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -28,8 +28,12 @@ export class AgentsController {
   constructor(private readonly agents: AgentsService) {}
 
   @Get()
-  listAgents(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
-    return this.agents.listAgents(context, parseLimit(limit));
+  listAgents(
+    @CurrentContext() context: RequestContext,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.agents.listAgents(context, parseLimit(limit), cursor);
   }
 
   @Post()
@@ -44,7 +48,8 @@ export class AgentsController {
 
   @Get('voices')
   listVoices() {
-    return list(this.agents.listVoices());
+    // SDK expects a plain array, not a { data, pagination } envelope
+    return this.agents.listVoices();
   }
 
   @Get(':id/summary')
@@ -73,5 +78,33 @@ export class AgentsController {
   @WorkspaceRoles('owner', 'admin', 'developer')
   async disableAgent(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.agents.disableAgent(context, id));
+  }
+
+  @Get(':id/calls')
+  listAgentCalls(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.agents.listAgentCalls(context, id, parseLimit(limit), cursor);
+  }
+
+  @Get(':id/conversations')
+  listAgentConversations(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+    @Query('contactId') contactId?: string,
+    @Query('channel') channel?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.agents.listAgentConversations(context, id, parseLimit(limit), {
+      cursor,
+      contactId,
+      channel,
+      status,
+    });
   }
 }

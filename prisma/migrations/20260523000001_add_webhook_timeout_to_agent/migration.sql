@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS "webhookTimeoutSeconds" INTEGER NOT NULL DEFAULT 30;

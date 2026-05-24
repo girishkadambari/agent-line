@@ -186,11 +186,16 @@ export class WebhooksService {
       take: limit,
     });
 
-    return list(endpoints.map(serializeWebhookEndpoint), { limit, nextCursor: null });
+    return list(endpoints.map(serializeWebhookEndpoint), { limit, hasMore: false, nextCursor: null });
   }
 
   listEventCatalog() {
     return WEBHOOK_EVENT_CATALOG;
+  }
+
+  async getEndpoint(context: RequestContext, id: string) {
+    const endpoint = await this.findEndpointOrThrow(context, id);
+    return serializeWebhookEndpoint(endpoint);
   }
 
   async createEndpoint(context: RequestContext, input: CreateWebhookInput) {
@@ -364,7 +369,7 @@ export class WebhooksService {
       take: limit,
     });
 
-    return list(deliveries.map(serializeWebhookDelivery), { limit, nextCursor: null });
+    return list(deliveries.map(serializeWebhookDelivery), { limit, hasMore: false, nextCursor: null });
   }
 
   async retryDelivery(context: RequestContext, id: string, input: RetryWebhookDeliveryInput) {
@@ -453,7 +458,7 @@ export class WebhooksService {
       projectId: context.projectId,
     });
 
-    return list(processed.map(serializeWebhookDelivery), { limit, nextCursor: null });
+    return list(processed.map(serializeWebhookDelivery), { limit, hasMore: false, nextCursor: null });
   }
 
   async processDueDeliveriesForWorker(limit: number) {

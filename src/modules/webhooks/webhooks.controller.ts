@@ -43,6 +43,11 @@ export class WebhooksController {
     return success(this.webhooks.listEventCatalog());
   }
 
+  @Get(':id')
+  async getEndpoint(@CurrentContext() context: RequestContext, @Param('id') id: string) {
+    return success(await this.webhooks.getEndpoint(context, id));
+  }
+
   @Post()
   @WorkspaceRoles('owner', 'admin', 'developer')
   async createEndpoint(

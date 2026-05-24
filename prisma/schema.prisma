@@ -174,7 +174,10 @@ model Agent {
   beginMessage     String?
   transferNumber   String?
   voicemailMessage String?
-  webhookUrl       String?
+  webhookUrl            String?
+  webhookTimeoutSeconds Int     @default(30)
+  tier             String?
+  sttAccuracy      String?
   metadata         Json           @default("{}")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -190,19 +193,21 @@ model Agent {
 }
 
 model PhoneNumber {
-  id               String            @id
-  workspaceId      String
-  projectId        String
-  agentId          String?
-  phoneNumber      String
-  country          String
-  areaCode         String?
-  capabilities     String[]
-  status           PhoneNumberStatus @default(provisioning)
-  provider         ProviderName      @default(mock)
-  providerNumberId String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                 String            @id
+  workspaceId        String
+  projectId          String
+  agentId            String?
+  phoneNumber        String
+  country            String
+  areaCode           String?
+  capabilities       String[]
+  status             PhoneNumberStatus @default(provisioning)
+  provider           ProviderName      @default(mock)
+  providerNumberId   String?
+  /// Monthly rental cost in cents (e.g. 115 = $1.15). Set from provider at provision time.
+  monthlyRentalCents Int               @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   workspace        Workspace         @relation(fields: [workspaceId], references: [id])
   project          Project           @relation(fields: [projectId], references: [id])
   agent            Agent?            @relation(fields: [agentId], references: [id])

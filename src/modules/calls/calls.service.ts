@@ -44,7 +44,9 @@ export class CallsService {
 
   async createOutboundCall(context: RequestContext, input: CreateCallInput) {
     const agent = await this.findAgentOrThrow(context, input.agentId);
-    const phoneNumber = await this.findVoiceCapableNumberOrThrow(context, agent.id);
+    const phoneNumber = input.fromNumberId
+      ? await this.findSpecificNumberOrThrow(context, input.fromNumberId, agent.id)
+      : await this.findVoiceCapableNumberOrThrow(context, agent.id);
     const contact = await this.contacts.findOrCreateByPhoneNumber(context, input.to);
     const conversation = await this.conversations.findOrCreateVoiceConversation(
       context,
@@ -60,6 +62,8 @@ export class CallsService {
       agentId: agent.id,
       callId,
       durationSeconds: this.voicePreauthorizationSeconds,
+      direction: 'outbound',
+      agentMode: agent.mode,
     });
 
     let providerStarted = false;
@@ -173,33 +177,43 @@ export class CallsService {
 
   async createWebCallToken(context: RequestContext, input: CreateWebCallInput) {
     await this.findAgentOrThrow(context, input.agentId);
+    const callId = createId('call');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     return {
       token: `mock_web_call_${createId('tok')}`,
+      callId,
       agentId: input.agentId,
       expiresAt: expiresAt.toISOString(),
     };
   }
 
-  async listCalls(context: RequestContext, limit: number) {
+  async listCalls(context: RequestContext, limit: number, cursor?: string) {
     const calls = await this.prisma.call.findMany({
       where: {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
       },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    return list(calls.map(serializeCall), { limit, nextCursor: null });
+    const hasMore = calls.length > limit;
+    const page = hasMore ? calls.slice(0, limit) : calls;
+
+    return list(page.map(serializeCall), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
   }
 
   async getCall(context: RequestContext, id: string) {
     const call = await this.findCallOrThrow(context, id);
 
     // Run all async lookups in parallel.
-    const [recording, providerDiagnostics, costBreakdown] = await Promise.all([
+    const [recording, providerDiagnostics, costBreakdown, agent] = await Promise.all([
       call.recordingId
         ? this.prisma.recording.findUnique({
             where: { id: call.recordingId },
@@ -208,6 +222,10 @@ export class CallsService {
         : Promise.resolve(null),
       this.listProviderDiagnosticsForCall(call),
       this.getCallCostBreakdown(context.workspaceId, id, call.durationSeconds, call.direction),
+      this.prisma.agent.findUnique({
+        where: { id: call.agentId },
+        select: { mode: true },
+      }),
     ]);
 
     return {
@@ -215,6 +233,8 @@ export class CallsService {
       recordingUrl: recording?.url ?? null,
       providerDiagnostics,
       costBreakdown,
+      /** Agent mode at the time of the call. 'webhook' if the agent no longer exists. */
+      agentMode: agent?.mode ?? 'webhook',
     };
   }
 
@@ -251,12 +271,13 @@ export class CallsService {
       byChannel[event.channel] = (byChannel[event.channel] ?? 0) + cost;
     }
 
-    // `voice_minute` is the billable total charged to the customer.
+    // Voice minute event may be old 'voice' channel or new direction-specific ones.
     const billableMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
-    const total = parseFloat((byChannel['voice'] ?? billableMinutes * 0.03).toFixed(4));
+    const voiceCost = byChannel['voice'] ?? byChannel['voice.inbound'] ?? byChannel['voice.outbound'] ?? 0;
+    const total = parseFloat((voiceCost > 0 ? voiceCost : billableMinutes * 0.03).toFixed(4));
 
     // Twilio carrier cost — informational, not billed to customer separately.
-    const twilioRatePerMin = direction === 'outbound' ? 0.022 : 0.0085;
+    const twilioRatePerMin = direction === Direction.outbound ? 0.022 : 0.0085;
     const twilio = parseFloat((billableMinutes * twilioRatePerMin).toFixed(4));
 
     const llm = parseFloat((byChannel['voice.ai.llm'] ?? 0).toFixed(4));
@@ -502,6 +523,7 @@ export class CallsService {
         capabilities: { has: 'voice' },
         agentId: { not: null },
       },
+      include: { agent: { select: { mode: true } } },
     });
 
     if (!phoneNumber?.agentId) {
@@ -568,6 +590,8 @@ export class CallsService {
       agentId: phoneNumber.agentId,
       callId,
       durationSeconds: this.voicePreauthorizationSeconds,
+      direction: 'inbound',
+      agentMode: phoneNumber.agent?.mode ?? 'webhook',
     });
 
     const call = await this.prisma.call.create({
@@ -827,6 +851,7 @@ export class CallsService {
 
     return list(turns.map(serializeTranscriptTurn), {
       limit: turns.length,
+      hasMore: false,
       nextCursor: null,
     });
   }
@@ -1260,7 +1285,7 @@ export class CallsService {
         projectId: context.projectId,
         status: 'active',
       },
-      select: { id: true },
+      select: { id: true, mode: true },
     });
 
     if (!agent) {
@@ -1268,6 +1293,34 @@ export class CallsService {
     }
 
     return agent;
+  }
+
+  private async findSpecificNumberOrThrow(
+    context: RequestContext,
+    phoneNumberId: string,
+    agentId: string,
+  ) {
+    const phoneNumber = await this.prisma.phoneNumber.findFirst({
+      where: {
+        id: phoneNumberId,
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        agentId,
+        status: 'active',
+        capabilities: { has: 'voice' },
+      },
+    });
+
+    if (!phoneNumber) {
+      throw new ApiException(
+        'not_found',
+        'Specified fromNumberId not found or not attached to this agent.',
+        404,
+        { phoneNumberId, agentId },
+      );
+    }
+
+    return phoneNumber;
   }
 
   private async findVoiceCapableNumberOrThrow(context: RequestContext, agentId: string) {

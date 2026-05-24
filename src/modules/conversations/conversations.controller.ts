@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 
 import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
@@ -18,8 +18,22 @@ export class ConversationsController {
   constructor(private readonly conversations: ConversationsService) {}
 
   @Get()
-  listConversations(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
-    return this.conversations.listConversations(context, parseLimit(limit));
+  listConversations(
+    @CurrentContext() context: RequestContext,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+    @Query('agentId') agentId?: string,
+    @Query('contactId') contactId?: string,
+    @Query('channel') channel?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.conversations.listConversations(context, parseLimit(limit), {
+      cursor,
+      agentId,
+      contactId,
+      channel,
+      status,
+    });
   }
 
   @Get(':id')
@@ -42,5 +56,15 @@ export class ConversationsController {
         updateConversationSchema.parse(body),
       ),
     );
+  }
+
+  @Post(':id/typing')
+  @AllowApiKeyAuth()
+  @WorkspaceRoles('owner', 'admin', 'developer')
+  async sendTypingIndicator(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+  ) {
+    return success(await this.conversations.sendTypingIndicator(context, id));
   }
 }

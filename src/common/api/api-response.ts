@@ -1,5 +1,6 @@
 export interface ApiListPagination {
   limit: number;
+  hasMore: boolean;
   nextCursor: string | null;
 }
 
@@ -37,7 +38,7 @@ export function success<T>(data: T): ApiSuccessResponse<T> {
 
 export function list<T>(
   data: T[],
-  pagination: ApiListPagination = { limit: 50, nextCursor: null },
+  pagination: ApiListPagination = { limit: 50, hasMore: false, nextCursor: null },
 ): ApiListResponse<T> {
   return { data, pagination };
 }

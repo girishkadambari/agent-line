@@ -7,13 +7,15 @@ import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import { VukhoEvent, AuditAction, EventResourceType } from '../../domain/events';
 import type { TelecomProvider } from '../../domain/provider';
-import type { CreateNumberInput, ImportNumberInput, UpdateNumberInput } from '../../domain/schemas';
+import type { CreateNumberInput, ImportNumberInput, SearchNumbersInput, UpdateNumberInput } from '../../domain/schemas';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TELECOM_PROVIDER } from '../providers/providers.constants';
 import { UsageService } from '../usage/usage.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { AuditService } from '../audit/audit.service';
+import { serializeCall } from '../calls/calls.serializer';
+import { serializeMessage } from '../messages/messages.serializer';
 import { serializeNumber } from './numbers.serializer';
 
 @Injectable()
@@ -27,17 +29,31 @@ export class NumbersService {
     private readonly audit: AuditService,
   ) {}
 
-  async listNumbers(context: RequestContext, limit: number) {
+  /** Search available phone numbers without buying them. Used by the UI search → pick → buy flow. */
+  async searchAvailableNumbers(input: SearchNumbersInput) {
+    const result = await this.telecomProvider.searchNumbers(input);
+    return result.numbers;
+  }
+
+  async listNumbers(context: RequestContext, limit: number, cursor?: string) {
     const numbers = await this.prisma.phoneNumber.findMany({
       where: {
         workspaceId: context.workspaceId,
         projectId: context.projectId,
       },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    return list(numbers.map(serializeNumber), { limit, nextCursor: null });
+    const hasMore = numbers.length > limit;
+    const page = hasMore ? numbers.slice(0, limit) : numbers;
+
+    return list(page.map(serializeNumber), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
   }
 
   async provisionNumber(context: RequestContext, input: CreateNumberInput) {
@@ -76,6 +92,7 @@ export class NumbersService {
         country: input.country,
         areaCode: input.areaCode,
         capabilities: input.capabilities,
+        exactPhoneNumber: input.exactPhoneNumber,
       });
       providerNumberId = provisioned.providerNumberId;
 
@@ -89,6 +106,7 @@ export class NumbersService {
           status: 'active',
           provider: provisioned.provider,
           providerNumberId: provisioned.providerNumberId,
+          monthlyRentalCents: provisioned.monthlyRentalCents,
         },
       });
       await this.emitNumberEvent(context, VukhoEvent.NumberProvisioned, number);
@@ -348,6 +366,64 @@ export class NumbersService {
       },
     });
     await this.webhooks.createDeliveriesForEvent(event);
+  }
+
+  async listNumberCalls(
+    context: RequestContext,
+    numberId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    await this.findNumberOrThrow(context, numberId);
+
+    const calls = await this.prisma.call.findMany({
+      where: {
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        phoneNumberId: numberId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = calls.length > limit;
+    const page = hasMore ? calls.slice(0, limit) : calls;
+
+    return list(page.map(serializeCall), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
+  }
+
+  async listNumberMessages(
+    context: RequestContext,
+    numberId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    await this.findNumberOrThrow(context, numberId);
+
+    const messages = await this.prisma.message.findMany({
+      where: {
+        workspaceId: context.workspaceId,
+        projectId: context.projectId,
+        phoneNumberId: numberId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = messages.length > limit;
+    const page = hasMore ? messages.slice(0, limit) : messages;
+
+    return list(page.map(serializeMessage), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
   }
 
   private async findNumberOrThrow(context: RequestContext, id: string) {

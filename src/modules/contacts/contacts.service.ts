@@ -6,7 +6,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ApiException } from '../../common/errors/api.exception';
 import { createId } from '../../common/ids';
 import { VukhoEvent, EventResourceType } from '../../domain/events';
-import type { UpdateContactInput } from '../../domain/schemas';
+import type { CreateContactInput, UpdateContactInput } from '../../domain/schemas';
 import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
@@ -20,12 +20,25 @@ export class ContactsService {
     private readonly webhooks: WebhooksService,
   ) {}
 
-  async listContacts(context: RequestContext, limit: number) {
+  async listContacts(
+    context: RequestContext,
+    limit: number,
+    filters: { search?: string; cursor?: string } = {},
+  ) {
+    const where: Prisma.ContactWhereInput = {
+      workspaceId: context.workspaceId,
+      projectId: context.projectId,
+    };
+
+    if (filters.search) {
+      where.OR = [
+        { phoneNumber: { contains: filters.search, mode: 'insensitive' } },
+        { displayName: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
     const contacts = await this.prisma.contact.findMany({
-      where: {
-        workspaceId: context.workspaceId,
-        projectId: context.projectId,
-      },
+      where,
       include: {
         _count: {
           select: {
@@ -36,10 +49,89 @@ export class ContactsService {
         },
       },
       orderBy: { updatedAt: 'desc' },
-      take: limit,
+      take: limit + 1,
+      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
     });
 
-    return list(contacts.map(serializeContact), { limit, nextCursor: null });
+    const hasMore = contacts.length > limit;
+    const page = hasMore ? contacts.slice(0, limit) : contacts;
+
+    return list(page.map(serializeContact), {
+      limit,
+      hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    });
+  }
+
+  /**
+   * Create or upsert a contact by phoneNumber.
+   * If a contact with the same phoneNumber already exists in the project, it is updated
+   * with the supplied displayName and metadata (partial update — omitted fields are left as-is).
+   */
+  async createContact(context: RequestContext, input: CreateContactInput) {
+    const contactId = createId('ctc');
+
+    const contact = await this.prisma.contact
+      .create({
+        data: {
+          id: contactId,
+          workspaceId: context.workspaceId,
+          projectId: context.projectId,
+          phoneNumber: input.phoneNumber,
+          displayName: input.displayName ?? null,
+          metadata: input.metadata as Prisma.InputJsonValue,
+        },
+        include: {
+          _count: {
+            select: {
+              conversations: true,
+              messages: true,
+              calls: true,
+            },
+          },
+        },
+      })
+      .catch(async (error) => {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        // Upsert: update existing contact's display name and metadata.
+        return this.prisma.contact.update({
+          where: {
+            projectId_phoneNumber: {
+              projectId: context.projectId,
+              phoneNumber: input.phoneNumber,
+            },
+          },
+          data: {
+            displayName: input.displayName !== undefined ? input.displayName : undefined,
+            metadata:
+              input.metadata && Object.keys(input.metadata).length > 0
+                ? (input.metadata as Prisma.InputJsonValue)
+                : undefined,
+          },
+          include: {
+            _count: {
+              select: {
+                conversations: true,
+                messages: true,
+                calls: true,
+              },
+            },
+          },
+        });
+      });
+
+    if (contact.id === contactId) {
+      // New contact — emit created event.
+      await this.emitContactEvent(context, VukhoEvent.ContactCreated, contact);
+    } else {
+      // Existing contact was updated.
+      await this.emitContactEvent(context, VukhoEvent.ContactUpdated, contact);
+    }
+
+    return serializeContact(contact);
   }
 
   async getContact(context: RequestContext, id: string) {
@@ -69,6 +161,14 @@ export class ContactsService {
     await this.emitContactEvent(context, VukhoEvent.ContactUpdated, contact);
 
     return serializeContact(contact);
+  }
+
+  async deleteContact(context: RequestContext, id: string) {
+    await this.findContactOrThrow(context, id);
+
+    await this.prisma.contact.delete({ where: { id } });
+
+    return { id, deleted: true };
   }
 
   async findOrCreateByPhoneNumber(context: RequestContext, phoneNumber: string) {

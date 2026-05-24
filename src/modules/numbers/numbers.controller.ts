@@ -14,7 +14,7 @@ import { parseLimit, success } from '../../common/api/api-response';
 import { CurrentContext } from '../../common/context/current-context.decorator';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { createNumberSchema, importNumberSchema, updateNumberSchema } from '../../domain/schemas';
+import { createNumberSchema, importNumberSchema, searchNumbersSchema, updateNumberSchema } from '../../domain/schemas';
 import { AuthContextGuard } from '../auth/auth-context.guard';
 import { AllowApiKeyAuth } from '../auth/api-key-auth.decorator';
 import { CsrfGuard } from '../auth/csrf.guard';
@@ -27,9 +27,35 @@ import { NumbersService } from './numbers.service';
 export class NumbersController {
   constructor(private readonly numbers: NumbersService) {}
 
+  /**
+   * Search available phone numbers without purchasing.
+   * Developers call this first to browse options with pricing, then POST /numbers with the chosen
+   * `exactPhoneNumber` to buy it. Mirrors the Retell/Plivo search-then-buy flow.
+   */
+  @Get('numbers/search')
+  @AllowApiKeyAuth()
+  async searchNumbers(
+    @Query('country') country?: string,
+    @Query('areaCode') areaCode?: string,
+    @Query('capabilities') capabilities?: string | string[],
+  ) {
+    const parsed = searchNumbersSchema.parse({
+      country,
+      areaCode,
+      capabilities: Array.isArray(capabilities)
+        ? capabilities
+        : capabilities?.split(',').filter(Boolean),
+    });
+    return success(await this.numbers.searchAvailableNumbers(parsed));
+  }
+
   @Get('numbers')
-  listNumbers(@CurrentContext() context: RequestContext, @Query('limit') limit?: string) {
-    return this.numbers.listNumbers(context, parseLimit(limit));
+  listNumbers(
+    @CurrentContext() context: RequestContext,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.numbers.listNumbers(context, parseLimit(limit), cursor);
   }
 
   @Post('numbers')
@@ -73,6 +99,26 @@ export class NumbersController {
   @WorkspaceRoles('owner', 'admin', 'developer')
   async releaseNumber(@CurrentContext() context: RequestContext, @Param('id') id: string) {
     return success(await this.numbers.releaseNumber(context, id));
+  }
+
+  @Get('numbers/:id/calls')
+  listNumberCalls(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.numbers.listNumberCalls(context, id, parseLimit(limit), cursor);
+  }
+
+  @Get('numbers/:id/messages')
+  listNumberMessages(
+    @CurrentContext() context: RequestContext,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.numbers.listNumberMessages(context, id, parseLimit(limit), cursor);
   }
 
   @Post('agents/:id/numbers')

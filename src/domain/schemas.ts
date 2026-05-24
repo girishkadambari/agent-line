@@ -49,16 +49,35 @@ export const createAgentSchema = z.object({
   transferNumber: z.string().optional(),
   voicemailMessage: z.string().optional(),
   webhookUrl: z.string().url().optional(),
+  webhookTimeoutSeconds: z.number().int().min(5).max(120).optional(),
+  /**
+   * Billing tier for this agent (e.g. 'starter', 'growth', 'enterprise').
+   * Controls which rate-card rows apply. Defaults to the workspace plan.
+   */
+  tier: z.string().optional(),
+  /**
+   * Speech-to-text accuracy mode ('standard' | 'enhanced').
+   * 'enhanced' uses a higher-accuracy STT model at higher cost.
+   */
+  sttAccuracy: z.enum(['standard', 'enhanced']).optional(),
   metadata: z.record(z.unknown()).default({}),
 });
 
 export const updateAgentSchema = createAgentSchema.partial();
+
+export const searchNumbersSchema = z.object({
+  country: z.string().default('US'),
+  areaCode: z.string().optional(),
+  capabilities: z.array(z.enum(['sms', 'mms', 'voice'])).default(['sms', 'voice']),
+});
 
 export const createNumberSchema = z.object({
   agentId: z.string().optional(),
   country: z.string().default('US'),
   areaCode: z.string().optional(),
   capabilities: z.array(z.enum(['sms', 'mms', 'voice'])).default(['sms', 'voice']),
+  /** E.164 number picked from a prior GET /numbers/search response. */
+  exactPhoneNumber: z.string().optional(),
 });
 
 export const importNumberSchema = z.object({
@@ -90,6 +109,12 @@ export const updateConversationSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
+export const createContactSchema = z.object({
+  phoneNumber: z.string().min(7),
+  displayName: z.string().min(1).nullable().optional(),
+  metadata: z.record(z.unknown()).default({}),
+});
+
 export const updateContactSchema = z.object({
   displayName: z.string().min(1).nullable().optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -98,10 +123,27 @@ export const updateContactSchema = z.object({
 export const createCallSchema = z.object({
   agentId: z.string().min(1),
   to: z.string().min(7),
+  /** Override which provisioned number to call from (must belong to the agent). */
+  fromNumberId: z.string().optional(),
+  /** Override the agent's begin message for this call. */
+  greeting: z.string().optional(),
+  /** Override the agent's configured voice for this call. */
+  voiceId: z.string().optional(),
+  /** Override the agent's system prompt for this call. */
+  systemPrompt: z.string().optional(),
+  /** Arbitrary key/value metadata attached to this call. */
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export const createWebCallSchema = z.object({
   agentId: z.string().min(1),
+  /** Optional greeting override for this web call session. */
+  greeting: z.string().optional(),
+  /** Optional voice override for this web call session. */
+  voiceId: z.string().optional(),
+  /** Optional system prompt override for this web call session. */
+  systemPrompt: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export const transferCallSchema = z.object({
@@ -213,12 +255,14 @@ export const acceptInviteSchema = z.object({
 
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
 export type UpdateAgentInput = z.infer<typeof updateAgentSchema>;
+export type SearchNumbersInput = z.infer<typeof searchNumbersSchema>;
 export type CreateNumberInput = z.infer<typeof createNumberSchema>;
 export type ImportNumberInput = z.infer<typeof importNumberSchema>;
 export type UpdateNumberInput = z.infer<typeof updateNumberSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type SimulateInboundSmsInput = z.infer<typeof simulateInboundSmsSchema>;
 export type UpdateConversationInput = z.infer<typeof updateConversationSchema>;
+export type CreateContactInput = z.infer<typeof createContactSchema>;
 export type UpdateContactInput = z.infer<typeof updateContactSchema>;
 export type CreateCallInput = z.infer<typeof createCallSchema>;
 export type CreateWebCallInput = z.infer<typeof createWebCallSchema>;
