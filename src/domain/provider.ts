@@ -6,18 +6,24 @@ export interface SearchNumbersInput {
   capabilities: ProviderCapability[];
 }
 
+export interface AvailablePhoneNumber {
+  phoneNumber: string;
+  country: string;
+  areaCode?: string;
+  capabilities: ProviderCapability[];
+  /** Monthly rental in cents (e.g. 115 = $1.15). 0 if the provider did not return pricing. */
+  monthlyRentalCents: number;
+}
+
 export interface SearchNumbersResult {
-  numbers: Array<{
-    phoneNumber: string;
-    country: string;
-    areaCode?: string;
-    capabilities: ProviderCapability[];
-  }>;
+  numbers: AvailablePhoneNumber[];
 }
 
 export interface ProvisionNumberInput extends SearchNumbersInput {
   workspaceId: string;
   projectId: string;
+  /** Exact E.164 number to provision (from a prior search). If omitted, the provider picks one. */
+  exactPhoneNumber?: string;
   inboundSmsUrl?: string;
   inboundSmsMethod?: "POST" | "GET";
   statusCallbackUrl?: string;
@@ -30,6 +36,8 @@ export interface ProvisionNumberResult {
   country: string;
   areaCode?: string;
   capabilities: ProviderCapability[];
+  /** Monthly rental in cents. Captured at provision time so it never goes stale. */
+  monthlyRentalCents: number;
 }
 
 export interface ImportNumberInput {

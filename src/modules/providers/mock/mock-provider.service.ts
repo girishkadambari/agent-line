@@ -29,20 +29,24 @@ export class MockProviderService implements TelecomProvider {
         country: input.country,
         areaCode: input.areaCode,
         capabilities: input.capabilities,
+        monthlyRentalCents: 100, // $1.00 mock price
       })),
     };
   }
 
   async provisionNumber(input: ProvisionNumberInput): Promise<ProvisionNumberResult> {
     const uniqueSuffix = this.uniqueSuffix();
+    const phoneNumber = input.exactPhoneNumber
+      ?? this.mockPhoneNumber(input.country, input.areaCode, Number(uniqueSuffix.slice(-4)));
 
     return {
       provider: 'mock',
       providerNumberId: `mock_num_${input.projectId}_${input.areaCode ?? '000'}_${uniqueSuffix}`,
-      phoneNumber: this.mockPhoneNumber(input.country, input.areaCode, Number(uniqueSuffix.slice(-4))),
+      phoneNumber,
       country: input.country,
       areaCode: input.areaCode,
       capabilities: input.capabilities,
+      monthlyRentalCents: 100, // $1.00 mock price
     };
   }
 
@@ -53,6 +57,7 @@ export class MockProviderService implements TelecomProvider {
       phoneNumber: input.phoneNumber,
       country: 'US',
       capabilities: input.capabilities,
+      monthlyRentalCents: 0, // imported numbers have no provision cost here
     };
   }
 

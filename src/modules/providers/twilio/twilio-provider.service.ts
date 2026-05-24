@@ -25,6 +25,8 @@ import type {
 interface TwilioAvailableNumber {
   phone_number: string;
   iso_country: string;
+  /** Twilio returns this as a string like "1.00000" */
+  monthly_rental_price?: string;
   capabilities?: {
     SMS?: boolean;
     MMS?: boolean;
@@ -36,6 +38,8 @@ interface TwilioIncomingNumber {
   sid: string;
   phone_number: string;
   iso_country?: string;
+  /** Present on the purchased number response */
+  monthly_rental_price?: string;
   capabilities?: TwilioAvailableNumber['capabilities'];
 }
 
@@ -69,6 +73,7 @@ export class TwilioProviderService implements TelecomProvider {
             country: input.country,
             areaCode: input.areaCode,
             capabilities: input.capabilities,
+            monthlyRentalCents: 100, // $1.00 test price
           },
         ],
       };
@@ -99,20 +104,36 @@ export class TwilioProviderService implements TelecomProvider {
         country: number.iso_country,
         areaCode: input.areaCode,
         capabilities: this.normalizeCapabilities(number.capabilities),
+        monthlyRentalCents: this.parsePriceToCents(number.monthly_rental_price),
       })),
     };
   }
 
   async provisionNumber(input: ProvisionNumberInput): Promise<ProvisionNumberResult> {
-    const phoneNumber = this.isTestMode()
-      ? this.getTestPhoneNumber()
-      : (await this.searchNumbers(input)).numbers[0]?.phoneNumber;
+    // Use the exact number the developer picked from a prior search, or fall back to auto-select.
+    let phoneNumber: string;
+    let monthlyRentalCents = 0;
 
-    if (!phoneNumber) {
-      throw new ApiException('provider_error', 'Twilio returned no available phone numbers.', 502, {
-        country: input.country,
-        areaCode: input.areaCode,
-      });
+    if (this.isTestMode()) {
+      phoneNumber = this.getTestPhoneNumber();
+      monthlyRentalCents = 100; // $1.00 test price
+    } else if (input.exactPhoneNumber) {
+      phoneNumber = input.exactPhoneNumber;
+      // Re-fetch pricing for the chosen number so the stored cost is accurate.
+      const result = await this.searchNumbers(input);
+      const match = result.numbers.find((n) => n.phoneNumber === input.exactPhoneNumber);
+      monthlyRentalCents = match?.monthlyRentalCents ?? 0;
+    } else {
+      const result = await this.searchNumbers(input);
+      const first = result.numbers[0];
+      if (!first) {
+        throw new ApiException('provider_error', 'Twilio returned no available phone numbers.', 502, {
+          country: input.country,
+          areaCode: input.areaCode,
+        });
+      }
+      phoneNumber = first.phoneNumber;
+      monthlyRentalCents = first.monthlyRentalCents;
     }
 
     const body: Record<string, string> = { PhoneNumber: phoneNumber };
@@ -131,6 +152,7 @@ export class TwilioProviderService implements TelecomProvider {
       country: response.iso_country ?? input.country,
       areaCode: input.areaCode,
       capabilities: this.normalizeCapabilities(response.capabilities, input.capabilities),
+      monthlyRentalCents: this.parsePriceToCents(response.monthly_rental_price) || monthlyRentalCents,
     };
   }
 
@@ -160,6 +182,8 @@ export class TwilioProviderService implements TelecomProvider {
       phoneNumber: configured.phone_number,
       country: configured.iso_country ?? 'US',
       capabilities: this.normalizeCapabilities(configured.capabilities, input.capabilities),
+      // Imported numbers don't have pricing — the number is already paid for externally.
+      monthlyRentalCents: 0,
     };
   }
 
@@ -379,6 +403,13 @@ export class TwilioProviderService implements TelecomProvider {
 
   private getTestPhoneNumber() {
     return this.config.get<string>('TWILIO_FROM_NUMBER', '+15005550006');
+  }
+
+  /** Parse Twilio's string price (e.g. "1.00000") to integer cents (100). */
+  private parsePriceToCents(price?: string): number {
+    if (!price) return 0;
+    const dollars = parseFloat(price);
+    return isNaN(dollars) ? 0 : Math.round(dollars * 100);
   }
 
   private normalizeCapabilities(

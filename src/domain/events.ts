@@ -20,6 +20,7 @@ export const VukhoEvent = {
   CallTransferred: 'agent.call.transferred',
   ConversationCreated: 'agent.conversation.created',
   ConversationUpdated: 'agent.conversation.updated',
+  ConversationTyping: 'agent.conversation.typing',
   ContactCreated: 'agent.contact.created',
   ContactUpdated: 'agent.contact.updated',
   UsageRecorded: 'agent.usage.recorded',

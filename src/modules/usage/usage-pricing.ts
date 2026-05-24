@@ -25,6 +25,7 @@ export const DEFAULT_USAGE_RATES = [
     unitCostCents: 1,
     formula: 'inbound_messages * sms_inbound',
   },
+  // Kept for backward compatibility with pre-existing usage events.
   {
     key: 'voice_minute',
     resourceType: 'call',
@@ -32,6 +33,25 @@ export const DEFAULT_USAGE_RATES = [
     unit: 'minute',
     unitCostCents: 3,
     formula: 'ceil(duration_seconds / 60) * voice_minute',
+  },
+  // Direction-aware rate keys — used for all new calls.
+  // Inbound and outbound share the same rate today but are tracked separately
+  // so per-direction pricing can be introduced without a data migration.
+  {
+    key: 'voice_inbound_minute',
+    resourceType: 'call',
+    channel: 'voice.inbound',
+    unit: 'minute',
+    unitCostCents: 3,
+    formula: 'ceil(duration_seconds / 60) * voice_inbound_minute',
+  },
+  {
+    key: 'voice_outbound_minute',
+    resourceType: 'call',
+    channel: 'voice.outbound',
+    unit: 'minute',
+    unitCostCents: 3,
+    formula: 'ceil(duration_seconds / 60) * voice_outbound_minute',
   },
   // ── Per-turn component costs (hosted mode) ──────────────────────────────────
   // These capture the cost of each AI turn so the dashboard can show a breakdown.

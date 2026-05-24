@@ -39,7 +39,18 @@ export class InternalVoiceController {
 
     try {
       for await (const chunk of this.service.handleTurnStream(callSid, body.transcript)) {
-        res.write(JSON.stringify({ text: chunk.text, interim: chunk.interim }) + '\n');
+        // Build the NDJSON line, propagating all action fields so vukho-voice
+        // can execute hangup, transfer, DTMF, and SMS without a second round-trip.
+        const line: Record<string, unknown> = {
+          text: chunk.text,
+          interim: chunk.interim,
+        };
+        if (chunk.hangup) line['hangup'] = true;
+        if (chunk.action) line['action'] = chunk.action;
+        if (chunk.transferTo) line['transferTo'] = chunk.transferTo;
+        if (chunk.sendMessage) line['sendMessage'] = chunk.sendMessage;
+        if (chunk.digits) line['digits'] = chunk.digits;
+        res.write(JSON.stringify(line) + '\n');
       }
       res.end();
     } catch (err) {
@@ -52,6 +63,22 @@ export class InternalVoiceController {
         res.end();
       }
     }
+  }
+
+  /**
+   * Send an SMS to the caller on behalf of the agent.
+   * Called by vukho-voice when a turn response includes a send_message action.
+   */
+  @Post(':callSid/sms')
+  @HttpCode(200)
+  async sendSms(
+    @Param('callSid') callSid: string,
+    @Headers('x-vukho-secret') secret: string,
+    @Body() body: { body: string },
+  ) {
+    this.service.verifySecret(secret);
+    await this.service.sendCallSms(callSid, body.body);
+    return { ok: true };
   }
 
   @Post(':callSid/events')

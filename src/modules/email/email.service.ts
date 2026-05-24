@@ -45,7 +45,7 @@ export class EmailService {
       take: input.limit,
     });
 
-    return list(deliveries.map(serializeEmailDelivery), { limit: input.limit, nextCursor: null });
+    return list(deliveries.map(serializeEmailDelivery), { limit: input.limit, hasMore: false, nextCursor: null });
   }
 
   async sendWorkspaceInviteEmail(input: WorkspaceInviteEmailInput) {

@@ -190,12 +190,13 @@ export class UsageService {
   }
 
   async finalizeVoiceCall(input: { workspaceId: string; callId: string; durationSeconds: number }) {
+    // Find the voice minute event — could be old 'voice' channel or new direction-specific ones.
     const event = await this.prisma.usageEvent.findFirst({
       where: {
         workspaceId: input.workspaceId,
         resourceType: EventResourceType.Call,
         resourceId: input.callId,
-        channel: 'voice',
+        channel: { in: ['voice', 'voice.inbound', 'voice.outbound'] },
       },
     });
 
@@ -204,7 +205,13 @@ export class UsageService {
     }
 
     const quantity = secondsToBillableMinutes(input.durationSeconds);
-    const rate = await this.rateCards.getRate('voice_minute');
+    // Use the rate that matches the event's channel; fall back to voice_minute for legacy events.
+    const rateKey = event.channel === 'voice.outbound'
+      ? 'voice_outbound_minute'
+      : event.channel === 'voice.inbound'
+        ? 'voice_inbound_minute'
+        : 'voice_minute';
+    const rate = await this.rateCards.getRate(rateKey);
     const totalCents = quantity * rate.unitCostCents;
     const currentCents = Math.ceil(new Decimal(event.totalCost).mul(100).toNumber());
     const deltaCents = totalCents - currentCents;
@@ -313,8 +320,12 @@ export class UsageService {
     agentId: string;
     callId: string;
     durationSeconds: number;
+    direction: 'inbound' | 'outbound';
+    agentMode: 'hosted' | 'webhook' | 'web';
   }) {
     const minutes = secondsToBillableMinutes(input.durationSeconds);
+    const rateKey = input.direction === 'outbound' ? 'voice_outbound_minute' : 'voice_inbound_minute';
+    const channel = input.direction === 'outbound' ? 'voice.outbound' : 'voice.inbound';
 
     return this.recordUsage({
       workspaceId: input.workspaceId,
@@ -322,10 +333,10 @@ export class UsageService {
       agentId: input.agentId,
       resourceType: EventResourceType.Call,
       resourceId: input.callId,
-      channel: 'voice',
+      channel,
       quantity: minutes,
       unit: 'minute',
-      rateKey: 'voice_minute',
+      rateKey,
       calculation: {
         formula: 'ceil(durationSeconds / 60) * voiceMinuteCents',
         durationSeconds: input.durationSeconds,
@@ -334,6 +345,8 @@ export class UsageService {
       evidence: {
         source: 'voice.call.preauthorization',
         callId: input.callId,
+        direction: input.direction,
+        agentMode: input.agentMode,
         preauthorizedDurationSeconds: input.durationSeconds,
       },
       reportToStripe: false,
@@ -347,17 +360,17 @@ export class UsageService {
       take: limit,
     });
 
-    return list(events.map(serializeUsageEvent), { limit, nextCursor: null });
+    return list(events.map(serializeUsageEvent), { limit, hasMore: false, nextCursor: null });
   }
 
   async getDailyUsage(context: RequestContext, input: UsageQueryInput) {
     const events = await this.findUsageForRollup(context, input);
-    return list(this.rollup(events, 'day'), { limit: events.length, nextCursor: null });
+    return list(this.rollup(events, 'day'), { limit: events.length, hasMore: false, nextCursor: null });
   }
 
   async getMonthlyUsage(context: RequestContext, input: UsageQueryInput) {
     const events = await this.findUsageForRollup(context, input);
-    return list(this.rollup(events, 'month'), { limit: events.length, nextCursor: null });
+    return list(this.rollup(events, 'month'), { limit: events.length, hasMore: false, nextCursor: null });
   }
 
   private findUsageForRollup(context: RequestContext, input: UsageQueryInput) {

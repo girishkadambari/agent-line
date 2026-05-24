@@ -46,7 +46,7 @@ export class ProviderEventsService {
           resources.get(this.baseProviderEventId(event.providerEventId)),
         ),
       ),
-      { limit, nextCursor: null },
+      { limit, hasMore: false, nextCursor: null },
     );
   }
 

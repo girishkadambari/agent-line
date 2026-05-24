@@ -12,6 +12,8 @@ export function serializeNumber(number: PhoneNumber) {
     capabilities: number.capabilities,
     status: number.status,
     provider: number.provider,
+    /** Monthly rental in cents captured at provision time (e.g. 100 = $1.00). */
+    monthlyRentalCents: number.monthlyRentalCents,
     createdAt: number.createdAt.toISOString(),
     updatedAt: number.updatedAt.toISOString(),
   };

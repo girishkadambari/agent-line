@@ -335,7 +335,7 @@ export class MessagesService {
       take: limit,
     });
 
-    return list(messages.map(serializeMessage), { limit, nextCursor: null });
+    return list(messages.map(serializeMessage), { limit, hasMore: false, nextCursor: null });
   }
 
   async addReaction(context: RequestContext, messageId: string) {

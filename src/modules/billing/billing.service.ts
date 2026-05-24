@@ -789,7 +789,7 @@ export class BillingService {
       take: limit,
     });
 
-    return list(transactions.map(serializeBillingTransaction), { limit, nextCursor: null });
+    return list(transactions.map(serializeBillingTransaction), { limit, hasMore: false, nextCursor: null });
   }
 
   async handleStripeWebhook(rawBody: Buffer, signature: string | undefined) {

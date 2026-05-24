@@ -204,7 +204,7 @@ export class WorkspacesService {
           updatedAt: project.updatedAt.toISOString(),
         })),
       })),
-      { limit, nextCursor: null },
+      { limit, hasMore: false, nextCursor: null },
     );
   }
 
@@ -298,7 +298,7 @@ export class WorkspacesService {
       take: limit,
     });
 
-    return list(members.map(serializeMember), { limit, nextCursor: null });
+    return list(members.map(serializeMember), { limit, hasMore: false, nextCursor: null });
   }
 
   async updateMember(context: RequestContext, memberId: string, input: UpdateMemberInput) {
@@ -361,7 +361,7 @@ export class WorkspacesService {
 
     return list(
       invites.map((invite) => serializeInvite(invite)),
-      { limit, nextCursor: null },
+      { limit, hasMore: false, nextCursor: null },
     );
   }
 

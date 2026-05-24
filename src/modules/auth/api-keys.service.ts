@@ -46,7 +46,7 @@ export class ApiKeysService {
       take: limit,
     });
 
-    return list(apiKeys.map(serializeApiKey), { limit, nextCursor: null });
+    return list(apiKeys.map(serializeApiKey), { limit, hasMore: false, nextCursor: null });
   }
 
   async createApiKey(context: RequestContext, input: CreateApiKeyInput) {

@@ -93,7 +93,7 @@ export class AuditService {
           event.actorApiKeyId ? apiKeysById.get(event.actorApiKeyId) : undefined,
         ),
       ),
-      { limit, nextCursor: null },
+      { limit, hasMore: false, nextCursor: null },
     );
   }
 }

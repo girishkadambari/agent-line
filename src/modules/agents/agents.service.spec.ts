@@ -224,14 +224,16 @@ describe('AgentsService', () => {
   it('lists agents with documented pagination shape', async () => {
     const prisma = {
       agent: {
-        findMany: jest.fn().mockResolvedValue([agentFixture()]),
+        findMany: jest.fn().mockResolvedValue([
+          { ...agentFixture(), _count: { phoneNumbers: 1, calls: 2, messages: 5 } },
+        ]),
       },
     } as unknown as PrismaService;
     const { service } = createService(prisma);
 
     await expect(service.listAgents(context, 10)).resolves.toMatchObject({
       data: [{ id: 'agt_123' }],
-      pagination: { limit: 10, nextCursor: null },
+      pagination: { limit: 10, hasMore: false, nextCursor: null },
     });
   });
 
